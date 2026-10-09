@@ -1,4 +1,5 @@
 using System.Diagnostics.Metrics;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -8,9 +9,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using Themis.FixtureModule;
-using Themis.FixtureModule.Api;
 using Themis.FixtureModule.Contracts;
 using Themis.Kernel.Contracts.Organisation;
+using Themis.Kernel.Identity;
 using Themis.Kernel.Organisation;
 using Themis.Kernel.Persistence;
 using Themis.Kernel.Pipeline;
@@ -20,14 +21,14 @@ using Themis.Kernel.Pipeline.Telemetry;
 namespace Themis.Integration.Tests.Pipeline;
 
 /// <summary>
-/// An in-memory host wired like Themis.Host, with the fixture module and its header-based test identity instead of
-/// the real one: persistence as themis_app, the kernel pipeline, problem details for unhandled exceptions, the
-/// correlation id middleware and the fixture module's routes. Captures log lines with their scopes (D-25) and the
-/// pipeline's retry metric (D-41).
+/// An in-memory host wired like Themis.Host, with the fixture module and the real identity capability behind the
+/// test token issuer of the step 4 brief: persistence as themis_app, the kernel pipeline, bearer authentication
+/// with a local signing key, problem details for unhandled exceptions, the correlation id middleware and the
+/// fixture module's routes. Requests are signed for the clerk unless a test names another subject. Captures log
+/// lines with their scopes (D-25) and the pipeline's retry metric (D-41).
 /// </summary>
 internal sealed class PipelineTestHost : IAsyncDisposable
 {
-    public const string DefaultPermissions = "FIXTURE_COUNTER.CREATE,FIXTURE_COUNTER.TOUCH";
 
     private readonly WebApplication _app;
     private readonly MeterListener _meterListener;
@@ -60,9 +61,13 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         builder.Logging.AddProvider(logs);
         builder.Logging.SetMinimumLevel(LogLevel.Information);
 
+        builder.Configuration["Identity:Audience"] = TestTokens.Audience;
+        builder.Configuration["Identity:TestIssuer:Issuer"] = TestTokens.Issuer;
+        builder.Configuration["Identity:TestIssuer:SigningKey"] = TestTokens.SigningKeyBase64;
+
         builder.Services.AddKernelPersistence(db.ConnectionStringFor("themis_app"));
-        builder.Services.AddFixtureTestAuthentication();
         builder.Services.AddKernelPipeline();
+        builder.Services.AddKernelIdentity(builder.Configuration, builder.Environment.EnvironmentName);
         builder.Services.AddFixtureModule();
         builder.Services.AddKernelOrganisation();
         builder.Services.AddKernelOpenApi();
@@ -71,6 +76,7 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         WebApplication app = builder.Build();
         app.UseExceptionHandler();
         app.UseCorrelationId();
+        app.UseAuthentication();
         app.MapCommandRoutes(FixtureContracts.Routes);
         app.MapQuery<GetCompany, CompanyInfo>(OrganisationRoutes.Company);
         app.MapOpenApi();
@@ -89,13 +95,20 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         return host;
     }
 
-    public Task<CommandReply> GetAsync(string path, string? permissions = DefaultPermissions, string? user = null, CancellationToken cancellationToken = default) =>
-        SendAsync(HttpMethod.Get, path, null, null, null, user, permissions, null, cancellationToken);
+    /// <summary>A bearer token for the subject, minted by the test issuer; the clerk by default.</summary>
+    public static string TokenFor(string? subject = null) => TestTokens.For(subject ?? TestUsers.ClerkSubject, TimeProvider.System);
 
-    public Task<CommandReply> PostAsync(string path, object? body, string? idempotencyKey, string? ifMatch = null, string? user = null, string? permissions = DefaultPermissions, string? correlationId = null, CancellationToken cancellationToken = default) =>
-        SendAsync(HttpMethod.Post, path, body, idempotencyKey, ifMatch, user, permissions, correlationId, cancellationToken);
+    public Task<CommandReply> GetAsync(string path, string? subject = null, string? token = null, CancellationToken cancellationToken = default) =>
+        SendAsync(HttpMethod.Get, path, null, null, null, token ?? TokenFor(subject), null, cancellationToken);
 
-    private async Task<CommandReply> SendAsync(HttpMethod method, string path, object? body, string? idempotencyKey, string? ifMatch, string? user, string? permissions, string? correlationId, CancellationToken cancellationToken)
+    public Task<CommandReply> PostAsync(string path, object? body, string? idempotencyKey, string? ifMatch = null, string? subject = null, string? token = null, string? correlationId = null, CancellationToken cancellationToken = default) =>
+        SendAsync(HttpMethod.Post, path, body, idempotencyKey, ifMatch, token ?? TokenFor(subject), correlationId, cancellationToken);
+
+    /// <summary>A request with no token at all.</summary>
+    public Task<CommandReply> PostAnonymousAsync(string path, object? body, string? idempotencyKey, CancellationToken cancellationToken = default) =>
+        SendAsync(HttpMethod.Post, path, body, idempotencyKey, null, null, null, cancellationToken);
+
+    private async Task<CommandReply> SendAsync(HttpMethod method, string path, object? body, string? idempotencyKey, string? ifMatch, string? token, string? correlationId, CancellationToken cancellationToken)
     {
         using HttpRequestMessage request = new(method, path);
         if (body is not null)
@@ -106,8 +119,11 @@ internal sealed class PipelineTestHost : IAsyncDisposable
 
         AddHeader(request, "Idempotency-Key", idempotencyKey);
         AddHeader(request, "If-Match", ifMatch);
-        AddHeader(request, HeaderPrincipal.UserHeader, user ?? TestUsers.Alice.ToString());
-        AddHeader(request, HeaderPermissionEvaluator.PermissionsHeader, permissions);
+        if (token is not null)
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        }
+
         AddHeader(request, "X-Correlation-Id", correlationId);
 
         using HttpResponseMessage response = await Client.SendAsync(request, cancellationToken);
@@ -161,13 +177,6 @@ internal sealed record CommandReply(int Status, string? MediaType, string Body, 
     public string? Code => Json?["code"]?.GetValue<string>();
 
     public string? RuleId => Json?["ruleId"]?.GetValue<string>();
-}
-
-internal static class TestUsers
-{
-    public static Guid Alice { get; } = Guid.Parse("11111111-1111-4111-8111-111111111111");
-
-    public static Guid Bob { get; } = Guid.Parse("22222222-2222-4222-8222-222222222222");
 }
 
 /// <summary>Captures every log line with the key-value pairs of its enclosing scopes, to prove D-25.</summary>

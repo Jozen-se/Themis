@@ -53,7 +53,10 @@ jobs:
       - name: Unit tests
         run: dotnet test --solution Themis.sln --configuration Release --no-build --filter-trait "Category=Unit" --ignore-exit-code 8 --report-xunit-trx --results-directory TestResults/unit
 
-      - name: Integration tests (PostgreSQL via Testcontainers, I-14)
+      - name: Integration tests (PostgreSQL and Keycloak via Testcontainers, I-14, D-12)
+        env:
+          # The Keycloak smoke test (step 4) skips without a container runtime; CI has one, so a skip is a failure.
+          THEMIS_TEST_REQUIRE_KEYCLOAK: "true"
         run: dotnet test --solution Themis.sln --configuration Release --no-build --filter-trait "Category=Integration" --ignore-exit-code 8 --report-xunit-trx --results-directory TestResults/integration
 
       - name: Invariant tests (property-based, I-xx)

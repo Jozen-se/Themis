@@ -1,18 +1,22 @@
 using Npgsql;
+using Themis.Kernel.Contracts.Identity;
 using Themis.Kernel.Contracts.Organisation;
 using Themis.Kernel.Contracts.Security;
+using Themis.Kernel.Identity;
 using Themis.Kernel.Organisation;
 using Themis.Kernel.Persistence;
 using Themis.Kernel.Persistence.Seeding;
+using Themis.Kernel.Primitives;
 
 namespace Themis.Migrator;
 
 /// <summary>
-/// Applies the kernel migrations as themis_migrator, and on request seeds a named fixture. Connection string:
-/// argument <c>--connection</c> or the environment variable <c>THEMIS_MIGRATOR_CONNECTION</c>. Fixture: argument
-/// <c>--fixture milestone-1</c> or the environment variable <c>THEMIS_MIGRATOR_FIXTURE</c>; the milestone 1
-/// organisation fixture (brief, step 3) is seeded idempotently after the migrations. Exit codes: 0 up to date,
-/// 1 usage error, 2 connected as the wrong role, 3 database unreachable.
+/// Applies the kernel migrations as themis_migrator, seeds the system-defined permission catalogue and, on request,
+/// a named fixture. Connection string: argument <c>--connection</c> or the environment variable
+/// <c>THEMIS_MIGRATOR_CONNECTION</c>. Fixture: argument <c>--fixture milestone-1</c> or the environment variable
+/// <c>THEMIS_MIGRATOR_FIXTURE</c>; the milestone 1 organisation and identity fixtures (brief, steps 3 and 4) are
+/// seeded idempotently after the migrations. Exit codes: 0 up to date, 1 usage error, 2 connected as the wrong
+/// role, 3 database unreachable, 4 the fixture violates segregation of duties (R-SEC-02).
 /// </summary>
 public static class Program
 {
@@ -71,12 +75,29 @@ public static class Program
                 Console.WriteLine($"Applied {applied.Count} migration(s) as {RequiredRole}.");
             }
 
+            DateTimeOffset now = TimeProvider.System.GetUtcNow();
+
+            // The permission catalogue is system data (Phase 0 Specification, Security entities): seeded on every run.
+            int catalogued = await IdentitySeeder.ApplyCatalogueAsync(connectionString, PermissionCatalog.Definition, now, WellKnownUsers.System, CancellationToken.None);
+            Console.WriteLine($"Permission catalogue: {catalogued} row(s) inserted or updated, the rest already present.");
+
             if (!string.IsNullOrWhiteSpace(fixture))
             {
-                // The milestone 1 organisation fixture (brief, step 3), written by the migrator only and idempotent.
-                OrganisationFixtureDefinition definition = Milestone1OrganisationFixture.Definition;
-                int inserted = await OrganisationFixtureSeeder.ApplyAsync(connectionString, definition, TimeProvider.System.GetUtcNow(), WellKnownUsers.System, CancellationToken.None);
-                Console.WriteLine($"Fixture '{fixture}': {inserted} row(s) inserted, the rest already present.");
+                // The milestone 1 fixtures (brief, steps 3 and 4), written by the migrator only and idempotent.
+                OrganisationFixtureDefinition organisation = Milestone1OrganisationFixture.Definition;
+                int inserted = await OrganisationFixtureSeeder.ApplyAsync(connectionString, organisation, now, WellKnownUsers.System, CancellationToken.None);
+                Console.WriteLine($"Fixture '{fixture}' (organisation): {inserted} row(s) inserted, the rest already present.");
+
+                // R-SEC-02: a role or an assignment that would give one user both permissions of a conflict pair is refused.
+                IdentityFixtureDefinition identity = Milestone1IdentityFixture.For(organisation.Company.Id);
+                Result<int> identityRows = await IdentitySeeder.ApplyFixtureAsync(connectionString, identity, definition => SegregationOfDuties.CheckFixture(definition, PermissionCatalog.Definition.Conflicts), now, WellKnownUsers.System, CancellationToken.None);
+                if (identityRows.IsFailure)
+                {
+                    Console.Error.WriteLine($"Fixture '{fixture}' refused: {identityRows.Primary}");
+                    return 4;
+                }
+
+                Console.WriteLine($"Fixture '{fixture}' (identity): {identityRows.Value} row(s) inserted, the rest already present.");
             }
 
             return 0;

@@ -4,11 +4,12 @@ using Themis.FixtureModule.Domain;
 using Themis.Kernel.Contracts.Commands;
 using Themis.Kernel.Contracts.Messaging;
 using Themis.Kernel.Contracts.Persistence;
+using Themis.Kernel.Contracts.Security;
 using Themis.Kernel.Primitives;
 
 namespace Themis.FixtureModule.Application;
 
-/// <summary>FIXTURE_COUNTER.CREATE: inserts the row, records the audit event and publishes FIXTURE_COUNTER_CREATED (R-AUD-01, D-44).</summary>
+/// <summary>Create: inserts the row, records the audit event and publishes FIXTURE_COUNTER_CREATED (R-AUD-01, D-44).</summary>
 internal sealed class CreateCounterHandler : ICommandHandler<CreateCounter, CounterSnapshot>
 {
     private readonly ICounterStore _store;
@@ -22,7 +23,7 @@ internal sealed class CreateCounterHandler : ICommandHandler<CreateCounter, Coun
 
     public async Task<Result<CounterSnapshot>> HandleAsync(CreateCounter command, ICommandContext context, CancellationToken cancellationToken)
     {
-        Result<Counter> created = Counter.Create(EntityId.New(), command.InitialValue, command.Sample);
+        Result<Counter> created = Counter.Create(EntityId.New(), command.CompanyId, command.SiteId, command.InitialValue, command.Sample);
         if (created.IsFailure)
         {
             return Result<CounterSnapshot>.Failure(created.Errors);
@@ -41,10 +42,10 @@ internal sealed class CreateCounterHandler : ICommandHandler<CreateCounter, Coun
         return Snapshot(counter);
     }
 
-    internal static CounterSnapshot Snapshot(Counter counter) => new(counter.Id, counter.Value, counter.Version, counter.Sample);
+    internal static CounterSnapshot Snapshot(Counter counter) => new(counter.Id, counter.CompanyId, counter.SiteId, counter.Value, counter.Version, counter.Sample, counter.Posted);
 }
 
-/// <summary>FIXTURE_COUNTER.TOUCH: versioned update (R-API-02), audit event and FIXTURE_COUNTER_TOUCHED (R-AUD-01, D-44).</summary>
+/// <summary>Touch: versioned update (R-API-02), audit event and FIXTURE_COUNTER_TOUCHED (R-AUD-01, D-44).</summary>
 internal sealed class TouchCounterHandler : ICommandHandler<TouchCounter, CounterSnapshot>
 {
     private readonly ICounterStore _store;
@@ -83,6 +84,68 @@ internal sealed class TouchCounterHandler : ICommandHandler<TouchCounter, Counte
     }
 }
 
+/// <summary>Post: the stand-in for INVENTORY_ADJUSTMENT.POST (step 4 brief); versioned, audited, FIXTURE_COUNTER_POSTED.</summary>
+internal sealed class PostCounterHandler : ICommandHandler<PostCounter, CounterSnapshot>
+{
+    private readonly ICounterStore _store;
+
+    public PostCounterHandler(ICounterStore store)
+    {
+        _store = store;
+    }
+
+    public async Task<Result<CounterSnapshot>> HandleAsync(PostCounter command, ICommandContext context, CancellationToken cancellationToken)
+    {
+        Counter? current = await _store.FindAsync(context.UnitOfWork, command.Id, cancellationToken);
+        if (current is null)
+        {
+            return Error.NotFound("counter_not_found", $"Counter {command.Id} does not exist.");
+        }
+
+        Result<Counter> posted = current.Post(command.ExpectedVersion);
+        if (posted.IsFailure)
+        {
+            return Result<CounterSnapshot>.Failure(posted.Errors);
+        }
+
+        await _store.UpdateAsync(context.UnitOfWork, posted.Value, cancellationToken);
+        context.Audit.Record(FixtureContracts.EntityType, posted.Value.Id, CounterAudit.Changes(current, posted.Value));
+        context.Outbox.Publish(EventNames.Generated(FixtureContracts.TypeCode, "POST"), EventNames.DefaultSchemaVersion, posted.Value.Id, CreateCounterHandler.Snapshot(posted.Value));
+        return CreateCounterHandler.Snapshot(posted.Value);
+    }
+}
+
+/// <summary>
+/// The scope of a command on an existing counter: the counter's company and, when it has one, its site (Build
+/// Brief, Authorisation: scope-checked after the record is loaded, inside the transaction). A missing counter is 404.
+/// </summary>
+internal sealed class CounterScopeResolver : IScopeResolver<TouchCounter>, IScopeResolver<PostCounter>
+{
+    private readonly ICounterStore _store;
+
+    public CounterScopeResolver(ICounterStore store)
+    {
+        _store = store;
+    }
+
+    public Task<Result<RequestScope>> ResolveAsync(TouchCounter request, IUnitOfWork unitOfWork, CancellationToken cancellationToken) =>
+        ResolveAsync(request.Id, unitOfWork, cancellationToken);
+
+    public Task<Result<RequestScope>> ResolveAsync(PostCounter request, IUnitOfWork unitOfWork, CancellationToken cancellationToken) =>
+        ResolveAsync(request.Id, unitOfWork, cancellationToken);
+
+    private async Task<Result<RequestScope>> ResolveAsync(Guid id, IUnitOfWork unitOfWork, CancellationToken cancellationToken)
+    {
+        Counter? counter = await _store.FindAsync(unitOfWork, id, cancellationToken);
+        if (counter is null)
+        {
+            return Error.NotFound("counter_not_found", $"Counter {id} does not exist.");
+        }
+
+        return counter.SiteId is { } site ? RequestScope.ForSite(counter.CompanyId, site) : RequestScope.ForCompany(counter.CompanyId);
+    }
+}
+
 /// <summary>Validation that runs before the transaction opens; the dispatcher collects every validator's errors.</summary>
 internal sealed class CreateCounterValidator : ICommandValidator<CreateCounter>
 {
@@ -91,6 +154,11 @@ internal sealed class CreateCounterValidator : ICommandValidator<CreateCounter>
         if (command.Sample < 0)
         {
             yield return Error.Validation("sample_negative", "Sample is zero or above.");
+        }
+
+        if (command.CompanyId == Guid.Empty)
+        {
+            yield return Error.Validation("company_required", "A counter belongs to a company.");
         }
     }
 }
@@ -104,14 +172,15 @@ internal static class CounterAudit
         Add(changes, "value", before?.Value, after.Value);
         Add(changes, "version", before?.Version, after.Version);
         Add(changes, "sample", before?.Sample, after.Sample);
+        Add(changes, "posted", before?.Posted, after.Posted);
         return changes;
     }
 
     private static void Add<T>(Dictionary<string, FieldChange> changes, string field, T? before, T after)
-        where T : struct, IFormattable
+        where T : struct, IConvertible
     {
-        string? previous = before?.ToString(null, CultureInfo.InvariantCulture);
-        string next = after.ToString(null, CultureInfo.InvariantCulture);
+        string? previous = before?.ToString(CultureInfo.InvariantCulture);
+        string next = after.ToString(CultureInfo.InvariantCulture);
         if (!string.Equals(previous, next, StringComparison.Ordinal))
         {
             changes[field] = new FieldChange(previous, next);

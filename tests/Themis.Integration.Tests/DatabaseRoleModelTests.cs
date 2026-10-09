@@ -14,7 +14,7 @@ public sealed class DatabaseRoleModelTests : IAsyncLifetime
     private const string InsufficientPrivilege = "42501";
 
     private const string InsertAudit =
-        "INSERT INTO kernel.audit_event (id, occurred_at, user_id, command_name, entity_type, entity_id, changes) VALUES (gen_random_uuid(), now(), gen_random_uuid(), 'PROBE.WRITE', 'Probe', gen_random_uuid(), '{}')";
+        "INSERT INTO kernel.audit_event (id, occurred_at, user_id, command_name, entity_type, entity_id, changes) VALUES (gen_random_uuid(), now(), '00000000-0000-7000-8000-000000000001', 'PROBE.WRITE', 'Probe', gen_random_uuid(), '{}')";
 
     private readonly PostgresFixture _db;
 
@@ -59,7 +59,7 @@ public sealed class DatabaseRoleModelTests : IAsyncLifetime
         Assert.Equal(1L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.audit_event WHERE command_name = 'PROBE.WRITE'"));
         // The migrations history table has no grants: the kernel role cannot read or write it.
         await AssertRefusedAsync(connection, "INSERT INTO kernel.__ef_migrations_history VALUES ('rogue', '0')", insideTransaction: true);
-        await AssertRefusedAsync(connection, "INSERT INTO fixture.counter (id, value, version, sample) VALUES (gen_random_uuid(), 0, 1, 0)", insideTransaction: true);
+        await AssertRefusedAsync(connection, "INSERT INTO fixture.counter (id, company_id, value, version, sample) VALUES (gen_random_uuid(), gen_random_uuid(), 0, 1, 0)", insideTransaction: true);
     }
 
     [Fact]
@@ -94,7 +94,7 @@ public sealed class DatabaseRoleModelTests : IAsyncLifetime
         await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(TestContext.Current.CancellationToken);
 
         await ExecuteAsync(connection, "SET LOCAL ROLE themis_kernel");
-        await ExecuteAsync(connection, "INSERT INTO kernel.idempotency_record (user_id, key, command_name, request_hash, response, expires_at) VALUES (gen_random_uuid(), 'k1', 'PROBE.WRITE', 'h', '{}', now() - interval '1 day')");
+        await ExecuteAsync(connection, "INSERT INTO kernel.idempotency_record (user_id, key, command_name, request_hash, response, expires_at) VALUES ('00000000-0000-7000-8000-000000000001', 'k1', 'PROBE.WRITE', 'h', '{}', now() - interval '1 day')");
         await ExecuteAsync(connection, "DELETE FROM kernel.idempotency_record WHERE expires_at < now()");
         await AssertRefusedAsync(connection, "UPDATE kernel.idempotency_record SET expires_at = now()", insideTransaction: true);
     }
@@ -106,7 +106,7 @@ public sealed class DatabaseRoleModelTests : IAsyncLifetime
         await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(TestContext.Current.CancellationToken);
 
         await ExecuteAsync(connection, "SET LOCAL ROLE themis_fixture");
-        await ExecuteAsync(connection, "INSERT INTO fixture.counter (id, value, version, sample) VALUES (gen_random_uuid(), 0, 1, 0)");
+        await ExecuteAsync(connection, "INSERT INTO fixture.counter (id, company_id, value, version, sample) VALUES (gen_random_uuid(), gen_random_uuid(), 0, 1, 0)");
         await AssertRefusedAsync(connection, InsertAudit, insideTransaction: true);
         await AssertRefusedAsync(connection, "SELECT count(*) FROM kernel.audit_event", insideTransaction: true);
     }

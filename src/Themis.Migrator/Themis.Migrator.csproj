@@ -3,7 +3,8 @@
   <!--
     Themis.Migrator: the only process that applies migrations, connected as themis_migrator (brief, Database model).
     Wiring only (ARCH-03): it verifies the connection and the role, then applies the pending migrations of the kernel
-    data context in Themis.Kernel.Persistence. The application never calls Migrate().
+    data context in Themis.Kernel.Persistence, seeds the system-defined permission catalog and, on request, a named
+    fixture. The application never calls Migrate().
   -->
 
   <PropertyGroup>
@@ -13,6 +14,7 @@
   <ItemGroup>
     <ProjectReference Include="../Kernel/Themis.Kernel.Persistence/Themis.Kernel.Persistence.csproj" />
     <ProjectReference Include="../Kernel/Themis.Kernel.Organisation/Themis.Kernel.Organisation.csproj" />
+    <ProjectReference Include="../Kernel/Themis.Kernel.Identity/Themis.Kernel.Identity.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -51,7 +51,7 @@ public sealed class PostgresFixture : IAsyncLifetime
 
     /// <summary>Removes every row the pipeline tests wrote, so each test class starts from empty tables.</summary>
     public async Task TruncateAsync(CancellationToken cancellationToken) =>
-        await ExecuteAsMigratorAsync("TRUNCATE kernel.idempotency_record, kernel.outbox_event, fixture.counter; DELETE FROM kernel.audit_event WHERE command_name <> 'SYSTEM.SEED_FIXTURE'", cancellationToken);
+        await ExecuteAsMigratorAsync("TRUNCATE kernel.idempotency_record, kernel.outbox_event, fixture.counter; DELETE FROM kernel.audit_event WHERE command_name NOT LIKE 'SYSTEM.%'", cancellationToken);
 
     public async ValueTask DisposeAsync()
     {

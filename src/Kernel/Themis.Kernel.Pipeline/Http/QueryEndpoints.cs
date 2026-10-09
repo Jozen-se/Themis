@@ -25,6 +25,8 @@ internal static class QueryEndpoints
         where TQuery : IQuery<TResult>
     {
         string permission = QueryDispatcher.PermissionOf(typeof(TQuery));
+        // D-47: a query that names no scope cannot be mapped; the host fails to start instead of allowing it.
+        ScopeSources.RequireDeclared(typeof(TQuery), routes.ServiceProvider);
         return routes.MapGet(pattern, (HttpContext http, CancellationToken cancellationToken) => HandleAsync<TQuery, TResult>(http, cancellationToken))
             .WithName(permission)
             .WithSummary(permission)

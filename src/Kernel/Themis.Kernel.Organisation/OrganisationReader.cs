@@ -55,8 +55,7 @@ internal sealed class OrganisationReader : IOrganisationReader
     {
         ArgumentNullException.ThrowIfNull(company);
         // R-TIME-01: system time is UTC; the business date is the calendar date in the company's time zone.
-        TimeZoneInfo zone = TimeZoneInfo.FindSystemTimeZoneById(company.TimeZone);
-        return new BusinessDate(DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, zone).DateTime));
+        return BusinessDate.InZone(instant, company.TimeZone);
     }
 
     public async Task<Result<FiscalPeriodInfo>> ResolveFiscalPeriodAsync(IUnitOfWork unitOfWork, Guid companyId, BusinessDate businessDate, CancellationToken cancellationToken)

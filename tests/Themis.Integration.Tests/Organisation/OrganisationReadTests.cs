@@ -95,10 +95,11 @@ public sealed class OrganisationReadTests : IAsyncLifetime
     [Fact]
     public async Task GET_company_returns_the_company_with_decimals_as_strings_and_integers_as_numbers_and_needs_COMPANY_READ()
     {
-        CommandReply reply = await _host.GetAsync($"/v1/kernel/companies/{Milestone1OrganisationFixture.CompanyId}", permissions: "COMPANY.READ", cancellationToken: Ct);
-        CommandReply forbidden = await _host.GetAsync($"/v1/kernel/companies/{Milestone1OrganisationFixture.CompanyId}", permissions: "FIXTURE_COUNTER.CREATE", cancellationToken: Ct);
-        CommandReply missing = await _host.GetAsync($"/v1/kernel/companies/{Guid.NewGuid()}", permissions: "COMPANY.READ", cancellationToken: Ct);
-        CommandReply malformed = await _host.GetAsync("/v1/kernel/companies/not-a-guid", permissions: "COMPANY.READ", cancellationToken: Ct);
+        // D-47: the preparer holds COMPANY.READ in SE01; a subject the ERP does not know is refused (step 4 brief).
+        CommandReply reply = await _host.GetAsync($"/v1/kernel/companies/{Milestone1OrganisationFixture.CompanyId}", subject: TestUsers.PreparerSubject, cancellationToken: Ct);
+        CommandReply forbidden = await _host.GetAsync($"/v1/kernel/companies/{Milestone1OrganisationFixture.CompanyId}", subject: "nobody-" + Guid.NewGuid(), cancellationToken: Ct);
+        CommandReply missing = await _host.GetAsync($"/v1/kernel/companies/{Guid.NewGuid()}", cancellationToken: Ct);
+        CommandReply malformed = await _host.GetAsync("/v1/kernel/companies/not-a-guid", cancellationToken: Ct);
 
         Assert.Equal(200, reply.Status);
         Assert.Equal("SE01", reply.Json!["code"]!.GetValue<string>());

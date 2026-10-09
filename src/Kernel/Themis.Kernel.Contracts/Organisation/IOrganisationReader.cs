@@ -44,7 +44,10 @@ public interface IOrganisationReader
     Task<Result<FiscalPeriodInfo>> ResolveFiscalPeriodAsync(IUnitOfWork unitOfWork, Guid companyId, BusinessDate businessDate, CancellationToken cancellationToken);
 }
 
-/// <summary>GET /v1/kernel/companies/{id}: the company as <see cref="CompanyInfo"/> (permission COMPANY.READ).</summary>
+/// <summary>
+/// GET /v1/kernel/companies/{id}: the company as <see cref="CompanyInfo"/> (permission COMPANY.READ, D-47). Its scope
+/// is the company it names, resolved after the record is loaded, so a missing company is a 404 (Build Brief, Authorisation).
+/// </summary>
 [Query("COMPANY.READ")]
 public sealed record GetCompany(Guid Id) : IQuery<CompanyInfo>;
 

@@ -80,7 +80,8 @@ public sealed class OrganisationFixtureTests
     public async Task R_AUD_01_every_seeded_row_has_one_audit_event_and_seeding_again_inserts_nothing_and_changes_nothing()
     {
         await using NpgsqlConnection connection = await PostgresFixture.OpenAsync(_db.SuperuserConnectionString, Ct);
-        const string seedAudit = "FROM kernel.audit_event WHERE command_name = 'SYSTEM.SEED_FIXTURE'";
+        // The identity fixture of step 4 seeds under the same command name; this test counts the organisation rows.
+        const string seedAudit = "FROM kernel.audit_event WHERE command_name = 'SYSTEM.SEED_FIXTURE' AND entity_type IN ('Installation', 'Party', 'ChartOfAccounts', 'Company', 'Site', 'Warehouse', 'FiscalYear', 'FiscalPeriod')";
         object? before = await ScalarAsync(connection, "SELECT max(created_at) FROM kernel.fiscal_period");
 
         Assert.Equal(19L, await ScalarAsync(connection, $"SELECT count(*) {seedAudit}"));

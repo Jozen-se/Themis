@@ -19,9 +19,12 @@ internal static class FixtureSchema
         $"""
         CREATE TABLE IF NOT EXISTS {FixtureContracts.SchemaName}.counter (
             id uuid PRIMARY KEY,
+            company_id uuid NOT NULL,
+            site_id uuid NULL,
             value bigint NOT NULL,
             version bigint NOT NULL,
-            sample numeric(20, 4) NOT NULL
+            sample numeric(20, 4) NOT NULL,
+            posted boolean NOT NULL DEFAULT false
         );
         {string.Join("\n", Declared.SelectMany(GrantSql.Statements))}
         """;

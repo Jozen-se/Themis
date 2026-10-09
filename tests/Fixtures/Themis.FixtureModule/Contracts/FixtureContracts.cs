@@ -1,4 +1,5 @@
 using Themis.Kernel.Contracts.Commands;
+using Themis.Kernel.Contracts.Security;
 
 namespace Themis.FixtureModule.Contracts;
 
@@ -10,11 +11,21 @@ public static class FixtureContracts
     public const string TypeCode = "FIXTURE_COUNTER";
     public const string EntityType = "FixtureCounter";
 
+    /// <summary>
+    /// The permissions the fixture commands stand in for until the real commands exist (step 4 brief, acceptance 3):
+    /// creating a counter takes ITEM.CREATE (step 5), touching it INVENTORY_ADJUSTMENT.UPDATE and posting it
+    /// INVENTORY_ADJUSTMENT.POST (step 7). The counter carries the company and optional site the scope comes from.
+    /// </summary>
+    public const string CreatePermission = "ITEM.CREATE";
+    public const string TouchPermission = "INVENTORY_ADJUSTMENT.UPDATE";
+    public const string PostPermission = "INVENTORY_ADJUSTMENT.POST";
+
     /// <summary>The routes the composition root maps through the kernel pipeline (brief, API conventions).</summary>
     public static IReadOnlyList<ICommandRoute> Routes { get; } =
     [
         new CommandRoute<CreateCounter, CounterSnapshot>("/v1/fixture/counters"),
         new CommandRoute<TouchCounter, CounterSnapshot>("/v1/fixture/counters/{id}/touch"),
+        new CommandRoute<PostCounter, CounterSnapshot>("/v1/fixture/counters/{id}/post"),
     ];
 }
 
@@ -39,13 +50,20 @@ public enum FixtureFailure
     WriteKernelTable,
 }
 
-/// <summary>Creates a counter row in schema fixture (permission FIXTURE_COUNTER.CREATE).</summary>
-[Command("FIXTURE_COUNTER.CREATE")]
-public sealed record CreateCounter(long InitialValue, decimal Sample, FixtureFailure Failure = FixtureFailure.None) : ICommand<CounterSnapshot>;
+/// <summary>Creates a counter row in schema fixture for a company, optionally at a site; the scope is in the body (Build Brief, Authorisation).</summary>
+[Command(FixtureContracts.CreatePermission)]
+public sealed record CreateCounter(Guid CompanyId, long InitialValue, decimal Sample, Guid? SiteId = null, FixtureFailure Failure = FixtureFailure.None) : ICommand<CounterSnapshot>, IScopedRequest
+{
+    public RequestScope Scope => SiteId is { } site ? RequestScope.ForSite(CompanyId, site) : RequestScope.ForCompany(CompanyId);
+}
 
-/// <summary>Adds to a counter; the row's version comes from If-Match (R-API-02). Id comes from the route.</summary>
-[Command("FIXTURE_COUNTER.TOUCH")]
+/// <summary>Adds to a counter; the row's version comes from If-Match (R-API-02). Id comes from the route; the scope from the row (IScopeResolver).</summary>
+[Command(FixtureContracts.TouchPermission)]
 public sealed record TouchCounter(Guid Id, long ExpectedVersion, long Increment, FixtureFailure Failure = FixtureFailure.None) : ICommand<CounterSnapshot>, IVersionedCommand;
 
+/// <summary>Marks a counter posted; stands in for INVENTORY_ADJUSTMENT.POST until step 7 (step 4 brief). Scope from the row.</summary>
+[Command(FixtureContracts.PostPermission)]
+public sealed record PostCounter(Guid Id, long ExpectedVersion) : ICommand<CounterSnapshot>, IVersionedCommand;
+
 /// <summary>The counter after the command. Sample is a decimal, so the response proves D-37 (strings for decimals, numbers for integers).</summary>
-public sealed record CounterSnapshot(Guid Id, long Value, long Version, decimal Sample) : IVersionedResult;
+public sealed record CounterSnapshot(Guid Id, Guid CompanyId, Guid? SiteId, long Value, long Version, decimal Sample, bool Posted) : IVersionedResult;
