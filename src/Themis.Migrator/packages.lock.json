@@ -109,10 +109,6 @@
       "themis.kernel.organisation": {
         "type": "Project",
         "dependencies": {
-          "Microsoft.EntityFrameworkCore": "[10.0.12, )",
-          "Microsoft.EntityFrameworkCore.Relational": "[10.0.12, )",
-          "Npgsql": "[10.0.3, )",
-          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
           "Themis.Kernel.Contracts": "[1.0.0, )",
           "Themis.Kernel.Primitives": "[1.0.0, )"
         }
