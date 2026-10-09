@@ -31,7 +31,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Set up .NET (version from global.json)
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
@@ -77,7 +77,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Set up .NET (version from global.json)
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
