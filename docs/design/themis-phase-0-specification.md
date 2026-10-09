@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/artifact/5NwCL8oDM8UmE8tg8Abicz), taken 2026-10-09.
+> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/artifact/5NwCL8oDM8UmE8tg8Abicz), revision 110, taken 2026-10-09.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite rule IDs
 > without leaving the repository. Where this copy and the live document differ, the live document wins.
 > Diagrams are not reproduced; their captions are kept in place.

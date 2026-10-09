@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Build Brief* (https://claude.ai/artifact/MghYVSVm65mLxjfuBUGvSe), taken 2026-10-09.
+> **Snapshot** of the live document *Themis Build Brief* (https://claude.ai/artifact/MghYVSVm65mLxjfuBUGvSe), revision 22, taken 2026-10-09.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite it without
 > leaving the repository. Where this copy and the live document differ, the live document wins.
 
