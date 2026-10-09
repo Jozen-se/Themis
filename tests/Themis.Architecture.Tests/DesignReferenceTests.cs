@@ -49,7 +49,8 @@ public sealed partial class DesignReferenceTests
         string root = RepositoryRoot();
         string[] snapshots = Directory.GetFiles(Path.Combine(root, "docs", "design"), "*.md");
 
-        Assert.Equal(3, snapshots.Length);
+        // The three sources of truth and the reference-only remediation register (CLAUDE.md, Live planning documents).
+        Assert.Equal(4, snapshots.Length);
         foreach (string snapshot in snapshots)
         {
             Assert.True(SnapshotHeader().IsMatch(File.ReadAllText(snapshot)), $"{Path.GetFileName(snapshot)} has no revision-stamped snapshot header.");
