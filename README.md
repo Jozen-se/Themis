@@ -17,6 +17,13 @@ The design lives in two documents; the code is built from them and never invents
 - [`CLAUDE.md`](CLAUDE.md): the working model, the rule-ID vocabulary and the commands
 - [`docs/development.md`](docs/development.md): running the stack and the tests locally
 
+## Toolchain notes
+
+- **Architecture tests use ArchUnitNET** (`TngTech.ArchUnitNET`, pinned to 0.13.4 in `Directory.Packages.props`
+  and `packages.lock.json`), the alternative named in D-26. NetArchTest.Rules was rejected: last release May 2021,
+  no licence expression on NuGet. Its maintained fork NetArchTest.eNhancedEdition was checked and rejected too:
+  last release June 2025, against ArchUnitNET's August 2026 release under Apache-2.0.
+
 ## Quick start
 
 ```bash
