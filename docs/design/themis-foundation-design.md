@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Foundation Design* (https://claude.ai/artifact/B7yhaqHmFJqQCAo23KSDXq), revision 134, taken 2026-10-09.
+> **Snapshot** of the live document *Themis Foundation Design* (https://claude.ai/artifact/B7yhaqHmFJqQCAo23KSDXq), revision 136, taken 2026-10-09.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite rule IDs
 > without leaving the repository. Where this copy and the live document differ, the live document wins.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -153,7 +153,7 @@ These 56 rules (17 added by the Phase 0 specification, 3 by D-24 and its follow-
 | R-TAX-01 | VAT is determined by rule from company, ship-from and ship-to country, the party's VAT status and the item tax class. | No hand-typed tax in the normal flow. |
 | R-TAX-02 | The tax result is stored per line with the rule that produced it. | Explainable VAT. |
 | R-TIME-01 | System timestamps are stored in UTC; business dates are calendar dates in the company's time zone. | No time zone drift in period cut-off. |
-| R-SEC-01 | Every command is authorised against permission and scope (company, site) before it runs. | Least privilege. |
+| R-SEC-01 | Every command and query is authorised against permission and scope (company, site) before it runs. A site-limited assignment never satisfies a command or query without a site, and a command or query that cannot name its scope is rejected (D-47). | Least privilege. |
 | R-SEC-02 | Defined conflicting permissions cannot be held by one user, for example "set credit limit" and "release credit-blocked order". | Segregation of duties. |
 | R-AUD-01 | Every write creates an audit event: user, time, command, idempotency key, changed fields. | Full traceability. |
 | R-API-01 | Every command accepts an idempotency key; a repeated key returns the first result with no second effect. | Safe retries from integrations. |
@@ -334,7 +334,7 @@ The biggest risk is a kernel model that turns out wrong after code depends on it
 
 ## Decision log
 
-Forty-three decisions are made and three are open (D-10, D-20, D-36); none of the open ones blocks the walking skeleton.
+Forty-four decisions are made and three are open (D-10, D-20, D-36); none of the open ones blocks the walking skeleton.
 
 | ID | Decision | Status | Note |
 |---|---|---|---|
@@ -384,6 +384,7 @@ Forty-three decisions are made and three are open (D-10, D-20, D-36); none of th
 | D-44 | Every state change writes one outbox event (one per document or master data row whose state a command changes), named TYPE plus the command in past tense, version 1 (for example ITEM_CREATED, INVENTORY_ADJUSTMENT_DISCARDED). Document types record business names that replace the generated one (for example GOODS_ISSUED, INVENTORY_ADJUSTED) per document type, command and resulting state in the document type registry (D-40). Business payloads are specified only for events that integrations consume | [Decided] | Your decision, 2026-10-09 (review RR-04). One event per document or master data row whose state a command changes, with business names per document type, command and resulting state: confirmed the same day |
 | D-45 | Temporary exception to P-11: the 7-day idempotency retention (IdempotencyRecord.expires_at) is a constant in KernelPipelineOptions until the settings framework (review RR-12) exists. It moves to a setting before Phase 0 is declared complete; this exception then ends | [Decided] | Your decision, 2026-10-09, on the coder's step 2 proposal (PR #5) |
 | D-46 | P-02 amended with a kernel guard: a business concept or master data entity enters the kernel only if a ledger references it or at least two module specifications name it; kernel infrastructure is outside the test; every kernel entity records its justification in the Phase 0 specification, and a pull request adding one cites it. Ledger (L): a ledger row references the entity through a chain of required (NOT NULL) foreign keys, or the posting service reads its rows at posting time to determine, classify, value or post a ledger row; ledger caches count as L; data copied onto a document before posting does not make its source L. Module, provisional: names the two module specifications expected to need it; when the second is released the entity is confirmed or scheduled to leave the kernel before that module's build; a provisional entity is never read by posting or referenced by a ledger | [Decided] | Your decision, 2026-10-09 (second external review, register RR-34). Wording refined with the coder; definitions of L and provisional M confirmed the same day after the independent review of the justification table |
+| D-47 | R-SEC-01 amended: queries are authorised like commands, against a TYPE.READ permission and scope; a site-limited assignment never satisfies a command or query without a site; a command or query that cannot name its scope is rejected (installation-wide ones declare installation scope) | [Decided] | Your decision, 2026-10-09, while settling the milestone 1 step 4 brief with the coder |
 
 ## Next steps
 
