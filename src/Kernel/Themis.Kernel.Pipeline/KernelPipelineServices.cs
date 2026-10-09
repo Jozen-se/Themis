@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Themis.Kernel.Contracts.Commands;
+using Themis.Kernel.Contracts.Queries;
 using Themis.Kernel.Contracts.Security;
 using Themis.Kernel.Pipeline.Dispatch;
 using Themis.Kernel.Pipeline.Json;
@@ -28,6 +29,7 @@ internal static class KernelPipelineServices
         // integers as integers and decimals as strings.
         services.ConfigureHttpJsonOptions(options => ThemisJson.Apply(options.SerializerOptions));
         services.AddScoped<ICommandDispatcher, CommandDispatcher>();
+        services.AddScoped<IQueryDispatcher, QueryDispatcher>();
 
         // R-SEC-01: deny by default until the identity capability registers the real principal and evaluator.
         services.TryAddScoped<ICurrentPrincipal, NoCurrentPrincipal>();

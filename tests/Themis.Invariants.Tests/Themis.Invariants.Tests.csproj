@@ -2,7 +2,8 @@
 
   <!--
     Invariant tests: property-based with CsCheck (brief, Tests). Milestone 1 step 2 covers the primitives and the
-    JSON number contract; the ledger invariants I-01 to I-09 arrive with the posting service.
+    JSON number contract, step 3 the fiscal calendar; the ledger invariants I-01 to I-09 arrive with the posting
+    service.
   -->
 
   <ItemGroup>
@@ -14,6 +15,7 @@
     <ProjectReference Include="../../src/Kernel/Themis.Kernel.Primitives/Themis.Kernel.Primitives.csproj" />
     <ProjectReference Include="../../src/Kernel/Themis.Kernel.Contracts/Themis.Kernel.Contracts.csproj" />
     <ProjectReference Include="../../src/Kernel/Themis.Kernel.Pipeline/Themis.Kernel.Pipeline.csproj" />
+    <ProjectReference Include="../../src/Kernel/Themis.Kernel.Organisation/Themis.Kernel.Organisation.csproj" />
   </ItemGroup>
 
 </Project>

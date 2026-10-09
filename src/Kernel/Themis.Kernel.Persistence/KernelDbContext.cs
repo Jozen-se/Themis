@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Themis.Kernel.Persistence.Entities;
+using Themis.Kernel.Persistence.Entities.Organisation;
 
 namespace Themis.Kernel.Persistence;
 
@@ -24,9 +25,26 @@ internal sealed class KernelDbContext : DbContext
 
     public DbSet<OutboxEvent> OutboxEvents => Set<OutboxEvent>();
 
+    public DbSet<Installation> Installations => Set<Installation>();
+
+    public DbSet<Party> Parties => Set<Party>();
+
+    public DbSet<ChartOfAccounts> ChartsOfAccounts => Set<ChartOfAccounts>();
+
+    public DbSet<Company> Companies => Set<Company>();
+
+    public DbSet<Site> Sites => Set<Site>();
+
+    public DbSet<Warehouse> Warehouses => Set<Warehouse>();
+
+    public DbSet<FiscalYear> FiscalYears => Set<FiscalYear>();
+
+    public DbSet<FiscalPeriod> FiscalPeriods => Set<FiscalPeriod>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);
+        OrganisationModel.Configure(modelBuilder);
 
         modelBuilder.Entity<IdempotencyRecord>(entity =>
         {

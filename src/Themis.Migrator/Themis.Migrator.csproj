@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../Kernel/Themis.Kernel.Persistence/Themis.Kernel.Persistence.csproj" />
+    <ProjectReference Include="../Kernel/Themis.Kernel.Organisation/Themis.Kernel.Organisation.csproj" />
   </ItemGroup>
 
   <ItemGroup>

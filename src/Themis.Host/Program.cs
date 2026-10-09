@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Scalar.AspNetCore;
 using Themis.Host.Observability;
+using Themis.Kernel.Contracts.Organisation;
+using Themis.Kernel.Organisation;
 using Themis.Kernel.Persistence;
 using Themis.Kernel.Pipeline;
 using Themis.Kernel.Pipeline.Http;
@@ -33,6 +35,7 @@ public sealed class Program
 
         builder.Services.AddThemisHealthChecks(databaseConfigured);
         builder.Services.AddKernelPipeline();
+        builder.Services.AddKernelOrganisation();
         builder.Services.AddKernelOpenApi();
         builder.Services.AddProblemDetails();
 
@@ -43,6 +46,7 @@ public sealed class Program
 
         app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
         app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") });
+        app.MapQuery<GetCompany, CompanyInfo>(OrganisationRoutes.Company);
 
         if (app.Environment.IsDevelopment())
         {
