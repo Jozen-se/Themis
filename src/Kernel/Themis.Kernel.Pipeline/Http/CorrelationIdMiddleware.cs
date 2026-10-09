@@ -1,19 +1,22 @@
 using System.Diagnostics;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Primitives;
+using Themis.Kernel.Primitives;
 
-namespace Themis.Host.Observability;
+namespace Themis.Kernel.Pipeline.Http;
 
 /// <summary>
 /// Gives every request a correlation id (D-25). An inbound <c>X-Correlation-Id</c> header is honoured so that an
 /// integration can trace its own call; otherwise the W3C trace id of the request is used. The id is echoed on the
 /// response, attached to the current activity and pushed as a logging scope, so every log line of the request
-/// carries it. The command pipeline will later copy it onto audit events (R-AUD-01).
+/// carries it, and the command pipeline copies it onto audit events (R-AUD-01).
 /// </summary>
 internal sealed class CorrelationIdMiddleware
 {
     internal const string HeaderName = "X-Correlation-Id";
     internal const string ActivityTagName = "themis.correlation_id";
-    private const int MaxLength = 128;
 
     private readonly RequestDelegate _next;
     private readonly ILogger<CorrelationIdMiddleware> _logger;
@@ -26,37 +29,35 @@ internal sealed class CorrelationIdMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        string correlationId = ResolveCorrelationId(context);
+        CorrelationId correlationId = Resolve(context);
 
         context.Items[HeaderName] = correlationId;
         context.Response.OnStarting(() =>
         {
-            context.Response.Headers[HeaderName] = correlationId;
+            context.Response.Headers[HeaderName] = correlationId.Value;
             return Task.CompletedTask;
         });
-        Activity.Current?.SetTag(ActivityTagName, correlationId);
+        Activity.Current?.SetTag(ActivityTagName, correlationId.Value);
 
-        using (_logger.BeginScope(new Dictionary<string, object> { ["CorrelationId"] = correlationId }))
+        using (_logger.BeginScope(new Dictionary<string, object> { ["CorrelationId"] = correlationId.Value }))
         {
             await _next(context);
         }
     }
 
-    private static string ResolveCorrelationId(HttpContext context)
+    /// <summary>The request's correlation id as the middleware resolved it, or a fresh one when the middleware did not run.</summary>
+    public static CorrelationId Of(HttpContext context) =>
+        context.Items.TryGetValue(HeaderName, out object? value) && value is CorrelationId id ? id : Resolve(context);
+
+    private static CorrelationId Resolve(HttpContext context)
     {
-        if (context.Request.Headers.TryGetValue(HeaderName, out StringValues values))
+        if (context.Request.Headers.TryGetValue(HeaderName, out StringValues values) && CorrelationId.TryFrom(values.FirstOrDefault(), out CorrelationId sent))
         {
-            string? candidate = values.FirstOrDefault();
-            if (!string.IsNullOrWhiteSpace(candidate) && candidate.Length <= MaxLength && candidate.All(IsSafeCharacter))
-            {
-                return candidate;
-            }
+            return sent;
         }
 
-        return Activity.Current?.TraceId.ToString() ?? context.TraceIdentifier;
+        return CorrelationIds.Fresh();
     }
-
-    private static bool IsSafeCharacter(char c) => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.' or ':';
 }
 
 internal static class CorrelationIdApplicationBuilderExtensions

@@ -1,10 +1,23 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Themis.Kernel.Pipeline: command and query dispatch with validation, authorisation (R-SEC-01), idempotency (R-API-01, R-API-04), one transaction with role switching (D-41), audit events (R-AUD-01) and telemetry (D-25). -->
+  <!--
+    Themis.Kernel.Pipeline: command dispatch with validation, authorisation (R-SEC-01), idempotency (R-API-01,
+    R-API-04), one transaction with role switching and whole-command retry (D-41, R-DB-01), audit events (R-AUD-01),
+    outbox events (D-44), problem details (R-API-03), decimal JSON (D-37) and telemetry (D-25).
+    Reaches persistence through Themis.Kernel.Contracts only (ARCH-08); no public types (ARCH-07).
+  -->
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../Themis.Kernel.Primitives/Themis.Kernel.Primitives.csproj" />
     <ProjectReference Include="../Themis.Kernel.Contracts/Themis.Kernel.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
   </ItemGroup>
 
   <ItemGroup>

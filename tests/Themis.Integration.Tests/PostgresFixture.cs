@@ -5,7 +5,8 @@ namespace Themis.Integration.Tests;
 
 /// <summary>
 /// One PostgreSQL database per test run with the Themis bootstrap applied from db/bootstrap/01-roles.sql, followed
-/// by the fixture module's test-only bootstrap. Uses an existing server when THEMIS_TEST_CONNECTION (a superuser
+/// by the fixture module's test-only bootstrap, the kernel migrations applied by Themis.Migrator exactly as an
+/// operator runs it, and the fixture table. Uses an existing server when THEMIS_TEST_CONNECTION (a superuser
 /// connection string to PostgreSQL 16 or later) is set, otherwise a Testcontainers PostgreSQL container.
 /// </summary>
 public sealed class PostgresFixture : IAsyncLifetime
@@ -34,7 +35,23 @@ public sealed class PostgresFixture : IAsyncLifetime
 
         await ExecuteAsSuperuserAsync(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "db", "bootstrap", "01-roles.sql")), CancellationToken.None);
         await ExecuteAsSuperuserAsync(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "fixture-bootstrap.sql")), CancellationToken.None);
+
+        // Only Themis.Migrator applies migrations (brief, Migrations); the tests take the same path.
+        MigratorExitCode = await Themis.Migrator.Program.Main(["--connection", ConnectionStringFor("themis_migrator")]);
+        if (MigratorExitCode != 0)
+        {
+            throw new InvalidOperationException($"Themis.Migrator exited with {MigratorExitCode}.");
+        }
+
+        await ExecuteAsMigratorAsync(FixtureSchema.CreateSql, CancellationToken.None);
     }
+
+    /// <summary>Exit code of the migrator run that prepared the database; 0 when the migrations applied.</summary>
+    public int MigratorExitCode { get; private set; } = -1;
+
+    /// <summary>Removes every row the pipeline tests wrote, so each test class starts from empty tables.</summary>
+    public async Task TruncateAsync(CancellationToken cancellationToken) =>
+        await ExecuteAsMigratorAsync("TRUNCATE kernel.idempotency_record, kernel.audit_event, kernel.outbox_event, fixture.counter", cancellationToken);
 
     public async ValueTask DisposeAsync()
     {

@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <PackageReference Include="Npgsql" />
+    <PackageReference Include="Scalar.AspNetCore" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
     <PackageReference Include="OpenTelemetry.Exporter.Console" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />

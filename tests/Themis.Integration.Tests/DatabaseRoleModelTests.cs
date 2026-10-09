@@ -1,18 +1,20 @@
 using Npgsql;
-using Themis.Kernel.Persistence.Privileges;
 
 namespace Themis.Integration.Tests;
 
 /// <summary>
-/// Proves the role model of db/bootstrap/01-roles.sql by attempting forbidden writes (I-14, R-DB-01, D-41, R-LED-06).
-/// Probe tables stand in for the real tables until the first migration; they are created as themis_migrator and
-/// granted exactly as migrations will grant, through <see cref="GrantSql"/>.
+/// Proves the role model of db/bootstrap/01-roles.sql on the real tables of the first migration by attempting the
+/// writes it must refuse (I-14, R-DB-01, D-41, R-LED-06). The tables are created by Themis.Migrator as
+/// themis_migrator and granted exactly as <see cref="Themis.Kernel.Persistence.Privileges.KernelPrivilegeMatrix"/> declares.
 /// </summary>
 [Collection(PostgresTestGroup.Name)]
 [Trait("Category", "Integration")]
 public sealed class DatabaseRoleModelTests : IAsyncLifetime
 {
     private const string InsufficientPrivilege = "42501";
+
+    private const string InsertAudit =
+        "INSERT INTO kernel.audit_event (id, occurred_at, user_id, command_name, entity_type, entity_id, changes) VALUES (gen_random_uuid(), now(), gen_random_uuid(), 'PROBE.WRITE', 'Probe', gen_random_uuid(), '{}')";
 
     private readonly PostgresFixture _db;
 
@@ -21,46 +23,17 @@ public sealed class DatabaseRoleModelTests : IAsyncLifetime
         _db = db;
     }
 
-    public async ValueTask InitializeAsync()
-    {
-        string grants = string.Join("\n",
-            GrantSql.Statements(TableGrant.AppendOnly("kernel", "probe_ledger", "themis_kernel"))
-                .Concat(GrantSql.Statements(new TableGrant("kernel", "probe_outbox", "themis_kernel",
-                    new HashSet<TablePrivilege> { TablePrivilege.Select, TablePrivilege.Insert, TablePrivilege.Update }, ["published_at", "attempts"])))
-                .Concat(GrantSql.Statements(new TableGrant("kernel", "probe_idempotency", "themis_kernel",
-                    new HashSet<TablePrivilege> { TablePrivilege.Select, TablePrivilege.Insert, TablePrivilege.Delete })))
-                .Concat(GrantSql.Statements(TableGrant.Mutable("fixture", "probe", "themis_fixture"))));
+    public async ValueTask InitializeAsync() => await _db.TruncateAsync(TestContext.Current.CancellationToken);
 
-        await _db.ExecuteAsMigratorAsync(
-            $"""
-            CREATE TABLE IF NOT EXISTS kernel.probe_ledger (id integer PRIMARY KEY, note text);
-            CREATE TABLE IF NOT EXISTS kernel.probe_outbox (id integer PRIMARY KEY, payload text, published_at timestamptz, attempts integer NOT NULL DEFAULT 0);
-            CREATE TABLE IF NOT EXISTS kernel.probe_idempotency (id integer PRIMARY KEY, expires_at timestamptz);
-            CREATE TABLE IF NOT EXISTS kernel.probe_ungranted (id integer PRIMARY KEY);
-            CREATE TABLE IF NOT EXISTS fixture.probe (id integer PRIMARY KEY);
-            {grants}
-            """,
-            TestContext.Current.CancellationToken);
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        await _db.ExecuteAsMigratorAsync(
-            """
-            DROP TABLE IF EXISTS kernel.probe_ledger, kernel.probe_outbox, kernel.probe_idempotency, kernel.probe_ungranted, fixture.probe;
-            """,
-            CancellationToken.None);
-    }
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task R_DB_01_login_role_holds_no_table_privileges()
     {
         await using NpgsqlConnection connection = await PostgresFixture.OpenAsync(_db.ConnectionStringFor("themis_app"), TestContext.Current.CancellationToken);
 
-        await AssertRefusedAsync(connection, "INSERT INTO kernel.probe_ledger (id, note) VALUES (1, 'x')");
-        await AssertRefusedAsync(connection, "SELECT count(*) FROM kernel.probe_ledger");
-        await AssertRefusedAsync(connection, "CREATE TABLE kernel.rogue (id integer)");
-        await AssertRefusedAsync(connection, "CREATE TABLE public.rogue (id integer)");
+        await AssertRefusedAsync(connection, InsertAudit);
+        await AssertRefusedAsync(connection, "SELECT count(*) FROM kernel.idempotency_record");
     }
 
     [Fact]
@@ -82,10 +55,11 @@ public sealed class DatabaseRoleModelTests : IAsyncLifetime
         await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(TestContext.Current.CancellationToken);
 
         await ExecuteAsync(connection, "SET LOCAL ROLE themis_kernel");
-        await ExecuteAsync(connection, "INSERT INTO kernel.probe_ledger (id, note) VALUES (1, 'kernel write')");
-        Assert.Equal(1L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.probe_ledger"));
-        await AssertRefusedAsync(connection, "INSERT INTO kernel.probe_ungranted (id) VALUES (1)", insideTransaction: true);
-        await AssertRefusedAsync(connection, "INSERT INTO fixture.probe (id) VALUES (1)", insideTransaction: true);
+        await ExecuteAsync(connection, InsertAudit);
+        Assert.Equal(1L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.audit_event"));
+        // The migrations history table has no grants: the kernel role cannot read or write it.
+        await AssertRefusedAsync(connection, "INSERT INTO kernel.__ef_migrations_history VALUES ('rogue', '0')", insideTransaction: true);
+        await AssertRefusedAsync(connection, "INSERT INTO fixture.counter (id, value, version, sample) VALUES (gen_random_uuid(), 0, 1, 0)", insideTransaction: true);
     }
 
     [Fact]
@@ -95,9 +69,9 @@ public sealed class DatabaseRoleModelTests : IAsyncLifetime
         await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(TestContext.Current.CancellationToken);
 
         await ExecuteAsync(connection, "SET LOCAL ROLE themis_kernel");
-        await ExecuteAsync(connection, "INSERT INTO kernel.probe_ledger (id, note) VALUES (1, 'posted')");
-        await AssertRefusedAsync(connection, "UPDATE kernel.probe_ledger SET note = 'edited' WHERE id = 1", insideTransaction: true);
-        await AssertRefusedAsync(connection, "DELETE FROM kernel.probe_ledger WHERE id = 1", insideTransaction: true);
+        await ExecuteAsync(connection, InsertAudit);
+        await AssertRefusedAsync(connection, "UPDATE kernel.audit_event SET changes = '{\"edited\": true}'", insideTransaction: true);
+        await AssertRefusedAsync(connection, "DELETE FROM kernel.audit_event", insideTransaction: true);
     }
 
     [Fact]
@@ -107,10 +81,10 @@ public sealed class DatabaseRoleModelTests : IAsyncLifetime
         await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(TestContext.Current.CancellationToken);
 
         await ExecuteAsync(connection, "SET LOCAL ROLE themis_kernel");
-        await ExecuteAsync(connection, "INSERT INTO kernel.probe_outbox (id, payload) VALUES (1, '{}')");
-        await ExecuteAsync(connection, "UPDATE kernel.probe_outbox SET published_at = now(), attempts = attempts + 1 WHERE id = 1");
-        await AssertRefusedAsync(connection, "UPDATE kernel.probe_outbox SET payload = 'tampered' WHERE id = 1", insideTransaction: true);
-        await AssertRefusedAsync(connection, "DELETE FROM kernel.probe_outbox WHERE id = 1", insideTransaction: true);
+        await ExecuteAsync(connection, "INSERT INTO kernel.outbox_event (id, event_type, schema_version, aggregate_id, payload, occurred_at) VALUES (gen_random_uuid(), 'PROBE_WRITTEN', 1, gen_random_uuid(), '{}', now())");
+        await ExecuteAsync(connection, "UPDATE kernel.outbox_event SET published_at = now(), attempts = attempts + 1");
+        await AssertRefusedAsync(connection, "UPDATE kernel.outbox_event SET payload = '{\"tampered\": true}'", insideTransaction: true);
+        await AssertRefusedAsync(connection, "DELETE FROM kernel.outbox_event", insideTransaction: true);
     }
 
     [Fact]
@@ -120,9 +94,9 @@ public sealed class DatabaseRoleModelTests : IAsyncLifetime
         await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(TestContext.Current.CancellationToken);
 
         await ExecuteAsync(connection, "SET LOCAL ROLE themis_kernel");
-        await ExecuteAsync(connection, "INSERT INTO kernel.probe_idempotency (id, expires_at) VALUES (1, now() - interval '1 day')");
-        await ExecuteAsync(connection, "DELETE FROM kernel.probe_idempotency WHERE expires_at < now()");
-        await AssertRefusedAsync(connection, "UPDATE kernel.probe_idempotency SET expires_at = now() WHERE id = 1", insideTransaction: true);
+        await ExecuteAsync(connection, "INSERT INTO kernel.idempotency_record (user_id, key, command_name, request_hash, response, expires_at) VALUES (gen_random_uuid(), 'k1', 'PROBE.WRITE', 'h', '{}', now() - interval '1 day')");
+        await ExecuteAsync(connection, "DELETE FROM kernel.idempotency_record WHERE expires_at < now()");
+        await AssertRefusedAsync(connection, "UPDATE kernel.idempotency_record SET expires_at = now()", insideTransaction: true);
     }
 
     [Fact]
@@ -132,9 +106,9 @@ public sealed class DatabaseRoleModelTests : IAsyncLifetime
         await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(TestContext.Current.CancellationToken);
 
         await ExecuteAsync(connection, "SET LOCAL ROLE themis_fixture");
-        await ExecuteAsync(connection, "INSERT INTO fixture.probe (id) VALUES (1)");
-        await AssertRefusedAsync(connection, "INSERT INTO kernel.probe_ledger (id, note) VALUES (2, 'cross-module')", insideTransaction: true);
-        await AssertRefusedAsync(connection, "SELECT count(*) FROM kernel.probe_ledger", insideTransaction: true);
+        await ExecuteAsync(connection, "INSERT INTO fixture.counter (id, value, version, sample) VALUES (gen_random_uuid(), 0, 1, 0)");
+        await AssertRefusedAsync(connection, InsertAudit, insideTransaction: true);
+        await AssertRefusedAsync(connection, "SELECT count(*) FROM kernel.audit_event", insideTransaction: true);
     }
 
     [Fact]
@@ -142,7 +116,7 @@ public sealed class DatabaseRoleModelTests : IAsyncLifetime
     {
         await using NpgsqlConnection connection = await PostgresFixture.OpenAsync(_db.ConnectionStringFor("themis_reporting"), TestContext.Current.CancellationToken);
 
-        await AssertRefusedAsync(connection, "SELECT count(*) FROM kernel.probe_ledger");
+        await AssertRefusedAsync(connection, "SELECT count(*) FROM kernel.audit_event");
         await AssertRefusedAsync(connection, "CREATE TABLE reporting.rogue (id integer)");
         Assert.Equal(true, await ScalarAsync(connection, "SELECT has_schema_privilege('themis_reporting', 'reporting', 'USAGE')"));
         Assert.Equal(false, await ScalarAsync(connection, "SELECT has_schema_privilege('themis_reporting', 'kernel', 'USAGE')"));
@@ -184,6 +158,21 @@ public sealed class DatabaseRoleModelTests : IAsyncLifetime
             """));
         Assert.Equal(2L, await ScalarAsync(connection,
             "SELECT count(*) FROM pg_auth_members m JOIN pg_roles member ON member.oid = m.member WHERE member.rolname = 'themis_app'"));
+
+        // The migrator owns what it creates (brief, Database model).
+        Assert.Equal("themis_migrator", await ScalarAsync(connection, "SELECT tableowner FROM pg_tables WHERE schemaname = 'kernel' AND tablename = 'audit_event'"));
+    }
+
+    [Fact]
+    public async Task The_migrator_applied_the_first_migration_and_reports_nothing_pending()
+    {
+        Assert.Equal(0, _db.MigratorExitCode);
+        await using NpgsqlConnection connection = await PostgresFixture.OpenAsync(_db.SuperuserConnectionString, TestContext.Current.CancellationToken);
+
+        Assert.Equal(1L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.__ef_migrations_history WHERE \"MigrationId\" LIKE '%_KernelPipelineTables'"));
+        Assert.Empty(await Themis.Kernel.Persistence.KernelMigrations.PendingAsync(_db.ConnectionStringFor("themis_migrator"), TestContext.Current.CancellationToken));
+        Assert.Equal(0, await Themis.Migrator.Program.Main(["--connection", _db.ConnectionStringFor("themis_migrator")]));
+        Assert.Equal(2, await Themis.Migrator.Program.Main(["--connection", _db.ConnectionStringFor("themis_app")]));
     }
 
     private static async Task ExecuteAsync(NpgsqlConnection connection, string sql)
@@ -198,7 +187,7 @@ public sealed class DatabaseRoleModelTests : IAsyncLifetime
         return await command.ExecuteScalarAsync(TestContext.Current.CancellationToken);
     }
 
-    // A refused statement aborts the enclosing transaction, so inside one each probe runs under a savepoint.
+    /// <summary>Asserts SQLSTATE 42501. Inside a transaction the failed statement is rolled back to a savepoint so the test can continue.</summary>
     private static async Task AssertRefusedAsync(NpgsqlConnection connection, string sql, bool insideTransaction = false)
     {
         if (insideTransaction)

@@ -4,17 +4,25 @@
     Integration tests run against a real PostgreSQL. By default Testcontainers starts one (Docker or Podman required).
     Set THEMIS_TEST_CONNECTION to a superuser connection string to use an existing server instead.
     The bootstrap applied is the same file the compose stack applies, db/bootstrap/01-roles.sql, followed by the
-    fixture module's test-only bootstrap.
+    fixture module's test-only bootstrap, the kernel migrations through Themis.Migrator and the fixture table.
+    The command pipeline is exercised through an in-memory test server with the fixture module's commands.
   -->
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="Npgsql" />
     <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../../src/Kernel/Themis.Kernel.Persistence/Themis.Kernel.Persistence.csproj" />
+    <ProjectReference Include="../../src/Kernel/Themis.Kernel.Pipeline/Themis.Kernel.Pipeline.csproj" />
+    <ProjectReference Include="../../src/Themis.Migrator/Themis.Migrator.csproj" />
     <ProjectReference Include="../Fixtures/Themis.FixtureModule/Themis.FixtureModule.csproj" />
   </ItemGroup>
 

@@ -5,20 +5,18 @@ namespace Themis.Host.Observability;
 
 /// <summary>
 /// Health endpoints (D-25). <c>/health/live</c> answers as soon as the process serves requests;
-/// <c>/health/ready</c> also requires a round trip to PostgreSQL as the application's login role.
+/// <c>/health/ready</c> also requires a round trip to PostgreSQL on the application's data source (themis_app),
+/// the same one the command pipeline uses.
 /// </summary>
 internal static class HealthCheckExtensions
 {
     internal const string ConnectionStringName = "Themis";
 
-    public static IServiceCollection AddThemisHealthChecks(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddThemisHealthChecks(this IServiceCollection services, bool databaseConfigured)
     {
         IHealthChecksBuilder healthChecks = services.AddHealthChecks();
-
-        string? connectionString = configuration.GetConnectionString(ConnectionStringName);
-        if (!string.IsNullOrWhiteSpace(connectionString))
+        if (databaseConfigured)
         {
-            services.AddSingleton(_ => NpgsqlDataSource.Create(connectionString));
             healthChecks.AddCheck<PostgresHealthCheck>("postgresql", tags: ["ready"]);
         }
         else

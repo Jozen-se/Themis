@@ -5,8 +5,9 @@ namespace Themis.Integration.Tests;
 
 /// <summary>
 /// The catalogue test of the brief (Grant hygiene, I-14): every table privilege held by a Themis role in the kernel,
-/// reporting and fixture schemas must be declared in <see cref="KernelPrivilegeMatrix"/>, and every declared
-/// privilege must exist. A new ledger table can therefore never silently receive UPDATE.
+/// reporting and fixture schemas must be declared in <see cref="KernelPrivilegeMatrix"/> (or, for the test-only
+/// fixture table, in <see cref="FixtureSchema"/>), and every declared privilege must exist. A new ledger table can
+/// therefore never silently receive UPDATE.
 /// </summary>
 [Collection(PostgresTestGroup.Name)]
 [Trait("Category", "Integration")]
@@ -26,7 +27,7 @@ public sealed class PrivilegeMatrixTests
     public async Task I_14_actual_privileges_equal_the_declared_matrix()
     {
         HashSet<string> actual = await ActualPrivilegesAsync();
-        HashSet<string> declared = KernelPrivilegeMatrix.Declared.SelectMany(Flatten).ToHashSet(StringComparer.Ordinal);
+        HashSet<string> declared = KernelPrivilegeMatrix.Declared.Concat(FixtureSchema.Declared).SelectMany(Flatten).ToHashSet(StringComparer.Ordinal);
 
         IEnumerable<string> undeclared = actual.Except(declared, StringComparer.Ordinal).Order(StringComparer.Ordinal);
         IEnumerable<string> missing = declared.Except(actual, StringComparer.Ordinal).Order(StringComparer.Ordinal);
@@ -34,6 +35,13 @@ public sealed class PrivilegeMatrixTests
         Assert.True(!undeclared.Any() && !missing.Any(),
             $"Privileges in the database but not declared:{Environment.NewLine}{string.Join(Environment.NewLine, undeclared)}" +
             $"{Environment.NewLine}Declared but missing in the database:{Environment.NewLine}{string.Join(Environment.NewLine, missing)}");
+    }
+
+    [Fact]
+    public void The_declared_matrix_covers_the_three_pipeline_tables_of_the_first_migration()
+    {
+        Assert.Equal(["audit_event", "idempotency_record", "outbox_event"], KernelPrivilegeMatrix.Declared.Select(grant => grant.Table).Order(StringComparer.Ordinal));
+        Assert.All(KernelPrivilegeMatrix.Declared, grant => Assert.Equal("themis_kernel", grant.Role));
     }
 
     [Fact]
