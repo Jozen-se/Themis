@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/artifact/5NwCL8oDM8UmE8tg8Abicz), revision 154, taken 2026-10-09.
+> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/artifact/5NwCL8oDM8UmE8tg8Abicz), revision 155, taken 2026-10-09.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite rule IDs
 > without leaving the repository. Where this copy and the live document differ, the live document wins.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -43,6 +43,8 @@ Every entity carries the common fields below (append-only entities omit the upda
 | CountryCode, CurrencyCode, UnitCode | `text` | ISO 3166-1 alpha-2, ISO 4217, UN/ECE Recommendation 20. |
 
 **Effective dating.** Effective-dated entities carry `valid_from` (inclusive) and `valid_to` (exclusive; empty means open-ended). Periods for the same business key never overlap; the database enforces this with an exclusion constraint (R-MD-02).
+
+**Company scope.** Every company-owned table carries `company_id`. Where an attribute table derives the company from a parent (Warehouse from Site, FiscalPeriod from FiscalYear), the column is stored and enforced by a composite foreign key (parent id, company_id), so codes can be unique per company and row-level security (D-28) needs no data migration.
 
 **Notation in the attribute tables.** Req: Y = required, N = optional, D = derived by the system and never entered. PD = personal data under GDPR. An arrow (→) means a reference to another entity.
 
