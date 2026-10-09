@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Build Brief* (https://claude.ai/artifact/MghYVSVm65mLxjfuBUGvSe), revision 37, taken 2026-10-09.
+> **Snapshot** of the live document *Themis Build Brief* (https://claude.ai/artifact/MghYVSVm65mLxjfuBUGvSe), revision 43, taken 2026-10-09.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite rule IDs
 > without leaving the repository. Where this copy and the live document differ, the live document wins.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -9,7 +9,7 @@
 
 2026-10-09 · Sebastian Hansson
 
-This brief tells Claude Code how to start building Themis: the stack, the repository layout, the database role model and the first milestone, a walking skeleton that posts an inventory adjustment to both ledgers in one transaction. It adds no new business rules; those live in the Themis Foundation Design and the Themis Phase 0 Specification.
+This brief tells Claude Code how to start building Themis: the stack, the repository layout, the database role model and the first milestone, a walking skeleton that posts an inventory adjustment to both ledgers in one transaction. It adds no new business rules; those live in Themis Foundation Design and Themis Phase 0 Specification.
 
 ## Sources of truth and order of authority
 
@@ -95,7 +95,7 @@ themis/
     Themis.Invariants.Tests/       property-based tests for the I-xx invariants
 ```
 
-**Module template** (every process module from Phase 1): `Contracts`, `Domain`, `Application`, `Infrastructure` (its own data context, schema and migrations), `Api`. Only `Contracts` may be referenced from outside the module.
+**Module template** (every process module from Phase 1): `Contracts`, `Domain`, `Application`, `Infrastructure` (its own data context, schema and migrations), `Api`. Only `Contracts` may be referenced from outside the module. Routes are declared without referencing the web framework (ICommandRoute, mapped by the composition root through ICommandRouteMapper), so every request passes through the one command pipeline and modules keep referencing only Primitives and Contracts (D-26).
 
 **Reference rules,** enforced by the architecture tests:
 
@@ -151,14 +151,14 @@ These apply to every module from the first commit, so that later modules look th
 | Time | `timestamptz` in UTC for system time; `DateOnly` and `date` for business dates in the company's time zone; business time comes from an injected clock so tests use fixed dates | R-TIME-01 |
 | Commands | Create: `POST /v1/{area}/{resource}`. Every other command: `POST /v1/{area}/{resource}/{id}/{command}`, for example `POST /v1/kernel/inventory-adjustments/{id}/post`. The permission code is TYPE.COMMAND, for example `ITEM.CREATE` or `INVENTORY_ADJUSTMENT.POST` | P-04, R-SEC-01 |
 | Queries | `GET` only; queries never change state | P-04 |
-| Idempotency | `Idempotency-Key` header required on every command. Completed results, rule rejections included, are stored and replayed. A second request with the same key while the first is still running gets 409 Conflict. The same key with a different body is rejected | R-API-01, R-API-04 |
-| Concurrency | `If-Match` carrying the record version on every command that changes an existing record | R-API-02 |
-| Errors | Problem details (RFC 9457) with `ruleId` and `code` members | R-API-03 |
+| Idempotency | `Idempotency-Key` header required on every command. Completed results, rule rejections included, are stored and replayed. A second request with the same key while the first is still running gets 409 Conflict. The same key with a different request is rejected with R-API-04. The request fingerprint is the command type, the body and the If-Match value. Stored and replayed: handler outcomes, rule rejections included. Not stored: authentication, authorisation and validation outcomes, the 409 duplicate, 428 and 412 | R-API-01, R-API-04 |
+| Concurrency | `If-Match` carrying the record version on every command that changes an existing record; a missing If-Match gets 428, a stale version 412. Every successful command returns the new version as ETag, and a replay returns the stored one. The endpoint writes If-Match into the command's expectedVersion and overwrites any client-supplied value; expectedVersion is not part of the OpenAPI document | R-API-02 |
+| Errors | Status codes: 200 for every successful command; 400 malformed request or missing or invalid Idempotency-Key; 401 not authenticated; 403 missing permission (R-SEC-01); 404 unknown resource; 409 concurrent duplicate; 412 stale version; 422 R-API-04 reuse and rule violations; 428 missing If-Match. Rejections carry problem details (RFC 9457) with `ruleId` and `code` members | R-API-03 |
 | Audit | One audit event per changed entity, carrying the command name, idempotency key and correlation id | R-AUD-01 |
 | Events | One outbox row per state change (per document or master data row a command changes), named TYPE plus the command in past tense (ITEM_CREATED) unless the document type registry gives a business name (D-44), schema version 1, for example `INVENTORY_ADJUSTED` version 1, written in the command's transaction | D-44 |
 | Observability | W3C trace context; every log line carries command name, correlation id and user | D-25 |
 | Database naming | `snake_case`; table names match the spec's entity names, for example `inventory_entry` | Phase 0 spec |
-| Settings | Configurable defaults live in settings tables with their documented default, never in code or `appsettings` | P-11 |
+| Settings | Configurable defaults live in settings tables with their documented default, never in code or `appsettings`. Temporary exception (D-45): the 7-day idempotency retention is a constant in KernelPipelineOptions until the settings framework exists | P-11 |
 | Secrets | Environment variables or a secret store; never in the repository | Foundation, Security section |
 | Migrations | Forward-only; a migration that drops or rewrites data needs an owner decision first | P-05 |
 
@@ -213,7 +213,7 @@ Each step is its own INVENTORY_ADJUSTMENT document with reason code CountDiffere
 - An adjustment whose lines all have zero cost posts its inventory entries and no journal entry, as I-08 allows.
 - Posting with a missing posting profile row is rejected with R-PP-02; posting dated in period 1, which is Closed, is rejected with R-LED-04.
 - Journal entry numbers are gapless per fiscal year, also when a posting fails mid-transaction (R-DOC-07, I-09).
-- Replaying a command with the same Idempotency-Key returns the first result and posts nothing twice; a concurrent duplicate gets 409; the same key with a different body is rejected (R-API-01, R-API-04).
+- Replaying a command with the same Idempotency-Key returns the first result and posts nothing twice; a concurrent duplicate gets 409; the same key with a different request is rejected (R-API-01, R-API-04).
 - A command with a stale If-Match version is rejected (R-API-02).
 - All money, quantity and cost values in JSON responses are strings, and integers such as versions stay numbers (D-37).
 - Role and privilege test I-14 passes: the actual grants equal the expected privilege matrix; `themis_fixture` cannot write to `kernel`; `themis_kernel` cannot update or delete journal or inventory entries; `themis_app` cannot write any table without switching role.

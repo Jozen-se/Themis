@@ -16,7 +16,7 @@ Snapshots are refreshed from the live documents at the revision the planner name
 - Themis Build Brief: https://claude.ai/code/artifact/a781c405-11f8-42e1-bf7f-7090dbc9df8b (snapshot: docs/design/themis-build-brief.md)
 
 Reference only (not sources of truth; the documents above win on any conflict):
-- Themis Review Remediation Register: https://claude.ai/code/artifact/91610c8f-7465-46a7-9f48-0bf2c5171ede (findings RR-xx and the owner's decision on each; accepted items are already in the documents above)
+- Themis Review Remediation Register: https://claude.ai/code/artifact/91610c8f-7465-46a7-9f48-0bf2c5171ede (snapshot: docs/design/themis-review-remediation-register.md; findings RR-xx and the owner's decision on each; accepted items are already in the documents above)
 - Themis Architecture Recommendations: https://claude.ai/artifact/Lo9h7fGS2L4hbw7RsFDvDz (background input; the foundation wins where they differ)
 
 ## Ground rules
