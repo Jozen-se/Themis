@@ -42,6 +42,19 @@ public sealed class JsonAndProblemTests
     }
 
     [Fact]
+    public void Codes_and_business_dates_travel_as_plain_JSON_strings()
+    {
+        var value = new { Code = Code.From("se01"), Currency = CurrencyCode.From("SEK"), Country = CountryCode.From("SE"), Date = BusinessDate.Parse("2026-06-15") };
+
+        string json = JsonSerializer.Serialize(value, ThemisJson.Options);
+        Assert.Equal("""{"code":"SE01","currency":"SEK","country":"SE","date":"2026-06-15"}""", json);
+
+        Assert.Equal(Code.From("SE01"), JsonSerializer.Deserialize<Code>("\"se01\"", ThemisJson.Options));
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<CurrencyCode>("\"SEKK\"", ThemisJson.Options));
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Code>("{\"value\":\"SE01\"}", ThemisJson.Options));
+    }
+
+    [Fact]
     public void R_API_03_problem_details_carry_status_code_rule_id_and_every_error()
     {
         CommandResponse response = ProblemDetailsBody.ToResponse(

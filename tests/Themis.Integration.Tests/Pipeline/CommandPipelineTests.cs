@@ -54,19 +54,19 @@ public sealed class CommandPipelineTests : IAsyncLifetime
         Guid id = reply.Json["id"]!.GetValue<Guid>();
 
         Assert.Equal(1L, await _host.CountAsync("fixture.counter", Ct));
-        Assert.Equal(1L, await _host.CountAsync("kernel.audit_event", Ct));
+        Assert.Equal(1L, await _host.ScalarAsync("SELECT count(*) FROM kernel.audit_event WHERE command_name LIKE 'FIXTURE_COUNTER.%'", Ct));
         Assert.Equal(1L, await _host.CountAsync("kernel.outbox_event", Ct));
         Assert.Equal(1L, await _host.CountAsync("kernel.idempotency_record", Ct));
 
         // R-AUD-01: user, time, command, idempotency key, correlation id and the changed fields.
-        Assert.Equal("FIXTURE_COUNTER.CREATE", await _host.ScalarAsync("SELECT command_name FROM kernel.audit_event", Ct));
-        Assert.Equal("create-1", await _host.ScalarAsync("SELECT idempotency_key FROM kernel.audit_event", Ct));
-        Assert.Equal("corr-create-1", await _host.ScalarAsync("SELECT correlation_id FROM kernel.audit_event", Ct));
-        Assert.Equal(TestUsers.Alice, await _host.ScalarAsync("SELECT user_id FROM kernel.audit_event", Ct));
-        Assert.Equal(id, await _host.ScalarAsync("SELECT entity_id FROM kernel.audit_event", Ct));
-        Assert.Equal("FixtureCounter", await _host.ScalarAsync("SELECT entity_type FROM kernel.audit_event", Ct));
-        Assert.Equal("5", await _host.ScalarAsync("SELECT changes->'value'->>'after' FROM kernel.audit_event", Ct));
-        Assert.Null(await _host.ScalarAsync("SELECT changes->'value'->>'before' FROM kernel.audit_event", Ct));
+        const string auditRow = "FROM kernel.audit_event WHERE command_name = 'FIXTURE_COUNTER.CREATE'";
+        Assert.Equal("create-1", await _host.ScalarAsync($"SELECT idempotency_key {auditRow}", Ct));
+        Assert.Equal("corr-create-1", await _host.ScalarAsync($"SELECT correlation_id {auditRow}", Ct));
+        Assert.Equal(TestUsers.Alice, await _host.ScalarAsync($"SELECT user_id {auditRow}", Ct));
+        Assert.Equal(id, await _host.ScalarAsync($"SELECT entity_id {auditRow}", Ct));
+        Assert.Equal("FixtureCounter", await _host.ScalarAsync($"SELECT entity_type {auditRow}", Ct));
+        Assert.Equal("5", await _host.ScalarAsync($"SELECT changes->'value'->>'after' {auditRow}", Ct));
+        Assert.Null(await _host.ScalarAsync($"SELECT changes->'value'->>'before' {auditRow}", Ct));
 
         // D-44: TYPE plus the command in past tense, schema version 1, aggregate id of the row.
         Assert.Equal("FIXTURE_COUNTER_CREATED", await _host.ScalarAsync("SELECT event_type FROM kernel.outbox_event", Ct));
@@ -104,7 +104,7 @@ public sealed class CommandPipelineTests : IAsyncLifetime
         Assert.Equal(first.Body, second.Body);
         Assert.Equal(1L, await _host.CountAsync("fixture.counter", Ct));
         Assert.Equal(1L, await _host.CountAsync("kernel.outbox_event", Ct));
-        Assert.Equal(1L, await _host.CountAsync("kernel.audit_event", Ct));
+        Assert.Equal(1L, await _host.ScalarAsync("SELECT count(*) FROM kernel.audit_event WHERE command_name LIKE 'FIXTURE_COUNTER.%'", Ct));
     }
 
     [Fact]
@@ -343,6 +343,20 @@ public sealed class CommandPipelineTests : IAsyncLifetime
         Assert.Equal("string", snapshot["sample"]!["type"]!.GetValue<string>());
         Assert.Equal("decimal", snapshot["sample"]!["format"]!.GetValue<string>());
         Assert.Equal("integer", snapshot["version"]!["type"]!.GetValue<string>());
+
+        // Codes and business dates are strings, not objects (PrimitiveJsonConverters).
+        JsonNode schemas = root["components"]!["schemas"]!;
+        Assert.EndsWith("/Code", schemas["CompanyInfo"]!["properties"]!["code"]!["$ref"]!.GetValue<string>(), StringComparison.Ordinal);
+        foreach (string primitive in new[] { "Code", "CurrencyCode", "CountryCode" })
+        {
+            Assert.Equal("string", schemas[primitive]!["type"]!.GetValue<string>());
+            Assert.Null(schemas[primitive]!["properties"]);
+        }
+
+        // Route parameters are documented on commands and queries alike.
+        JsonNode companyGet = root["paths"]!["/v1/kernel/companies/{id}"]!["get"]!;
+        Assert.Contains(companyGet["parameters"]!.AsArray(), p => p!["name"]!.GetValue<string>() == "id" && p["in"]!.GetValue<string>() == "path" && p["required"]!.GetValue<bool>());
+        Assert.Contains(parameters, p => p!["name"]!.GetValue<string>() == "id" && p["in"]!.GetValue<string>() == "path");
     }
 
     [Fact]

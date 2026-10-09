@@ -5,8 +5,9 @@ using System.Text.Json.Serialization;
 namespace Themis.Kernel.Pipeline.Json;
 
 /// <summary>
-/// The one JSON configuration of the API: web defaults (camelCase, case-insensitive), enums as strings, and decimals
-/// as strings through <see cref="DecimalJsonConverter"/> (D-37). Integers such as versions stay JSON numbers.
+/// The one JSON configuration of the API: web defaults (camelCase, case-insensitive), enums as strings, decimals
+/// as strings through <see cref="DecimalJsonConverter"/> (D-37) and the string-valued primitives (codes, business
+/// dates) as strings. Integers such as versions stay JSON numbers.
 /// </summary>
 internal static class ThemisJson
 {
@@ -26,6 +27,10 @@ internal static class ThemisJson
         options.NumberHandling = JsonNumberHandling.Strict;
         options.Converters.Add(new DecimalJsonConverter());
         options.Converters.Add(new JsonStringEnumConverter());
+        foreach (JsonConverter converter in PrimitiveJsonConverters.All)
+        {
+            options.Converters.Add(converter);
+        }
     }
 
     private static JsonSerializerOptions Create(JsonIgnoreCondition ignoreCondition)

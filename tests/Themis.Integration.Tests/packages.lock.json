@@ -270,6 +270,13 @@
           "Themis.Kernel.Primitives": "[1.0.0, )"
         }
       },
+      "themis.kernel.organisation": {
+        "type": "Project",
+        "dependencies": {
+          "Themis.Kernel.Contracts": "[1.0.0, )",
+          "Themis.Kernel.Primitives": "[1.0.0, )"
+        }
+      },
       "themis.kernel.persistence": {
         "type": "Project",
         "dependencies": {
@@ -296,6 +303,7 @@
         "type": "Project",
         "dependencies": {
           "Npgsql": "[10.0.3, )",
+          "Themis.Kernel.Organisation": "[1.0.0, )",
           "Themis.Kernel.Persistence": "[1.0.0, )"
         }
       },
