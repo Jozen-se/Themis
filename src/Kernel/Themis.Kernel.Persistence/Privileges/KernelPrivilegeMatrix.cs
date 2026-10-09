@@ -19,7 +19,21 @@ internal static class KernelPrivilegeMatrix
         new(Kernel, "idempotency_record", KernelRole, new HashSet<TablePrivilege> { TablePrivilege.Select, TablePrivilege.Insert, TablePrivilege.Delete }),
         TableGrant.AppendOnly(Kernel, "audit_event", KernelRole),
         new(Kernel, "outbox_event", KernelRole, new HashSet<TablePrivilege> { TablePrivilege.Select, TablePrivilege.Insert, TablePrivilege.Update }, ["published_at", "attempts"]),
+
+        // Organisation master data (milestone 1 step 3): SELECT, INSERT, UPDATE; never DELETE (R-MD-03).
+        TableGrant.Mutable(Kernel, "installation", KernelRole),
+        TableGrant.Mutable(Kernel, "party", KernelRole),
+        TableGrant.Mutable(Kernel, "chart_of_accounts", KernelRole),
+        TableGrant.Mutable(Kernel, "company", KernelRole),
+        TableGrant.Mutable(Kernel, "site", KernelRole),
+        TableGrant.Mutable(Kernel, "warehouse", KernelRole),
+        TableGrant.Mutable(Kernel, "fiscal_year", KernelRole),
+        TableGrant.Mutable(Kernel, "fiscal_period", KernelRole),
     ];
+
+    /// <summary>The tables the organisation migration creates, in dependency order.</summary>
+    public static IReadOnlyList<string> OrganisationTables { get; } =
+        ["installation", "party", "chart_of_accounts", "company", "site", "warehouse", "fiscal_year", "fiscal_period"];
 
     /// <summary>The grant statements a migration emits for the tables it creates.</summary>
     public static IEnumerable<string> GrantsFor(params string[] tables) =>

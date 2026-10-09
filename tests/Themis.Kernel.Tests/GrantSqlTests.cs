@@ -63,12 +63,19 @@ public sealed class GrantSqlTests
         Assert.Equal("idempotency_record", withDelete.Table);
         Assert.Null(withDelete.UpdateColumns);
 
-        TableGrant withUpdate = Assert.Single(KernelPrivilegeMatrix.Declared, grant => grant.Privileges.Contains(TablePrivilege.Update));
-        Assert.Equal("outbox_event", withUpdate.Table);
-        Assert.Equal(["published_at", "attempts"], withUpdate.UpdateColumns);
+        TableGrant columnUpdate = Assert.Single(KernelPrivilegeMatrix.Declared, grant => grant.UpdateColumns is not null);
+        Assert.Equal("outbox_event", columnUpdate.Table);
+        Assert.Equal(["published_at", "attempts"], columnUpdate.UpdateColumns);
 
         TableGrant audit = Assert.Single(KernelPrivilegeMatrix.Declared, grant => grant.Table == "audit_event");
         Assert.Equal([TablePrivilege.Select, TablePrivilege.Insert], audit.Privileges.Order());
+
+        // R-MD-03: master data is updated, never deleted.
+        foreach (string table in KernelPrivilegeMatrix.OrganisationTables)
+        {
+            TableGrant grant = Assert.Single(KernelPrivilegeMatrix.Declared, g => g.Table == table);
+            Assert.Equal([TablePrivilege.Select, TablePrivilege.Insert, TablePrivilege.Update], grant.Privileges.Order());
+        }
     }
 
     [Fact]

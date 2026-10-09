@@ -1,6 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Themis.Kernel.Organisation: installation, company, site, warehouse, fiscal years and periods. -->
+  <!--
+    Themis.Kernel.Organisation: installation, company, site, warehouse, fiscal years and periods (Phase 0
+    Specification, Organisation entities). Milestone 1 step 3 holds the fiscal calendar, the party duplicate key
+    (R-MD-01) and the milestone 1 organisation fixture as data; Themis.Kernel.Persistence writes it through the
+    definitions in Themis.Kernel.Contracts (ARCH-08). Framework-free; no public types (ARCH-07).
+  -->
 
   <ItemGroup>
     <ProjectReference Include="../Themis.Kernel.Primitives/Themis.Kernel.Primitives.csproj" />
@@ -9,6 +14,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Themis.Host" />
+    <InternalsVisibleTo Include="Themis.Migrator" />
     <InternalsVisibleTo Include="Themis.Architecture.Tests" />
     <InternalsVisibleTo Include="Themis.Kernel.Tests" />
     <InternalsVisibleTo Include="Themis.Integration.Tests" />

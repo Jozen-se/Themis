@@ -35,11 +35,20 @@ Keycloak uses its own file database in development; the realm is imported from `
 ```bash
 export THEMIS_MIGRATOR_CONNECTION="Host=localhost;Port=5432;Database=themis;Username=themis_migrator;Password=themis"
 dotnet run --project src/Themis.Migrator     # verifies the role, then applies the pending kernel migrations
+dotnet run --project src/Themis.Migrator -- --fixture milestone-1   # also seeds the milestone 1 organisation fixture (idempotent)
 dotnet run --project src/Themis.Host
 curl -i http://localhost:5080/health/live     # 200 as soon as the process serves requests
 curl -i http://localhost:5080/health/ready    # 200 when PostgreSQL answers as themis_app, 503 otherwise
 open http://localhost:5080/scalar             # API reference (development only); the description is at /openapi/v1.json
 ```
+
+The milestone 1 organisation fixture (brief, step 3; `THEMIS_MIGRATOR_FIXTURE=milestone-1` is the environment form)
+is one installation `DEMO`, the company's own party `P-000001` (Themis Demo AB, organisation number 556677-8899, SE),
+the chart of accounts `BAS`, company `DEMO` (SEK, Europe/Stockholm, tax rounding level Line as a test value until
+D-10), site `MAIN`, warehouse `MAIN` and fiscal year 2026 with 12 monthly periods, period 1 Closed and the rest
+Open. Every value is test data with fixed identifiers; the rows are written by `themis_migrator` with the system user
+as `created_by`, and a second run inserts nothing. Its definition lives in `Themis.Kernel.Organisation`
+(`Milestone1OrganisationFixture`) and the writer in `Themis.Kernel.Persistence` (`OrganisationFixtureSeeder`).
 
 Migrations live in `src/Kernel/Themis.Kernel.Persistence/Migrations` and are generated with the pinned tool:
 
@@ -76,8 +85,8 @@ THEMIS_TEST_CONNECTION="Host=localhost;Port=5432;Database=postgres;Username=post
 
 `--ignore-exit-code 8` tolerates test projects in which the trait filter matches nothing.
 
-The integration tests apply the bootstrap to a fresh database, run `Themis.Migrator` against it and create the
-fixture module's table, then attempt the writes the role model must refuse (I-14): the login role writing a table, a
+The integration tests apply the bootstrap to a fresh database, run `Themis.Migrator` with the milestone 1 fixture
+against it and create the fixture module's table, then attempt the writes the role model must refuse (I-14): the login role writing a table, a
 module role writing outside its schema, a module role updating or deleting where only SELECT and INSERT were granted,
 the reporting role touching `kernel`, and the login role assuming the migrator role. The privilege matrix test
 compares every table privilege in `kernel`, `reporting` and `fixture` with the declared matrix in
