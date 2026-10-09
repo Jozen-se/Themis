@@ -5,8 +5,9 @@ namespace Themis.Kernel.Pipeline.OpenApi;
 
 /// <summary>
 /// Declares every decimal in the API description as a string with format <c>decimal</c>, matching what
-/// <see cref="Json.DecimalJsonConverter"/> writes (D-37). Clients generated from the description therefore never
-/// bind money or quantities to floating point (R-MON-01).
+/// <see cref="Json.DecimalJsonConverter"/> writes (D-37), and every string-valued primitive (codes, business dates,
+/// ids) as a string. Clients generated from the description therefore never bind money or quantities to floating
+/// point (R-MON-01) and see codes as the strings they are.
 /// </summary>
 internal sealed class DecimalSchemaTransformer : IOpenApiSchemaTransformer
 {
@@ -30,6 +31,23 @@ internal sealed class DecimalSchemaTransformer : IOpenApiSchemaTransformer
             schema.Type = JsonSchemaType.String | JsonSchemaType.Null;
             schema.Format = Format;
             schema.Pattern = Pattern;
+        }
+        else if (Json.PrimitiveJsonConverters.Types.Contains(type))
+        {
+            // Codes, business dates and ids are JSON strings (PrimitiveJsonConverters), not objects.
+            schema.Type = JsonSchemaType.String;
+            schema.Properties = null;
+            schema.Required = null;
+            if (type == typeof(Primitives.BusinessDate))
+            {
+                schema.Format = "date";
+            }
+        }
+        else if (Nullable.GetUnderlyingType(type) is { } underlying && Json.PrimitiveJsonConverters.Types.Contains(underlying))
+        {
+            schema.Type = JsonSchemaType.String | JsonSchemaType.Null;
+            schema.Properties = null;
+            schema.Required = null;
         }
 
         return Task.CompletedTask;

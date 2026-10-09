@@ -3,13 +3,18 @@
   <!--
     Themis.Kernel.Organisation: installation, company, site, warehouse, fiscal years and periods (Phase 0
     Specification, Organisation entities). Milestone 1 step 3 holds the fiscal calendar, the party duplicate key
-    (R-MD-01) and the milestone 1 organisation fixture as data; Themis.Kernel.Persistence writes it through the
-    definitions in Themis.Kernel.Contracts (ARCH-08). Framework-free; no public types (ARCH-07).
+    (R-MD-01), the milestone 1 organisation fixture as data (Themis.Kernel.Persistence writes it through the
+    definitions in Themis.Kernel.Contracts, ARCH-08), the organisation reads with business dates and period
+    resolution (R-TIME-01, R-LED-04) and the company query. No public types (ARCH-07).
   -->
 
   <ItemGroup>
     <ProjectReference Include="../Themis.Kernel.Primitives/Themis.Kernel.Primitives.csproj" />
     <ProjectReference Include="../Themis.Kernel.Contracts/Themis.Kernel.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
   </ItemGroup>
 
   <ItemGroup>

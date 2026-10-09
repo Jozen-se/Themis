@@ -18,6 +18,7 @@ internal sealed class PipelineTelemetry : IDisposable
     {
         Commands = _meter.CreateCounter<long>("themis.commands", unit: "{command}", description: "Commands dispatched, by command name and outcome.");
         Retries = _meter.CreateCounter<long>("themis.command.retries", unit: "{retry}", description: "Whole-command retries after SQLSTATE 40001 or 40P01 (D-41).");
+        Queries = _meter.CreateCounter<long>("themis.queries", unit: "{query}", description: "Queries dispatched, by query name and outcome.");
     }
 
     public ActivitySource Source { get; } = new(SourceName);
@@ -25,6 +26,8 @@ internal sealed class PipelineTelemetry : IDisposable
     public Counter<long> Commands { get; }
 
     public Counter<long> Retries { get; }
+
+    public Counter<long> Queries { get; }
 
     public void Dispose()
     {

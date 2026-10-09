@@ -10,6 +10,8 @@ using Npgsql;
 using Themis.FixtureModule;
 using Themis.FixtureModule.Api;
 using Themis.FixtureModule.Contracts;
+using Themis.Kernel.Contracts.Organisation;
+using Themis.Kernel.Organisation;
 using Themis.Kernel.Persistence;
 using Themis.Kernel.Pipeline;
 using Themis.Kernel.Pipeline.Http;
@@ -62,6 +64,7 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         builder.Services.AddFixtureTestAuthentication();
         builder.Services.AddKernelPipeline();
         builder.Services.AddFixtureModule();
+        builder.Services.AddKernelOrganisation();
         builder.Services.AddKernelOpenApi();
         builder.Services.AddProblemDetails();
 
@@ -69,6 +72,7 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         app.UseExceptionHandler();
         app.UseCorrelationId();
         app.MapCommandRoutes(FixtureContracts.Routes);
+        app.MapQuery<GetCompany, CompanyInfo>(OrganisationRoutes.Company);
         app.MapOpenApi();
         await app.StartAsync();
 
@@ -85,9 +89,15 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         return host;
     }
 
-    public async Task<CommandReply> PostAsync(string path, object? body, string? idempotencyKey, string? ifMatch = null, string? user = null, string? permissions = DefaultPermissions, string? correlationId = null, CancellationToken cancellationToken = default)
+    public Task<CommandReply> GetAsync(string path, string? permissions = DefaultPermissions, string? user = null, CancellationToken cancellationToken = default) =>
+        SendAsync(HttpMethod.Get, path, null, null, null, user, permissions, null, cancellationToken);
+
+    public Task<CommandReply> PostAsync(string path, object? body, string? idempotencyKey, string? ifMatch = null, string? user = null, string? permissions = DefaultPermissions, string? correlationId = null, CancellationToken cancellationToken = default) =>
+        SendAsync(HttpMethod.Post, path, body, idempotencyKey, ifMatch, user, permissions, correlationId, cancellationToken);
+
+    private async Task<CommandReply> SendAsync(HttpMethod method, string path, object? body, string? idempotencyKey, string? ifMatch, string? user, string? permissions, string? correlationId, CancellationToken cancellationToken)
     {
-        using HttpRequestMessage request = new(HttpMethod.Post, path);
+        using HttpRequestMessage request = new(method, path);
         if (body is not null)
         {
             string json = body as string ?? JsonSerializer.Serialize(body);

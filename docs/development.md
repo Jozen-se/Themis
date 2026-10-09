@@ -42,13 +42,21 @@ curl -i http://localhost:5080/health/ready    # 200 when PostgreSQL answers as t
 open http://localhost:5080/scalar             # API reference (development only); the description is at /openapi/v1.json
 ```
 
-The milestone 1 organisation fixture (brief, step 3; `THEMIS_MIGRATOR_FIXTURE=milestone-1` is the environment form)
-is one installation `DEMO`, the company's own party `P-000001` (Themis Demo AB, organisation number 556677-8899, SE),
-the chart of accounts `BAS`, company `DEMO` (SEK, Europe/Stockholm, tax rounding level Line as a test value until
-D-10), site `MAIN`, warehouse `MAIN` and fiscal year 2026 with 12 monthly periods, period 1 Closed and the rest
-Open. Every value is test data with fixed identifiers; the rows are written by `themis_migrator` with the system user
-as `created_by`, and a second run inserts nothing. Its definition lives in `Themis.Kernel.Organisation`
-(`Milestone1OrganisationFixture`) and the writer in `Themis.Kernel.Persistence` (`OrganisationFixtureSeeder`).
+The milestone 1 organisation fixture (step 3 brief; `THEMIS_MIGRATOR_FIXTURE=milestone-1` is the environment form)
+runs only in tests and local development, never as part of a production migration. It is one installation
+`THEMIS-DEV` (sv-SE), the company's own party `P-000001` (Themis Fictitious Fasteners AB, organisation number
+555555-5555, SE), the chart of accounts `BAS` (header only), company `SE01` (SEK, Europe/Stockholm, fiscal year start
+month 1, HalfAwayFromZero, tax rounding level Line as a test value until D-10, no payment tolerance), site `MAIN`,
+default warehouse `MAIN` and fiscal year 2026 with 12 monthly periods, period 1 Closed and periods 2 to 12 Open. Every
+value is test data with fixed identifiers; the rows are written by `themis_migrator` with the system user as
+`created_by`, each with one audit event under command name `SYSTEM.SEED_FIXTURE` (R-AUD-01), and a second run
+inserts nothing. Its definition lives in `Themis.Kernel.Organisation` (`Milestone1OrganisationFixture`) and the
+writer in `Themis.Kernel.Persistence` (`OrganisationFixtureSeeder`).
+
+The organisation reads (`IOrganisationReader` in Contracts, implemented in `Themis.Kernel.Organisation`) give the
+company, the warehouse with its site and company, the business date of a UTC instant in the company's time zone
+(R-TIME-01) and the fiscal period of a business date, rejected with R-LED-04 outside every fiscal year. The company
+is also served by `GET /v1/kernel/companies/{id}` (permission `COMPANY.READ`), the first query of the pipeline.
 
 Migrations live in `src/Kernel/Themis.Kernel.Persistence/Migrations` and are generated with the pinned tool:
 
@@ -114,6 +122,7 @@ Every command goes through `Themis.Kernel.Pipeline` (brief, One command, one tra
 | Success | the buffered audit events (one per changed entity, with user, time, command, key and correlation id) and outbox rows (`TYPE_VERB` in past tense, schema version 1) are written as `themis_kernel`, then the idempotency record, then commit | R-AUD-01, D-44 |
 | Retry | only SQLSTATE 40001 and 40P01 restart the whole command, authorisation included, at most twice; the retries are counted in the metric `themis.command.retries` | D-41 |
 | Errors | problem details (RFC 9457) with `code`, `ruleId`, `correlationId` and `errors`; an unhandled exception rolls everything back, stores nothing and returns 500 | R-API-03 |
+| Queries | `GET` only; a query names its permission with `[Query("TYPE.READ")]`, needs a signed-in user and that permission, runs in one read-only transaction that is rolled back, and returns its result or problem details; no idempotency, audit or outbox | P-04, R-SEC-01 |
 | Numbers | decimals are JSON strings on output and strings or numbers on input; integers stay numbers; the OpenAPI description declares decimals as `string` with format `decimal`, integers as `integer`, keeps `expectedVersion` out of request schemas and documents the `Idempotency-Key`, `If-Match` and `ETag` headers | D-37, R-API-02 |
 
 Idempotency records expire after 7 days (the specification's default). The owner approved a temporary exception to

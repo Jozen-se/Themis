@@ -48,10 +48,18 @@ public sealed class OrganisationFixtureTests
         Assert.Equal(Milestone1OrganisationFixture.CompanyId, await ScalarAsync(connection, "SELECT id FROM kernel.company"));
 
         // The company's own party row: name, organisation number, country (R-MD-01 duplicate key derived).
-        Assert.Equal("Themis Demo AB", await ScalarAsync(connection, "SELECT name FROM kernel.party"));
+        Assert.Equal(Milestone1OrganisationFixture.LegalName, await ScalarAsync(connection, "SELECT name FROM kernel.party"));
         Assert.Equal(Milestone1OrganisationFixture.OrganisationNumber, await ScalarAsync(connection, "SELECT organisation_number FROM kernel.party"));
         Assert.Equal("SE", await ScalarAsync(connection, "SELECT country_code FROM kernel.party"));
-        Assert.Equal("5566778899|SE556677889901|THEMISDEMOAB|", await ScalarAsync(connection, "SELECT duplicate_key FROM kernel.party"));
+        Assert.Equal("Organisation", await ScalarAsync(connection, "SELECT party_type FROM kernel.party"));
+        Assert.Equal("5555555555|SE555555555501|THEMISFICTITIOUSFASTENERSAB|", await ScalarAsync(connection, "SELECT duplicate_key FROM kernel.party"));
+        Assert.Equal("THEMIS-DEV", await ScalarAsync(connection, "SELECT code FROM kernel.installation"));
+        Assert.Equal("sv-SE", await ScalarAsync(connection, "SELECT default_locale FROM kernel.installation"));
+        Assert.Equal("SE01", await ScalarAsync(connection, "SELECT code FROM kernel.company"));
+        Assert.Equal(1, await ScalarAsync(connection, "SELECT fiscal_year_start_month FROM kernel.company"));
+        Assert.Null(await ScalarAsync(connection, "SELECT payment_tolerance FROM kernel.company"));
+        Assert.Equal("BAS", await ScalarAsync(connection, "SELECT code FROM kernel.chart_of_accounts"));
+        Assert.Equal("Open", await ScalarAsync(connection, "SELECT status FROM kernel.fiscal_year"));
         Assert.Equal(Milestone1OrganisationFixture.CompanyPartyId, await ScalarAsync(connection, "SELECT party_id FROM kernel.company"));
 
         // Period 1 Closed, the rest Open; periods cover 2026 exactly.
@@ -69,15 +77,24 @@ public sealed class OrganisationFixtureTests
     }
 
     [Fact]
-    public async Task Seeding_again_inserts_nothing_and_changes_nothing()
+    public async Task R_AUD_01_every_seeded_row_has_one_audit_event_and_seeding_again_inserts_nothing_and_changes_nothing()
     {
         await using NpgsqlConnection connection = await PostgresFixture.OpenAsync(_db.SuperuserConnectionString, Ct);
+        const string seedAudit = "FROM kernel.audit_event WHERE command_name = 'SYSTEM.SEED_FIXTURE'";
         object? before = await ScalarAsync(connection, "SELECT max(created_at) FROM kernel.fiscal_period");
+
+        Assert.Equal(19L, await ScalarAsync(connection, $"SELECT count(*) {seedAudit}"));
+        Assert.Equal(19L, await ScalarAsync(connection, $"SELECT count(DISTINCT entity_id) {seedAudit}"));
+        Assert.Equal(12L, await ScalarAsync(connection, $"SELECT count(*) {seedAudit} AND entity_type = 'FiscalPeriod'"));
+        Assert.Equal(Themis.Kernel.Contracts.Security.WellKnownUsers.System.Value, await ScalarAsync(connection, $"SELECT DISTINCT user_id {seedAudit}"));
+        Assert.Equal("SEK", await ScalarAsync(connection, $"SELECT changes->'baseCurrency'->>'after' {seedAudit} AND entity_type = 'Company'"));
+        Assert.Null(await ScalarAsync(connection, $"SELECT changes->'baseCurrency'->>'before' {seedAudit} AND entity_type = 'Company'"));
 
         Assert.Equal(0, await Themis.Migrator.Program.Main(["--connection", _db.ConnectionStringFor("themis_migrator"), "--fixture", "milestone-1"]));
 
         Assert.Equal(12L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.fiscal_period"));
         Assert.Equal(before, await ScalarAsync(connection, "SELECT max(created_at) FROM kernel.fiscal_period"));
+        Assert.Equal(19L, await ScalarAsync(connection, $"SELECT count(*) {seedAudit}"));
     }
 
     [Fact]

@@ -70,6 +70,20 @@ public sealed class FiscalCalendarTests
         Assert.Equal(12, fixture.FiscalYear.Periods.Select(period => period.Id).Distinct().Count());
     }
 
+    [Theory]
+    [InlineData("2026-01-31T23:30:00Z", "2026-02-01")]
+    [InlineData("2026-06-30T22:30:00Z", "2026-07-01")]
+    [InlineData("2026-06-15T12:00:00Z", "2026-06-15")]
+    [InlineData("2026-03-29T00:30:00Z", "2026-03-29")]
+    public void R_TIME_01_the_business_date_of_an_instant_is_its_calendar_date_in_the_company_time_zone(string instant, string expected)
+    {
+        CompanyInfo company = new(Guid.NewGuid(), Code.From("SE01"), "Test", CountryCode.From("SE"), CurrencyCode.From("SEK"), "Europe/Stockholm", 1, RoundingMode.HalfAwayFromZero, TaxRoundingLevel.Line, CompanyStatus.Active, 1);
+
+        BusinessDate date = new OrganisationReader().BusinessDateFor(company, DateTimeOffset.Parse(instant, System.Globalization.CultureInfo.InvariantCulture));
+
+        Assert.Equal(BusinessDate.Parse(expected), date);
+    }
+
     [Fact]
     public void Country_codes_are_two_upper_case_letters()
     {

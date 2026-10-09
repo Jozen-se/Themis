@@ -4,10 +4,13 @@ using Themis.Kernel.Primitives;
 namespace Themis.Kernel.Organisation;
 
 /// <summary>
-/// The organisation fixture of milestone 1 step 3 (brief): one installation; the company's own party row (name,
-/// organisation number, country); one company (SEK, Europe/Stockholm, tax rounding level Line as a test value until
-/// D-10); one site; one warehouse; fiscal year 2026 with 12 periods, period 1 Closed and the rest Open. Every value
-/// is test data; the identifiers are fixed so that seeding is idempotent and tests can name the rows.
+/// The organisation fixture of milestone 1 step 3 (approved step brief): installation THEMIS-DEV (sv-SE, Active);
+/// the company's own party (Organisation, SE, a fixed party number until the series of step 7); company SE01 with a
+/// clearly fictitious legal name and organisation number, SE, SEK, Europe/Stockholm, fiscal year start month 1,
+/// HalfAwayFromZero, tax rounding level Line (test value until D-10), no payment tolerance, chart BAS (header only),
+/// Active; one site; one default warehouse; fiscal year 2026 (2026-01-01 to 2026-12-31), Open, 12 monthly periods,
+/// period 1 Closed and periods 2 to 12 Open. Every value is test data; the identifiers are fixed so that seeding is
+/// idempotent and tests can name the rows.
 /// </summary>
 internal static class Milestone1OrganisationFixture
 {
@@ -23,9 +26,12 @@ internal static class Milestone1OrganisationFixture
     public const int FiscalYearStartMonth = 1;
     public const int PeriodsPerYear = 12;
 
-    /// <summary>A Luhn-valid Swedish organisation number used as test data; the country's localisation validates real ones later.</summary>
-    public const string OrganisationNumber = "556677-8899";
-    public const string VatNumber = "SE556677889901";
+    /// <summary>A clearly fictitious, Luhn-valid organisation number; the country's localisation validates real ones later.</summary>
+    public const string OrganisationNumber = "555555-5555";
+    public const string VatNumber = "SE555555555501";
+    public const string LegalName = "Themis Fictitious Fasteners AB";
+    public const string InstallationCode = "THEMIS-DEV";
+    public const string CompanyCode = "SE01";
 
     public static OrganisationFixtureDefinition Definition { get; } = Build();
 
@@ -34,7 +40,6 @@ internal static class Milestone1OrganisationFixture
     private static OrganisationFixtureDefinition Build()
     {
         CountryCode sweden = CountryCode.From("SE");
-        const string legalName = "Themis Demo AB";
 
         BusinessDate yearStart = FiscalCalendar.YearStart(FiscalYearNumber, FiscalYearStartMonth);
         IReadOnlyList<FiscalPeriodDefinition> periods = FiscalCalendar.MonthlyPeriods(
@@ -44,24 +49,24 @@ internal static class Milestone1OrganisationFixture
             number => number == 1 ? FiscalPeriodStatus.Closed : FiscalPeriodStatus.Open);
 
         return new OrganisationFixtureDefinition(
-            new InstallationDefinition(InstallationId, Code.From("DEMO"), "Themis demo installation", InstallationStatus.Active, "sv-SE"),
+            new InstallationDefinition(InstallationId, Code.From(InstallationCode), "Themis development installation", InstallationStatus.Active, "sv-SE"),
             new PartyDefinition(
                 CompanyPartyId,
                 Code.From("P-000001"),
                 PartyType.Organisation,
-                legalName,
+                LegalName,
                 OrganisationNumber,
                 VatNumber,
                 sweden,
                 "sv-SE",
                 MasterDataStatus.Active,
-                DuplicateKeys.ForParty(OrganisationNumber, VatNumber, legalName, postalCode: null)),
+                DuplicateKeys.ForParty(OrganisationNumber, VatNumber, LegalName, postalCode: null)),
             new ChartOfAccountsDefinition(ChartOfAccountsId, Code.From("BAS"), "BAS-kontoplan", "BAS 2026"),
             new CompanyDefinition(
                 CompanyId,
-                Code.From("DEMO"),
+                Code.From(CompanyCode),
                 CompanyPartyId,
-                legalName,
+                LegalName,
                 OrganisationNumber,
                 VatNumber,
                 sweden,

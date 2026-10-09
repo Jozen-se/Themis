@@ -56,7 +56,7 @@ public sealed class DatabaseRoleModelTests : IAsyncLifetime
 
         await ExecuteAsync(connection, "SET LOCAL ROLE themis_kernel");
         await ExecuteAsync(connection, InsertAudit);
-        Assert.Equal(1L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.audit_event"));
+        Assert.Equal(1L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.audit_event WHERE command_name = 'PROBE.WRITE'"));
         // The migrations history table has no grants: the kernel role cannot read or write it.
         await AssertRefusedAsync(connection, "INSERT INTO kernel.__ef_migrations_history VALUES ('rogue', '0')", insideTransaction: true);
         await AssertRefusedAsync(connection, "INSERT INTO fixture.counter (id, value, version, sample) VALUES (gen_random_uuid(), 0, 1, 0)", insideTransaction: true);

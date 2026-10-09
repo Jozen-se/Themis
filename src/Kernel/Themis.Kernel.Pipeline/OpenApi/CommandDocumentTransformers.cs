@@ -29,9 +29,9 @@ internal sealed class CommandSchemaTransformer : IOpenApiSchemaTransformer
 }
 
 /// <summary>
-/// Describes the command headers on every command operation: <c>Idempotency-Key</c> on all (R-API-01),
-/// <c>If-Match</c> on versioned commands (R-API-02), and the <c>ETag</c> and <c>Idempotency-Replayed</c> response
-/// headers of a success.
+/// Describes the route parameters of every command and query operation, and on commands the headers:
+/// <c>Idempotency-Key</c> on all (R-API-01), <c>If-Match</c> on versioned commands (R-API-02), and the <c>ETag</c>
+/// and <c>Idempotency-Replayed</c> response headers of a success.
 /// </summary>
 internal sealed class CommandOperationTransformer : IOpenApiOperationTransformer
 {
@@ -41,13 +41,24 @@ internal sealed class CommandOperationTransformer : IOpenApiOperationTransformer
         ArgumentNullException.ThrowIfNull(context);
 
         CommandMetadata? metadata = context.Description.ActionDescriptor.EndpointMetadata.OfType<CommandMetadata>().FirstOrDefault();
+        bool isQuery = context.Description.ActionDescriptor.EndpointMetadata.OfType<QueryEndpoints.QueryMetadata>().Any();
+        if (metadata is null && !isQuery)
+        {
+            return Task.CompletedTask;
+        }
+
+        operation.Parameters ??= [];
+        foreach (string routeParameter in RouteParameters(context.Description.RelativePath))
+        {
+            operation.Parameters.Add(new OpenApiParameter { Name = routeParameter, In = ParameterLocation.Path, Required = true, Schema = new OpenApiSchema { Type = JsonSchemaType.String } });
+        }
+
         if (metadata is null)
         {
             return Task.CompletedTask;
         }
 
         operation.Summary ??= metadata.Name;
-        operation.Parameters ??= [];
         operation.Parameters.Add(Header(CommandEndpoints.IdempotencyKeyHeader, required: true, "Unique per request; the same key replays the first result (R-API-01)."));
         if (metadata.IsVersioned)
         {
@@ -62,6 +73,30 @@ internal sealed class CommandOperationTransformer : IOpenApiOperationTransformer
         }
 
         return Task.CompletedTask;
+    }
+
+    /// <summary>The {name} tokens of a route pattern, in order.</summary>
+    private static IEnumerable<string> RouteParameters(string? relativePath)
+    {
+        if (relativePath is null)
+        {
+            yield break;
+        }
+
+        int start = relativePath.IndexOf('{', StringComparison.Ordinal);
+        while (start >= 0)
+        {
+            int end = relativePath.IndexOf('}', start);
+            if (end < 0)
+            {
+                yield break;
+            }
+
+            string token = relativePath[(start + 1)..end];
+            int constraint = token.IndexOf(':', StringComparison.Ordinal);
+            yield return constraint >= 0 ? token[..constraint] : token;
+            start = relativePath.IndexOf('{', end);
+        }
     }
 
     private static OpenApiParameter Header(string name, bool required, string description) => new()
