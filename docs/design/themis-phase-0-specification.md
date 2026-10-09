@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/artifact/5NwCL8oDM8UmE8tg8Abicz), revision 150, taken 2026-10-09.
+> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/artifact/5NwCL8oDM8UmE8tg8Abicz), revision 154, taken 2026-10-09.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite rule IDs
 > without leaving the repository. Where this copy and the live document differ, the live document wins.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -9,7 +9,7 @@
 
 2026-10-08 · Sebastian Hansson
 
-This spec turns the kernel in the Themis Foundation Design into buildable detail: the attributes of every kernel entity, a state machine for every document type in Phases 0 to 2, and the posting profile that maps each posting event to accounts. Claude Code builds the kernel from it. Rule IDs (P-, R-, D-) refer to the foundation doc unless this spec introduces them.
+This spec turns the kernel in Themis Foundation Design into buildable detail: the attributes of every kernel entity, a state machine for every document type in Phases 0 to 2, and the posting profile that maps each posting event to accounts. Claude Code builds the kernel from it. Rule IDs (P-, R-, D-) refer to the foundation doc unless this spec introduces them.
 
 ## Conventions
 
@@ -45,6 +45,45 @@ Every entity carries the common fields below (append-only entities omit the upda
 **Effective dating.** Effective-dated entities carry `valid_from` (inclusive) and `valid_to` (exclusive; empty means open-ended). Periods for the same business key never overlap; the database enforces this with an exclusion constraint (R-MD-02).
 
 **Notation in the attribute tables.** Req: Y = required, N = optional, D = derived by the system and never entered. PD = personal data under GDPR. An arrow (→) means a reference to another entity.
+
+**Kernel entity justification (P-02, D-46).** Every kernel business or master data entity is justified by a ledger (L) or by at least two module specifications (M); kernel infrastructure (I) is outside the test.
+
+- **L:** a ledger row references the entity through a chain of required (NOT NULL) foreign keys, or the posting service reads the entity's rows at posting time to determine, classify, value or post a ledger row. Ledger caches (StockBalance, ItemCostState) count as L. Data copied onto a document before posting (a price, a customer part number) does not make its source L, because posting reads the document line, not the source.
+- **M, provisional:** the entity names the two module specifications expected to need it. When the second of them is released, the entity is confirmed or scheduled to leave the kernel before that module's build starts. A provisional entity must not be read by posting or referenced by a ledger; if it is, it is L. The remediation register keeps the list, and each Phase 1 specification release closes its entries.
+- **Fails:** the entity is moved to its module, or justified, before the Phase 1 build.
+
+| Entity | Basis | Justification |
+|---|---|---|
+| Installation | I | Deployment boundary and installation settings (D-28); no ledger carries it. |
+| Company, Site, Warehouse | L | JournalEntry, InventoryEntry and OpenItem require the company; InventoryEntry requires the warehouse, which requires its site. |
+| FiscalYear, FiscalPeriod | L | Posting sets the entry's fiscal period from the posting date and checks it is open (R-LED-04); the period requires its fiscal year. |
+| Party, PartyRole | L | OpenItem requires the party role, which requires its party; posting reads the party posting group for RECEIVABLES. |
+| Address | M, provisional | Sales (bill-to and ship-to; the ship-to country reaches tax and ship-to scope through the document's address snapshot, R-DOC-05) and Purchasing (supplier and delivery addresses). |
+| Contact | M, provisional | Sales and Purchasing (who receives orders, invoices and certificates). |
+| Item | L | InventoryEntry requires the item. |
+| ItemCompany | L | Posting reads its item posting group, and tax rules its tax class, to produce inventory, cost and revenue lines (D-43). |
+| UnitOfMeasure | L | InventoryEntry requires the item, which requires its base unit; every inventory quantity is in that unit. |
+| ItemUnit | M, provisional | Sales and Purchasing order and price in pack units and convert to the base unit before posting. |
+| UnitConversion | Fails, pending | No attribute in this specification uses it, and Phase 0 needs only the base unit. The Phase 1 specification decides whether order units need global conversions (kg to g) or only item-specific pack conversions (ItemUnit); remove it if no two modules need it. |
+| AttributeTemplate, AttributeDefinition, ItemAttributeValue | M, provisional | Sales and Purchasing (item search and specification); later Quality. |
+| Lot | L | Posting validates the lot of lot-tracked items and records it on inventory entries; it is part of the StockBalance key. |
+| CustomerItemReference | Fails, pending | Named by Sales only. The Phase 1 specification decides on generalising it to an ItemReference (customer, supplier and manufacturer part numbers, per party role), which Sales and Purchasing both need and would make it M, provisional. |
+| Currency | L | Posting reads the currency's minor units to round journal lines (R-MON-02); journal lines and open items carry the currency code. |
+| ExchangeRate | M, provisional | Sales and Purchasing documents take their rate from it (R-MON-03); ledgers store the copied rate, not a reference. |
+| PaymentTerms | M, provisional | Sales and Purchasing; documents copy the due date that open items carry. |
+| BankAccount | L | Posting reads it for the BANK role (resolution step 7). |
+| TaxCode, TaxRule | L | Posting determines tax with them and resolves OUTPUT_VAT by tax code; the posted source line stores both (R-TAX-02). |
+| EU country list | L, not yet specified | Posting derives the ship-to scope (Domestic, EU, NonEU) from it, and tax rules and the REVENUE and COGS roles key on that scope. Reference data with validity dates (R-MD-02), seeded by migration, never a list in code (P-11). The accountant confirms the handling of special territories. To specify before any rule keyed by ship-to scope is built. |
+| PriceList, PriceListLine | M, provisional | Sales (selling prices) and Purchasing (buying prices). |
+| DocumentType, NumberSeries, Document, DocumentLine | L | Journal and inventory entries require their source document and line, which require their document type; posting takes journal entry numbers from a number series (D-39). |
+| Extension tables of the five kernel document types | L | Posting reads them to produce the journal and inventory entries of those documents (D-39). |
+| DocumentLink | M, provisional | Sales and Purchasing (order to delivery to invoice flows, returns). |
+| Attachment | M, provisional | Sales and Purchasing (certificates, supplier documents). |
+| ChartOfAccounts, Account, ItemPostingGroup, PostingProfileRule | L | Journal lines require their account, which requires its chart; posting resolves accounts through the posting rules, which match on the item posting group (R-PP-01). |
+| JournalEntry, JournalLine, InventoryEntry, OpenItem, Settlement | L | The ledgers themselves. |
+| Reservation | M, provisional | Sales (order reservations) and Warehousing (Phase 3). |
+| StockBalance, ItemCostState | L | Ledger caches. |
+| User, Role, Permission, RolePermission, RoleAssignment, SodConflict, AuditEvent, IdempotencyRecord, OutboxEvent | I | Identity and access (scope is held on RoleAssignment, R-SEC-01), audit, idempotency and outbox. |
 
 ## Organisation entities
 
@@ -172,7 +211,7 @@ Item identity is installation-wide, while settings that differ between companies
 | `item_number` | Code | Y | Unique per installation (R-MD-05). |
 | `description` | Name | Y |  |
 | `item_type` | Enum: Stocked, NonStocked, Service | Y | Only Stocked items create inventory entries. |
-| `base_unit` | UnitCode | Y | Immutable after the first inventory entry. |
+| `base_unit` | UnitCode | Y | A required reference to UnitOfMeasure (by code). Immutable after the first inventory entry. |
 | `lot_tracking` | Enum: None, Required | Y | Immutable after the first inventory entry. |
 | `attribute_template_id` | → AttributeTemplate | N |  |
 | `net_weight_kg` | Quantity | N | Per base unit, for example 0.0118 kg per piece. |
@@ -625,6 +664,7 @@ One permission exists per command, so the permission list and the API surface ca
 | OutboxEvent | `event_type`, `schema_version` | Code, integer | Y | For example GOODS_ISSUED, version 1. |
 | OutboxEvent | `aggregate_id`, `payload` | UUID, JSON | Y | Written in the same transaction as the change. |
 | OutboxEvent | `occurred_at`, `published_at`, `attempts` | Timestamp, Timestamp, integer | Y, N, Y |  |
+
 
 **Example conflict pairs for v1:** CUSTOMER.SET_CREDIT_LIMIT with SALES_ORDER.APPROVE_CREDIT; ACCOUNT.MAINTAIN with MANUAL_JOURNAL.POST; FISCAL_PERIOD.REOPEN with MANUAL_JOURNAL.POST.
 
