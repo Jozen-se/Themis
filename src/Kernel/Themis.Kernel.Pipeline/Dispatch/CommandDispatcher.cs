@@ -24,7 +24,9 @@ namespace Themis.Kernel.Pipeline.Dispatch;
 /// gets 409 at once, without waiting on the first request (R-API-01).</item>
 /// <item>A stored record with the same request hash is replayed; a different hash is rejected (R-API-01, R-API-04).</item>
 /// <item>The handler runs inside a savepoint. A rejection rolls back to the savepoint, so the business writes
-/// disappear while the transaction stays open to store the rejection as the key's result (R-API-03).</item>
+/// disappear while the transaction stays open to store the rejection as the key's result (R-API-03). Not stored:
+/// authorisation and validation outcomes, the 409 duplicate, a missing If-Match (428) and a stale version (412),
+/// so a retry with the fresh version runs afresh (R-API-02; owner's conditions on pull request 5).</item>
 /// <item>On success the buffered audit events and outbox rows are written as themis_kernel (R-AUD-01, D-44).</item>
 /// <item>Only SQLSTATE 40001 and 40P01 restart the whole pipeline, authorisation included, at most twice, each retry
 /// counted (D-41). Any other exception rolls everything back and stores nothing.</item>
@@ -146,7 +148,8 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
             return ProblemDetailsBody.ToResponse(validationErrors, envelope.CorrelationId);
         }
 
-        string requestHash = RequestHash.Compute(command);
+        // R-API-04: the fingerprint covers the command type, the body and the If-Match version.
+        string requestHash = RequestHash.Compute(command, (command as IVersionedCommand)?.ExpectedVersion);
         DateTimeOffset now = _clock.GetUtcNow();
 
         await using IKernelUnitOfWork unitOfWork = await _unitOfWorkFactory.BeginAsync(cancellationToken);
@@ -189,12 +192,20 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
         }
         else
         {
+            response = ProblemDetailsBody.ToResponse(result.Errors, envelope.CorrelationId);
+            LogRejected(_logger, metadata.Name, result.Primary!.Code, result.Primary.RuleId);
+            if (result.Errors.Any(error => error.Kind == ErrorKind.PreconditionFailed))
+            {
+                // R-API-02: a stale version is not the key's result. Nothing is stored, so the client's retry with
+                // the same key and the fresh version runs the command (owner's condition on pull request 5).
+                await unitOfWork.RollbackAsync(cancellationToken);
+                return response;
+            }
+
             // R-API-03 and R-API-01: the rejection is the key's result. The business writes roll back to the
             // savepoint; the transaction stays open so that the record below commits.
             await unitOfWork.RollbackToSavepointAsync(BusinessSavepoint, cancellationToken);
             context.Discard();
-            response = ProblemDetailsBody.ToResponse(result.Errors, envelope.CorrelationId);
-            LogRejected(_logger, metadata.Name, result.Primary!.Code, result.Primary.RuleId);
         }
 
         await _idempotency.AddAsync(unitOfWork, new StoredIdempotencyRecord(idempotencyKey, principal.UserId, metadata.Name, requestHash, response, now + _options.IdempotencyRetention), cancellationToken);

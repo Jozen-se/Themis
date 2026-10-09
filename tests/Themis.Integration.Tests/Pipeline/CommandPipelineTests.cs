@@ -237,6 +237,52 @@ public sealed class CommandPipelineTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task R_API_02_a_stale_version_is_not_stored_so_the_retry_with_the_fresh_version_runs()
+    {
+        Guid id = await CreateAsync("stale-create");
+
+        CommandReply stale = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 2 }, "stale-1", ifMatch: "\"7\"", cancellationToken: Ct);
+        Assert.Equal(412, stale.Status);
+        Assert.Equal(0L, await _host.ScalarAsync("SELECT count(*) FROM kernel.idempotency_record WHERE key = 'stale-1'", Ct));
+
+        CommandReply fresh = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 2 }, "stale-1", ifMatch: "\"1\"", cancellationToken: Ct);
+        Assert.Equal(200, fresh.Status);
+        Assert.False(fresh.Replayed);
+        Assert.Equal(2, fresh.Json!["version"]!.GetValue<long>());
+        Assert.Equal(1L, await _host.ScalarAsync("SELECT count(*) FROM kernel.idempotency_record WHERE key = 'stale-1'", Ct));
+    }
+
+    [Fact]
+    public async Task R_API_02_a_missing_If_Match_is_not_stored_either()
+    {
+        Guid id = await CreateAsync("missing-if-match-create");
+
+        CommandReply missing = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 2 }, "missing-if-match-1", ifMatch: null, cancellationToken: Ct);
+        CommandReply retry = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 2 }, "missing-if-match-1", ifMatch: "\"1\"", cancellationToken: Ct);
+
+        Assert.Equal(428, missing.Status);
+        Assert.Equal(200, retry.Status);
+        Assert.False(retry.Replayed);
+    }
+
+    [Fact]
+    public async Task R_API_04_the_fingerprint_includes_If_Match_so_a_stored_result_is_not_replayed_for_another_version()
+    {
+        Guid id = await CreateAsync("fingerprint-create");
+
+        CommandReply first = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 2 }, "fingerprint-1", ifMatch: "\"1\"", cancellationToken: Ct);
+        CommandReply replay = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 2 }, "fingerprint-1", ifMatch: "\"1\"", cancellationToken: Ct);
+        CommandReply otherVersion = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 2 }, "fingerprint-1", ifMatch: "\"2\"", cancellationToken: Ct);
+
+        Assert.Equal(200, first.Status);
+        Assert.True(replay.Replayed);
+        Assert.Equal(422, otherVersion.Status);
+        Assert.Equal("idempotency_key_reused", otherVersion.Code);
+        Assert.Equal("R-API-04", otherVersion.RuleId);
+        Assert.Equal(2L, await _host.ScalarAsync("SELECT version FROM fixture.counter WHERE id = @id", Ct, ("id", id)));
+    }
+
+    [Fact]
     public async Task R_API_02_the_body_cannot_override_the_version_or_the_route_id()
     {
         Guid id = await CreateAsync("override-create");

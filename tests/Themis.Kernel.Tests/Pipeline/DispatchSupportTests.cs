@@ -47,15 +47,24 @@ public sealed class DispatchSupportTests
     [Fact]
     public void R_API_04_the_request_hash_depends_on_the_values_and_the_command_type_only()
     {
-        string first = RequestHash.Compute(new CreateItem("A-1", 1.5m));
-        string same = RequestHash.Compute(new CreateItem("A-1", 1.50m));
-        string other = RequestHash.Compute(new CreateItem("A-1", 1.51m));
+        string first = RequestHash.Compute(new CreateItem("A-1", 1.5m), null);
+        string same = RequestHash.Compute(new CreateItem("A-1", 1.50m), null);
+        string other = RequestHash.Compute(new CreateItem("A-1", 1.51m), null);
 
         Assert.Equal(64, first.Length);
         Assert.NotEqual(first, same);
         Assert.NotEqual(first, other);
-        Assert.Equal(first, RequestHash.Compute(new CreateItem("A-1", 1.5m)));
-        Assert.NotEqual(RequestHash.Compute(new UpdateItem(Guid.Empty, 1, "A-1")), RequestHash.Compute(new CreateItem("A-1", 1.5m)));
+        Assert.Equal(first, RequestHash.Compute(new CreateItem("A-1", 1.5m), null));
+        Assert.NotEqual(RequestHash.Compute(new UpdateItem(Guid.Empty, 1, "A-1"), 1), RequestHash.Compute(new CreateItem("A-1", 1.5m), null));
+    }
+
+    [Fact]
+    public void R_API_04_the_request_hash_includes_the_If_Match_version()
+    {
+        UpdateItem command = new(Guid.Empty, 1, "A-1");
+
+        Assert.NotEqual(RequestHash.Compute(command, 1), RequestHash.Compute(command, 2));
+        Assert.Equal(RequestHash.Compute(command, 1), RequestHash.Compute(command, 1));
     }
 
     [Fact]
