@@ -1,4 +1,4 @@
-# Continuous integration (D-42). Required status checks on main: "Build and test" and "Licence scan".
+# Continuous integration (D-42). Required status checks on main: "Build and test" and "License scan".
 # Every pull request must be green here before review (CLAUDE.md, working model).
 name: CI
 
@@ -69,7 +69,7 @@ jobs:
           retention-days: 14
 
   licence-scan:
-    name: Licence scan
+    name: License scan
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
