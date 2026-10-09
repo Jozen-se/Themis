@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/artifact/5NwCL8oDM8UmE8tg8Abicz), revision 155, taken 2026-10-09.
+> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/artifact/5NwCL8oDM8UmE8tg8Abicz), revision 156, taken 2026-10-09.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite rule IDs
 > without leaving the repository. Where this copy and the live document differ, the live document wins.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -639,7 +639,7 @@ StockBalance rows written by a posting always belong to items whose ItemCostStat
 
 ## Security, audit and integration entities
 
-One permission exists per command, so the permission list and the API surface cannot drift apart. Nine entities cover access, audit, idempotency and outbound events.
+One permission exists per command, plus one TYPE.READ permission per resource type for queries (D-47), so the permission list and the API surface cannot drift apart. Nine entities cover access, audit, idempotency and outbound events.
 
 | Entity | Attribute | Type | Req | Rule |
 |---|---|---|---|---|
