@@ -1,0 +1,39 @@
+name: Task
+description: A build task for one pull request. Five lines, as the working model requires.
+title: "[Task] "
+labels: []
+body:
+  - type: input
+    id: goal
+    attributes:
+      label: Goal
+      description: One sentence, the business outcome.
+    validations:
+      required: true
+  - type: input
+    id: rules
+    attributes:
+      label: Rule IDs
+      description: The rules and decisions this task implements, for example R-LED-05, R-DOC-07, D-24.
+    validations:
+      required: true
+  - type: input
+    id: entities
+    attributes:
+      label: Entities touched
+      description: Kernel entities and tables, by their names in the Phase 0 specification.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance as invariants and scenarios
+      description: Which invariants (I-nn) must hold and which scenarios must pass.
+    validations:
+      required: true
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+    validations:
+      required: true

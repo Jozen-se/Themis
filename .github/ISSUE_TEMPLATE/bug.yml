@@ -1,0 +1,25 @@
+name: Bug
+description: Behaviour that contradicts a rule, an invariant or a scenario.
+title: "[Bug] "
+labels: []
+body:
+  - type: input
+    id: rule
+    attributes:
+      label: Rule or invariant violated
+      description: For example R-LED-02 or I-03.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Commands or API calls, with the data used.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual
+    validations:
+      required: true

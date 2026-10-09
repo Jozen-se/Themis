@@ -1,0 +1,30 @@
+name: Rule gap
+description: The build session found a question the rules do not answer. Work stops until the decision log answers it.
+title: "[Rule gap] "
+labels: []
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What the code needs to know, in one or two sentences.
+    validations:
+      required: true
+  - type: input
+    id: context
+    attributes:
+      label: Rules and decisions consulted
+      description: The IDs that come closest and why they do not settle it.
+    validations:
+      required: true
+  - type: textarea
+    id: options
+    attributes:
+      label: Options seen
+      description: The reasonable answers, with the trade-off of each. No recommendation stronger than the evidence.
+    validations:
+      required: true
+  - type: input
+    id: blocked
+    attributes:
+      label: Blocked task or pull request

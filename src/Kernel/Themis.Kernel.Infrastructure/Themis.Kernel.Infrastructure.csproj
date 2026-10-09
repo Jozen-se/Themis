@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Kernel.Infrastructure: persistence for the kernel schema (one data context, its migrations and the
+    migrations history table of D-26), the SET LOCAL ROLE connection behaviour of R-DB-01, the outbox relay
+    and external adapters. Depends on Application, Domain and Contracts; never on Api (ARCH-05).
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="../Themis.Kernel.Contracts/Themis.Kernel.Contracts.csproj" />
+    <ProjectReference Include="../Themis.Kernel.Domain/Themis.Kernel.Domain.csproj" />
+    <ProjectReference Include="../Themis.Kernel.Application/Themis.Kernel.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Themis.ArchitectureTests" />
+    <InternalsVisibleTo Include="Themis.UnitTests" />
+    <InternalsVisibleTo Include="Themis.IntegrationTests" />
+  </ItemGroup>
+
+</Project>

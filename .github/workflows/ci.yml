@@ -1,0 +1,95 @@
+# Continuous integration (D-42). Required status checks on main: "Build and test" and "Licence scan".
+# Every pull request must be green here before review (CLAUDE.md, working model).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+  TESTINGPLATFORM_TELEMETRY_OPTOUT: "true"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up .NET (version from global.json)
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore tools
+        run: dotnet tool restore
+
+      - name: Restore packages (locked to packages.lock.json)
+        run: dotnet restore Themis.sln --locked-mode
+
+      - name: Lint (dotnet format, style and analyzers)
+        run: dotnet format Themis.sln --verify-no-changes --no-restore
+
+      - name: Build (warnings are errors)
+        run: dotnet build Themis.sln --configuration Release --no-restore
+
+      - name: Architecture tests (D-26)
+        run: dotnet test --solution Themis.sln --configuration Release --no-build --filter-trait "Category=Architecture" --ignore-exit-code 8 --report-xunit-trx --results-directory TestResults/architecture
+
+      - name: Unit tests
+        run: dotnet test --solution Themis.sln --configuration Release --no-build --filter-trait "Category=Unit" --ignore-exit-code 8 --report-xunit-trx --results-directory TestResults/unit
+
+      - name: Integration tests (PostgreSQL via Testcontainers, I-14)
+        run: dotnet test --solution Themis.sln --configuration Release --no-build --filter-trait "Category=Integration" --ignore-exit-code 8 --report-xunit-trx --results-directory TestResults/integration
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  licence-scan:
+    name: Licence scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up .NET (version from global.json)
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore tools
+        run: dotnet tool restore
+
+      - name: Restore packages (locked to packages.lock.json)
+        run: dotnet restore Themis.sln --locked-mode
+
+      - name: Scan every package, transitive included, against the permissive allowlist (D-38)
+        run: >
+          dotnet nuget-license
+          --input Themis.sln
+          --include-transitive
+          --allowed-license-types eng/licenses/allowed-licenses.json
+          --licenseurl-to-license-mappings eng/licenses/license-url-mappings.json
+          --override-package-information eng/licenses/package-overrides.json
+          --output Table

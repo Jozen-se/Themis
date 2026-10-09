@@ -1,0 +1,47 @@
+# Dependency updates. Every update still has to pass CI, including the licence scan (D-38).
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      dotnet-platform:
+        patterns:
+          - "Microsoft.AspNetCore.*"
+          - "Microsoft.Extensions.*"
+          - "Microsoft.EntityFrameworkCore*"
+          - "Npgsql*"
+      opentelemetry:
+        patterns:
+          - "OpenTelemetry*"
+      tests:
+        patterns:
+          - "xunit*"
+          - "TngTech.ArchUnitNET*"
+          - "Testcontainers*"
+          - "Microsoft.AspNetCore.Mvc.Testing"
+      analyzers-and-tools:
+        patterns:
+          - "Microsoft.CodeAnalysis.*"
+          - "nuget-license"
+    commit-message:
+      prefix: "deps"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "ci"
+
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "dev"

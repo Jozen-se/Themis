@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    Themis.Host: the composition root. Wiring only, no business logic (ARCH-03: nothing references the host).
+    Carries the observability baseline of D-25: OpenTelemetry tracing, metrics and logs, health endpoints,
+    and a correlation id on every request.
+  -->
+
+  <PropertyGroup>
+    <UserSecretsId>themis-host</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../Kernel/Themis.Kernel.Api/Themis.Kernel.Api.csproj" />
+    <ProjectReference Include="../../Kernel/Themis.Kernel.Infrastructure/Themis.Kernel.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Themis.UnitTests" />
+  </ItemGroup>
+
+</Project>

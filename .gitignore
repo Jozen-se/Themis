@@ -1,0 +1,23 @@
+# Build output
+bin/
+obj/
+artifacts/
+TestResults/
+*.trx
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.swp
+
+# Local environment
+.env
+*.local.json
+!appsettings.Development.json
+
+# OS
+.DS_Store
+Thumbs.db

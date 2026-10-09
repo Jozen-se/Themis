@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Kernel.Contracts: the only kernel assembly a business module may reference (D-26, D-39).
+    It will hold the published interface of the kernel: commands, queries, integration events, DTOs,
+    the shared value types (Money, Quantity, typed identifiers, BusinessDate) and the abstractions
+    a module implements (module registration, command handling, the posting service interface of R-LED-07).
+    No framework references: this assembly depends on the base class library only.
+  -->
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Themis.ArchitectureTests" />
+    <InternalsVisibleTo Include="Themis.UnitTests" />
+  </ItemGroup>
+
+</Project>
