@@ -3,13 +3,18 @@
   <!--
     Themis.FixtureModule: a test-only process module with its own schema "fixture" and role themis_fixture (brief,
     Repository layout). It proves the module boundary rules on a real assembly: it references Themis.Kernel.Primitives
-    and Themis.Kernel.Contracts and nothing else outside itself, and its namespaces follow the module template
-    (Contracts, Domain, Application, Infrastructure, Api). Never shipped; never referenced by the host.
+    and Themis.Kernel.Contracts and nothing else of Themis, and its namespaces follow the module template
+    (Contracts, Domain, Application, Infrastructure, Api). Its commands exercise the kernel command pipeline end to
+    end, failure modes included. Never shipped; never referenced by the host.
   -->
 
   <PropertyGroup>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../../../src/Kernel/Themis.Kernel.Primitives/Themis.Kernel.Primitives.csproj" />

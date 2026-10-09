@@ -1,10 +1,15 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Scalar.AspNetCore;
 using Themis.Host.Observability;
+using Themis.Kernel.Persistence;
+using Themis.Kernel.Pipeline;
+using Themis.Kernel.Pipeline.Http;
 
 namespace Themis.Host;
 
 /// <summary>
-/// Composition root. Wires the kernel and the modules into one deployable; holds no business logic.
+/// Composition root. Wires the kernel and the modules into one deployable; holds no business logic and never
+/// applies migrations (brief, Repository layout).
 /// </summary>
 public sealed class Program
 {
@@ -18,14 +23,32 @@ public sealed class Program
 
         builder.AddThemisTelemetry();
         builder.Services.AddSingleton(TimeProvider.System);
-        builder.Services.AddThemisHealthChecks(builder.Configuration);
+
+        string? connectionString = builder.Configuration.GetConnectionString(HealthCheckExtensions.ConnectionStringName);
+        bool databaseConfigured = !string.IsNullOrWhiteSpace(connectionString);
+        if (databaseConfigured)
+        {
+            builder.Services.AddKernelPersistence(connectionString!);
+        }
+
+        builder.Services.AddThemisHealthChecks(databaseConfigured);
+        builder.Services.AddKernelPipeline();
+        builder.Services.AddKernelOpenApi();
+        builder.Services.AddProblemDetails();
 
         WebApplication app = builder.Build();
 
+        app.UseExceptionHandler();
         app.UseCorrelationId();
 
         app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
         app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") });
+
+        if (app.Environment.IsDevelopment())
+        {
+            app.MapOpenApi();
+            app.MapScalarApiReference();
+        }
 
         app.Run();
     }

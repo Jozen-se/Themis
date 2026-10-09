@@ -3,6 +3,7 @@ using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using Themis.Kernel.Pipeline.Telemetry;
 
 namespace Themis.Host.Observability;
 
@@ -38,6 +39,7 @@ internal static class TelemetryExtensions
             {
                 tracing.AddAspNetCoreInstrumentation(options => options.RecordException = true);
                 tracing.AddHttpClientInstrumentation();
+                tracing.AddSource(PipelineTelemetry.SourceName);
                 if (consoleEnabled)
                 {
                     tracing.AddConsoleExporter();
@@ -53,6 +55,7 @@ internal static class TelemetryExtensions
                 metrics.AddAspNetCoreInstrumentation();
                 metrics.AddHttpClientInstrumentation();
                 metrics.AddRuntimeInstrumentation();
+                metrics.AddMeter(PipelineTelemetry.SourceName);
                 if (otlpEnabled)
                 {
                     metrics.AddOtlpExporter();

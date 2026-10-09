@@ -35,7 +35,7 @@ dotnet_style_qualification_for_method = false:suggestion
 dotnet_style_qualification_for_event = false:suggestion
 dotnet_style_predefined_type_for_locals_parameters_members = true:error
 dotnet_style_predefined_type_for_member_access = true:error
-dotnet_style_require_accessibility_modifiers = always:error
+dotnet_style_require_accessibility_modifiers = for_non_interface_members:error
 dotnet_style_readonly_field = true:error
 csharp_style_prefer_readonly_struct = true:suggestion
 

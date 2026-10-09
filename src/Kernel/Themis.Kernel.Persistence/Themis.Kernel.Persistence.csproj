@@ -1,6 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Themis.Kernel.Persistence: the one kernel data context, unit of work, the shared connection and transaction, role switching (R-DB-01) and the grant helper every migration uses. -->
+  <!--
+    Themis.Kernel.Persistence: the one kernel data context, the unit of work with the shared connection and
+    transaction, role switching (R-DB-01, D-41), the kernel stores for idempotency, audit and outbox rows, the
+    migrations of schema "kernel" and the grant helper every migration uses (brief, Database model).
+    Kernel capabilities reach each other through Themis.Kernel.Contracts (ARCH-08); no public types (ARCH-07).
+  -->
 
   <ItemGroup>
     <ProjectReference Include="../Themis.Kernel.Primitives/Themis.Kernel.Primitives.csproj" />
@@ -8,12 +13,20 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="Themis.Host" />
+    <InternalsVisibleTo Include="Themis.Migrator" />
     <InternalsVisibleTo Include="Themis.Architecture.Tests" />
     <InternalsVisibleTo Include="Themis.Kernel.Tests" />
     <InternalsVisibleTo Include="Themis.Integration.Tests" />
     <InternalsVisibleTo Include="Themis.Invariants.Tests" />
-    <InternalsVisibleTo Include="Themis.Migrator" />
   </ItemGroup>
 
 </Project>

@@ -57,8 +57,29 @@ public sealed class GrantSqlTests
     }
 
     [Fact]
-    public void The_declared_matrix_is_empty_until_the_first_migration()
+    public void R_LED_06_the_declared_matrix_grants_delete_only_on_idempotency_records_and_update_only_on_outbox_delivery_columns()
     {
-        Assert.Empty(KernelPrivilegeMatrix.Declared);
+        TableGrant withDelete = Assert.Single(KernelPrivilegeMatrix.Declared, grant => grant.Privileges.Contains(TablePrivilege.Delete));
+        Assert.Equal("idempotency_record", withDelete.Table);
+        Assert.Null(withDelete.UpdateColumns);
+
+        TableGrant withUpdate = Assert.Single(KernelPrivilegeMatrix.Declared, grant => grant.Privileges.Contains(TablePrivilege.Update));
+        Assert.Equal("outbox_event", withUpdate.Table);
+        Assert.Equal(["published_at", "attempts"], withUpdate.UpdateColumns);
+
+        TableGrant audit = Assert.Single(KernelPrivilegeMatrix.Declared, grant => grant.Table == "audit_event");
+        Assert.Equal([TablePrivilege.Select, TablePrivilege.Insert], audit.Privileges.Order());
+    }
+
+    [Fact]
+    public void GrantsFor_renders_only_the_named_tables()
+    {
+        Assert.Equal(
+            [
+                "GRANT SELECT, INSERT ON \"kernel\".\"outbox_event\" TO \"themis_kernel\";",
+                "GRANT UPDATE (\"published_at\", \"attempts\") ON \"kernel\".\"outbox_event\" TO \"themis_kernel\";",
+            ],
+            KernelPrivilegeMatrix.GrantsFor("outbox_event"));
+        Assert.Empty(KernelPrivilegeMatrix.GrantsFor("no_such_table"));
     }
 }

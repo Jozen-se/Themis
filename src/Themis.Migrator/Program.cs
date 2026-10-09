@@ -1,4 +1,5 @@
 using Npgsql;
+using Themis.Kernel.Persistence;
 
 namespace Themis.Migrator;
 
@@ -42,7 +43,17 @@ public static class Program
                 Console.WriteLine($"Connected to '{connection.Database}' as {RequiredRole}. Bootstrapped schemas: {found ?? "none"}.");
             }
 
-            Console.WriteLine("No migrations are defined yet; the kernel data context arrives with milestone 1 step 2. Nothing to apply.");
+            // Only Themis.Migrator applies migrations; the application never calls Migrate() (brief, Migrations).
+            IReadOnlyList<string> pending = await KernelMigrations.PendingAsync(connectionString, CancellationToken.None);
+            if (pending.Count == 0)
+            {
+                Console.WriteLine("Kernel schema is up to date. Nothing to apply.");
+                return 0;
+            }
+
+            Console.WriteLine($"Applying {pending.Count} kernel migration(s): {string.Join(", ", pending)}.");
+            IReadOnlyList<string> applied = await KernelMigrations.ApplyAsync(connectionString, CancellationToken.None);
+            Console.WriteLine($"Applied {applied.Count} migration(s) as {RequiredRole}.");
             return 0;
         }
         catch (NpgsqlException exception)
