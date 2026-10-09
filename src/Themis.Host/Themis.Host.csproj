@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    Themis.Host: the composition root. Wiring only, no business logic, never runs migrations (brief, Repository layout).
+    Nothing references the host (ARCH-03). Carries the observability baseline of D-25: OpenTelemetry tracing, metrics
+    and logs with a console exporter in development and OTLP when an endpoint is configured, health endpoints, and a
+    correlation id on every request.
+  -->
+
+  <PropertyGroup>
+    <UserSecretsId>themis-host</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Kernel/Themis.Kernel.Primitives/Themis.Kernel.Primitives.csproj" />
+    <ProjectReference Include="../Kernel/Themis.Kernel.Contracts/Themis.Kernel.Contracts.csproj" />
+    <ProjectReference Include="../Kernel/Themis.Kernel.Pipeline/Themis.Kernel.Pipeline.csproj" />
+    <ProjectReference Include="../Kernel/Themis.Kernel.Persistence/Themis.Kernel.Persistence.csproj" />
+    <ProjectReference Include="../Kernel/Themis.Kernel.Organisation/Themis.Kernel.Organisation.csproj" />
+    <ProjectReference Include="../Kernel/Themis.Kernel.MasterData/Themis.Kernel.MasterData.csproj" />
+    <ProjectReference Include="../Kernel/Themis.Kernel.Documents/Themis.Kernel.Documents.csproj" />
+    <ProjectReference Include="../Kernel/Themis.Kernel.Posting/Themis.Kernel.Posting.csproj" />
+    <ProjectReference Include="../Kernel/Themis.Kernel.Messaging/Themis.Kernel.Messaging.csproj" />
+    <ProjectReference Include="../Kernel/Themis.Kernel.Identity/Themis.Kernel.Identity.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Exporter.Console" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Themis.Kernel.Tests" />
+  </ItemGroup>
+
+</Project>

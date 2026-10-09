@@ -1,16 +1,18 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Kernel.Contracts: the only kernel assembly a business module may reference (D-26, D-39).
-    It will hold the published interface of the kernel: commands, queries, integration events, DTOs,
-    the shared value types (Money, Quantity, typed identifiers, BusinessDate) and the abstractions
-    a module implements (module registration, command handling, the posting service interface of R-LED-07).
-    No framework references: this assembly depends on the base class library only.
+    Themis.Kernel.Contracts: the interfaces modules may call and the kernel capabilities use to reach each other:
+    posting, documents, organisation, master data, identity (brief, Repository layout; D-26, D-39).
+    Public types live here and in Primitives only (ARCH-07). No framework references (ARCH-06).
   -->
 
   <ItemGroup>
-    <InternalsVisibleTo Include="Themis.ArchitectureTests" />
-    <InternalsVisibleTo Include="Themis.UnitTests" />
+    <ProjectReference Include="../Themis.Kernel.Primitives/Themis.Kernel.Primitives.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Themis.Architecture.Tests" />
+    <InternalsVisibleTo Include="Themis.Kernel.Tests" />
   </ItemGroup>
 
 </Project>

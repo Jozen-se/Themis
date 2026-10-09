@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Themis.Kernel.Pipeline: command and query dispatch with validation, authorisation (R-SEC-01), idempotency (R-API-01, R-API-04), one transaction with role switching (D-41), audit events (R-AUD-01) and telemetry (D-25). -->
+
+  <ItemGroup>
+    <ProjectReference Include="../Themis.Kernel.Primitives/Themis.Kernel.Primitives.csproj" />
+    <ProjectReference Include="../Themis.Kernel.Contracts/Themis.Kernel.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Themis.Host" />
+    <InternalsVisibleTo Include="Themis.Architecture.Tests" />
+    <InternalsVisibleTo Include="Themis.Kernel.Tests" />
+    <InternalsVisibleTo Include="Themis.Integration.Tests" />
+    <InternalsVisibleTo Include="Themis.Invariants.Tests" />
+  </ItemGroup>
+
+</Project>

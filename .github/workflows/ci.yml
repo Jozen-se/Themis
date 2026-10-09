@@ -56,6 +56,9 @@ jobs:
       - name: Integration tests (PostgreSQL via Testcontainers, I-14)
         run: dotnet test --solution Themis.sln --configuration Release --no-build --filter-trait "Category=Integration" --ignore-exit-code 8 --report-xunit-trx --results-directory TestResults/integration
 
+      - name: Invariant tests (property-based, I-xx)
+        run: dotnet test --solution Themis.sln --configuration Release --no-build --filter-trait "Category=Invariant" --ignore-exit-code 8 --report-xunit-trx --results-directory TestResults/invariant
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4

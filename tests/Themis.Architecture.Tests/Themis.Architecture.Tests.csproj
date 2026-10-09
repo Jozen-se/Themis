@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Architecture tests (D-26): fail the build on illegal references between the kernel, the modules, the host and the
+    migrator, on layering violations inside a module, and on public types outside the contract surface. The rules live
+    in ThemisArchitectureRules.cs; every rule has a negative test against the fixtures in Fixtures/ so that a rule
+    that stops catching violations fails too. Floating point is banned at compile time (eng/BannedSymbols.txt, R-MON-01).
+  -->
+
+  <PropertyGroup>
+    <NoWarn>$(NoWarn);CA1812;CA1852;IDE0051;IDE0052;CA1822;CS0414;CA1823</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="TngTech.ArchUnitNET" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Themis.Host/Themis.Host.csproj" />
+    <ProjectReference Include="../../src/Themis.Migrator/Themis.Migrator.csproj" />
+    <ProjectReference Include="../Fixtures/Themis.FixtureModule/Themis.FixtureModule.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,8 +1,8 @@
 namespace Themis.Kernel.Contracts;
 
 /// <summary>
-/// Anchor type for the kernel contract layer. Commands, queries, integration events and shared
-/// value types that modules may depend on will live in this assembly (D-26, D-39).
+/// Anchor type for the kernel contract surface: the interfaces modules may call and kernel capabilities use to
+/// reach each other (ARCH-04, ARCH-08). Framework-free (ARCH-06).
 /// </summary>
 internal static class AssemblyMarker
 {

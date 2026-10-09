@@ -22,6 +22,7 @@ updates:
           - "xunit*"
           - "TngTech.ArchUnitNET*"
           - "Testcontainers*"
+          - "CsCheck"
           - "Microsoft.AspNetCore.Mvc.Testing"
       analyzers-and-tools:
         patterns:
