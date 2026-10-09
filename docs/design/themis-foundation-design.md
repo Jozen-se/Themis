@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Foundation Design* (https://claude.ai/artifact/B7yhaqHmFJqQCAo23KSDXq), revision 88, taken 2026-10-09.
+> **Snapshot** of the live document *Themis Foundation Design* (https://claude.ai/artifact/B7yhaqHmFJqQCAo23KSDXq), revision 127, taken 2026-10-09.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite rule IDs
 > without leaving the repository. Where this copy and the live document differ, the live document wins.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -57,37 +57,37 @@ Reporting and integrations only ever read from the reporting schema and the outb
 
 ## Technology direction
 
-PostgreSQL and a modular monolith are proposed with high confidence; the backend language stays open until the criteria below are scored. The design in this doc is language-neutral on purpose.
+PostgreSQL (D-04), the modular monolith (D-05) and C# on .NET (D-06) are decided. Rules and specifications stay language-neutral; only the build constraints below are specific to the chosen stack.
 
 | Area | Direction | Status | Reasoning |
 |---|---|---|---|
-| Database | PostgreSQL | Proposed, high confidence | ACID transactions, strong constraints, exact `numeric` type, row-level security, `jsonb` for extension fields, open licence, broad BI connectivity. |
-| Architecture style | Modular monolith: one deployable, strict module boundaries | Proposed, high confidence | Microservices would add distributed transactions to the hardest problem (ledger consistency) with no gain at this size. Modules can be split later along the same boundaries. |
-| Backend language | C# on the current .NET LTS release (.NET 10, verify at scaffold time); if it is ever replaced, the reason decides the successor (Kotlin for the JVM ecosystem, TypeScript for the contributor pool) | Decided (D-06) | Scored in D-06. Stack: ASP.NET Core minimal APIs, EF Core with Npgsql, xUnit, Testcontainers, NetArchTest, OpenTelemetry. |
+| Database | PostgreSQL | Decided (D-04) | ACID transactions, strong constraints, exact `numeric` type, row-level security, `jsonb` for extension fields, open licence, broad BI connectivity. |
+| Architecture style | Modular monolith: one deployable, strict module boundaries | Decided (D-05) | Microservices would add distributed transactions to the hardest problem (ledger consistency) with no gain at this size. Modules can be split later along the same boundaries. |
+| Backend language | C# on the current .NET LTS release (.NET 10, verify at scaffold time); if it is ever replaced, the reason decides the successor (Kotlin for the JVM ecosystem, TypeScript for the contributor pool) | Decided (D-06) | Scored in D-06. Stack: ASP.NET Core minimal APIs, EF Core with Npgsql, xUnit, Testcontainers, ArchUnitNET, OpenTelemetry. |
 | API | HTTP + JSON, contract-first with OpenAPI | Proposed | Stable, documented contract that Claude Code, tests and the later frontend all build against. |
 | Events | Transactional outbox table in PostgreSQL | Proposed | Events are written in the same transaction as the change, so none are lost. No message broker in v1. |
 | Identity | OpenID Connect to an external identity provider; roles and permissions held in the ERP | Decided (D-12) | Do not build login and password handling. |
 | Reporting access | Read-only reporting schema (views), optional read replica later | Proposed | BI tools never read transactional tables directly. |
 | Runtime | Container images; Docker or Podman Compose for development | Proposed | Runs the same on any Linux host or cloud. |
 | Frontend | Deferred | TypeScript, Phase 5 | API first. |
-| Observability | Structured logging, OpenTelemetry tracing and metrics, health endpoints, a correlation id on every command | Proposed (D-25) | In place from the first commit; far cheaper than adding it later. Audit events already carry the correlation id. |
-| Boundary enforcement | Architecture tests in CI that fail the build on illegal cross-module references; one database schema and role per module | Proposed (D-26) | Makes "strict module boundaries" true in practice, using the same database-role technique as R-LED-06. The ledgers belong to the kernel posting service (R-LED-07); the shared document tables belong to the kernel document framework (D-39), and the role mechanism is D-41. |
+| Observability | Structured logging, OpenTelemetry tracing and metrics, health endpoints, a correlation id on every command | Decided (D-25) | In place from the first commit; far cheaper than adding it later. Audit events already carry the correlation id. |
+| Boundary enforcement | Architecture tests in CI that fail the build on illegal cross-module references; one database schema and role per module | Decided (D-26) | Makes "strict module boundaries" true in practice, using the same database-role technique as R-LED-06. The ledgers belong to the kernel posting service (R-LED-07); the shared document tables belong to the kernel document framework (D-39), and the role mechanism is D-41. |
 
-**Backend language criteria**, to score before deciding:
+**Backend language criteria**, as scored for D-06:
 
 - **Exact decimals:** C# has a native `decimal`; Kotlin and Java use `BigDecimal`; TypeScript needs a decimal library and lint rules that forbid plain `number` for money and quantity, which is easy to get wrong.
 - **Domain modelling:** strong static types for documents, states and commands. All three qualify.
 - **Contributor pool for open source:** TypeScript is largest; C# and Kotlin are smaller but common in enterprise teams.
 - **Readability for the project owner:** you will review what Claude Code writes, so the language you read best counts.
-- **Current lean (interpretation):** C# on .NET, scored in D-06; TypeScript for the frontend; money and quantities cross the API as strings (D-37).
+- **Result****:** C# on .NET, scored in D-06; TypeScript for the frontend; responses and events carry money and quantities as strings, and requests accept strings or numbers (D-37).
 
 **Build constraints for the scaffold** (from D-06, D-26, D-35, D-37 and D-38)
 
 - **Rules engine (D-35):** a length and nesting-depth limit checked at save time is the primary control, because the language has no loops or recursion. A runtime timeout is defence in depth. No time or random functions; "today" is passed in as a value. Only functions implemented in decimal are exposed. Division rounds at a defined precision, or the rule rounds explicitly, consistent with R-MON-02. Test cases are stored with each rule and run on save.
 - **DynamicExpresso test (D-35):** its default number type must be set to decimal, and context objects handed to it must be plain, closed types with no methods worth calling.
-- **JSON (D-37):** System.Text.Json writes decimals as strings through its number-handling option. The OpenAPI schema declares these fields as string with a decimal format, so generated clients type them correctly. Inbound requests accept both strings and JSON numbers; the server parses the number text exactly.
+- **JSON (D-37):** A decimal-only System.Text.Json converter writes decimals as strings; the global number-handling option is not used, because it would also turn integers into strings. The OpenAPI schema declares these fields as string with a decimal format, so generated clients type them correctly. Inbound requests accept both strings and JSON numbers; the server parses the number text exactly.
 - **Persistence (D-26):** one EF Core data context per module, each with its own schema and a separately named migrations history table. Foreign keys from a process module to kernel tables are allowed (the module role gets REFERENCES on them); foreign keys between two process modules are forbidden and caught by the architecture test.
-- **Architecture tests (D-26):** NetArchTest if it, or a maintained fork, is current at scaffold time; otherwise ArchUnitNET (Apache-2.0).
+- **Architecture tests (D-26):** ArchUnitNET (Apache-2.0), chosen at scaffold time on 2026-10-09: NetArchTest.Rules has had no release since May 2021 and its maintained fork none since June 2025.
 - **Licences (D-38):** a licence scan in CI fails the build on any copyleft dependency. The core stack is permissive (MIT, Apache-2.0, PostgreSQL licence); the risk is a later convenience package, and PDF libraries are the classic trap.
 
 ## Kernel domain model
@@ -102,7 +102,7 @@ The kernel has seven areas and every later module builds on them; no module adds
 | Parties | `Party` | Any organisation or person | One record per real-world party, whatever its roles. |
 | Parties | `PartyRole` | Customer, supplier, carrier and so on | Terms (payment terms, credit limit, price list) sit on the role, per company. |
 | Parties | `Address`, `Contact` | Where and who | Effective-dated; personal data flagged for GDPR. |
-| Items | `Item` | Anything bought, stocked or sold | Has a base unit, item type (stocked, non-stocked, service), tax class and typed attributes. |
+| Items | `Item` | Anything bought, stocked or sold | Has a base unit, item type (stocked, non-stocked, service), lot tracking and typed attributes. Company-specific settings (status, posting group, tax class, costing method) sit on ItemCompany (D-43). |
 | Items | `UnitOfMeasure`, `ItemUnit``, Unit``Conversion` | Units and pack levels | Item-specific conversions (1 box = 200 pcs) plus global ones (1 kg = 1,000 g). |
 | Items | `AttributeTemplate` | Structured item properties | Typed fields (thread, length, material, finish, standard), not free text. |
 | Items | `Lot` | A batch of one item | Optional per item; carries traceability such as heat number and certificate. |
@@ -122,7 +122,7 @@ The kernel has seven areas and every later module builds on them; no module adds
 
 ## Core rulesets
 
-These 55 rules (17 added by the Phase 0 specification, 3 by D-24 and its follow-ons, 1 by D-41) apply to every module; code, tests and API errors refer to them by ID. A rule changes only through a recorded decision.
+These 56 rules (17 added by the Phase 0 specification, 3 by D-24 and its follow-ons, 1 by D-41, 1 by the 2026-10-09 review) apply to every module; code, tests and API errors refer to them by ID. A rule changes only through a recorded decision.
 
 | ID | Rule | Why |
 |---|---|---|
@@ -146,6 +146,7 @@ These 55 rules (17 added by the Phase 0 specification, 3 by D-24 and its follow-
 | R-MD-02 | Master data changes are effective-dated and audited; history is kept. | Point-in-time answers. |
 | R-MD-03 | Master data in use is deactivated, never deleted. Personal data is anonymised when erasure applies. | Keeps ledgers valid while respecting GDPR. |
 | R-MD-04 | Each master data domain has a named owner role. | Clear accountability for data quality. |
+| R-MD-05 | A business code that already exists within the uniqueness scope stated on its attribute in the Phase 0 specification is rejected with R-MD-05. | One rule and one error code for every duplicate key, with the scope kept in one place (review RR-01). |
 | R-MON-01 | Every amount carries its currency. Money and quantities use exact decimals; floating point is forbidden. | Floating point causes rounding errors. |
 | R-MON-02 | Amounts are rounded to the currency's minor unit only at defined points (line net, tax, document total). Unit prices may carry more decimals. | Deterministic totals. |
 | R-MON-03 | The exchange rate used is stored on the document. Journal lines hold both transaction and company currency amounts. | Multi-currency ready from day one. |
@@ -178,13 +179,13 @@ These 55 rules (17 added by the Phase 0 specification, 3 by D-24 and its follow-
 | R-OI-01 | When a settlement closes an open item, its company-currency value is the item's full remaining company amount. | No rounding residue on settled items. |
 | R-OI-02 | Reversing a settlement also reverses its write-off and exchange difference entries. | Receivables stay reconciled after reversals. |
 | R-LED-07 | Stock movements and their journal entries are written by one kernel posting service in one transaction, behind a published interface. No inline cross-module subscribers exist in v1. | Stock and the books always agree (D-24). |
-| R-LED-08 | Locks in a posting transaction are taken in a fixed order: cost state rows by item id, then number series. The gapless number is taken as the last step before commit. | No deadlocks; shortest possible lock on the series (D-34). |
+| R-LED-08 | Locks in a command transaction are taken by lock class in one fixed sequence, set out in the lock order table of the Phase 0 specification; each phase specification extends that table before it adds a lock class. Within a class, rows are locked in one SQL statement, ordered by the key that table states for the class. The number series is always last, and the gapless number is taken as the last step before commit. | No deadlocks; shortest possible lock on the series (D-34). |
 | R-PP-05 | Creating or changing an item posting group, party posting group or tax code is rejected if the posting profile would become incomplete. | A configuration gap stops a master data change, never a shipment (D-32). |
 | R-DB-01 | Every statement runs under the role of the module that owns the data, switched with SET LOCAL ROLE inside the command's single transaction. The login role holds no table privileges of its own. | Module boundaries enforced by the database while R-LED-05 stays atomic (D-41). |
 
 **Invariants and configurable defaults (P-11, D-29).** A rule is fixed only when correctness, law or security needs it. Every other rule ships as the best-practice default and can be adjusted per company through audited configuration. Where a setting is planned but not yet built, v1 ships the default only, and the design must keep the setting possible.
 
-**Invariants** (changing one needs a decision): R-LED-01 to R-LED-08, R-DB-01, R-INV-01, R-INV-02, R-INV-06, R-INV-07, R-INV-08, R-DOC-01 (system states), R-DOC-02, R-DOC-03 (the limit itself), R-DOC-04 (where law requires gapless numbering), R-DOC-05, R-DOC-07, R-MD-02, R-MD-03, R-MON-01, R-MON-03, R-TAX-02, R-TAX-03, R-TIME-01, R-SEC-01, R-AUD-01, R-API-01 to R-API-04, R-EXT-01, R-EXT-02, R-UOM-01, R-ACC-01, R-PP-01 to R-PP-05, R-OI-01, R-OI-02, R-O2C-05 (the billing limit), R-O2C-08 (a credit note references the invoice line), R-O2C-09.
+**Invariants** (changing one needs a decision): R-LED-01 to R-LED-08, R-DB-01, R-INV-01, R-INV-02, R-INV-06, R-INV-07, R-INV-08, R-DOC-01 (system states), R-DOC-02, R-DOC-03 (the limit itself), R-DOC-04 (where law requires gapless numbering), R-DOC-05, R-DOC-07, R-MD-02, R-MD-03, R-MD-05, R-MON-01, R-MON-03, R-TAX-02, R-TAX-03, R-TIME-01, R-SEC-01, R-AUD-01, R-API-01 to R-API-04, R-EXT-01, R-EXT-02, R-UOM-01, R-ACC-01, R-PP-01 to R-PP-05, R-OI-01, R-OI-02, R-O2C-05 (the billing limit), R-O2C-08 (a credit note references the invoice line), R-O2C-09.
 
 **Configurable defaults**
 
@@ -243,7 +244,7 @@ Nine process rules govern order-to-cash, and releasing an order only reserves st
 | Event | Inventory effect | Debit | Credit | Amount basis |
 |---|---|---|---|---|
 | Order released | Reservation only, no ledger entry | None | None | None |
-| Goods issue confirmed | Outbound entry, quantity negative | Cost of goods sold | Inventory | Quantity x average cost at posting |
+| Goods issue confirmed | Outbound entry, quantity negative | Cost of goods sold | Inventory | Quantity x value / quantity at posting, rounded; the full remaining value when stock empties (R-INV-07) |
 | Invoice posted | None | Accounts receivable (gross) | Revenue (net) and Output VAT (tax) | Invoice line amounts |
 | Payment received | None | Bank | Accounts receivable | Payment amount |
 | Payment difference within tolerance | None | Payment differences | Accounts receivable | Difference amount |
@@ -276,7 +277,7 @@ Themis integrates through one documented API, an event feed and standard file fo
 | Area | Approach | Standard or reference | Phase |
 |---|---|---|---|
 | API | Commands as `POST`, queries as `GET`, versioned paths (`/v1`) | OpenAPI 3 | 0 |
-| Events | Domain events such as `SalesOrderReleased`, `GoodsIssued`, `InvoicePosted`, published from the outbox with a schema version; consumers must be idempotent | Own event catalogue | 0 |
+| Events | Domain events such as `S``ALES_ORDER_RELEASED, GOODS_ISSUED, INVOICE_POSTED (D-44)`, published from the outbox with a schema version; consumers must be idempotent | Own event catalogue | 0 |
 | Bulk import | CSV or JSON import of master data with a dry-run mode and a validation report | Own format, documented | 0 |
 | Codes | Currencies, countries and units use international code lists | ISO 4217, ISO 3166-1 alpha-2, UN/ECE Recommendation 20 (H87 piece, KGM kilogram) | 0 |
 | Delivery terms | Incoterms on orders and deliveries | Incoterms 2020 | 1 |
@@ -333,7 +334,7 @@ The biggest risk is a kernel model that turns out wrong after code depends on it
 
 ## Decision log
 
-Thirty-eight decisions are made and three are open (D-10, D-20, D-36); none of the open ones blocks the walking skeleton.
+Forty-one decisions are made and three are open (D-10, D-20, D-36); none of the open ones blocks the walking skeleton.
 
 | ID | Decision | Status | Note |
 |---|---|---|---|
@@ -358,7 +359,7 @@ Thirty-eight decisions are made and three are open (D-10, D-20, D-36); none of t
 | D-19 | Posting rule key order: item posting group, party posting group or ship-to scope, tax code, reason code | Decided | Confirmed 2026-10-09. In force: account determination stays a decision table (D-35) |
 | D-20 | Swedish accounts for COGS, inventory adjustments and realised exchange differences | Open | Choose with an accountant before a real company goes live. Test fixtures use placeholders |
 | D-21 | Foreign-currency documents from the first business phase, with realised exchange differences at settlement | Decided | Confirmed 2026-10-09 |
-| D-22 | REVENUE and COGS keyed by the line's ship-to scope | Decided | Confirmed 2026-10-09 |
+| D-22 | REVENUE is keyed by item posting group, ship-to scope and tax code; COGS by item posting group and ship-to scope. Ship-to scope alone cannot match VAT treatment, which also depends on the party's VAT status and the item's tax class (R-TAX-01) | Decided | Confirmed 2026-10-09; amended the same day to add tax code to REVENUE (review RR-19) |
 | D-23 | Integration Hub deferred to a later phase; nothing decided may make it hard to add, so every business action stays reachable as a published command and event | Decided | Your decision, 2026-10-08 |
 | D-24 | Stock and ledger consistency: one transaction (option A), through one kernel posting service behind a published interface; no inline cross-module subscribers in v1 | Decided | Your decision, 2026-10-08, with the architect's agreement. R-LED-07. Gaps are caught at master data time (D-32) |
 | D-25 | Observability baseline from the first commit | Decided | Confirmed 2026-10-09 |
@@ -373,12 +374,14 @@ Thirty-eight decisions are made and three are open (D-10, D-20, D-36); none of t
 | D-34 | Fixed lock order in posting transactions (R-LED-08); several gapless series per company allowed | Decided | Confirmed 2026-10-08. Several series still to confirm with an accountant |
 | D-35 | Rules expression language: NCalc in decimal mode behind one engine interface, with whitelisted decimal-only functions, defined division precision and save-time validation against a declared context. Used for guards, validation, defaulting and pricing conditions; account and tax determination stay decision tables. Exit conditions at scaffold time, DynamicExpresso tested against the same conditions; an owned decimal language modelled on CEL is the fallback | Decided | Confirmed 2026-10-08, with the architect's notes |
 | D-36 | Contributor terms: Developer Certificate of Origin or a contributor licence agreement | Open | Before the repository goes public or accepts an outside contribution |
-| D-37 | Money and quantities travel as JSON strings in the API, never as JSON numbers | Decided | Confirmed 2026-10-08. Inbound accepts strings and numbers |
+| D-37 | Responses and events carry money and quantities as JSON strings, never as JSON numbers. Requests accept strings or numbers and parse the number text exactly, never through a binary float | Decided | Confirmed 2026-10-08; wording clarified 2026-10-09 (review RR-02) |
 | D-38 | A licence scan in CI fails the build on any copyleft dependency | Decided | Confirmed 2026-10-08. Watch PDF libraries in particular |
 | D-39 | The document framework is a kernel platform module. It owns Document, DocumentLine, DocumentLink, NumberSeries and Attachment in the kernel schema, plus the state machine engine and numbering. Type-specific extension tables belong to the module that owns the document type, in that module's schema, with a foreign key to the kernel document; the kernel owns the extensions of its own document types | Decided | Your decision, 2026-10-09. A module reaches the framework only through its interface |
 | D-40 | Document type registration is table-driven from the start, system-owned in v1 | Decided | Your decision, 2026-10-09. Configurable lifecycles under P-11 need no rewrite later |
-| D-41 | Database access: one connection and one transaction per command, with SET LOCAL ROLE to the owning module's role before its statements. The login role holds no table privileges itself; cross-schema reads are granted explicitly. Rejected: one wide role per command. Later option: ledger inserts only through a security-definer function | Decided | Your decision, 2026-10-09. R-DB-01; proven by invariant test I-14 |
+| D-41 | Database access: one connection and one transaction per command, with SET LOCAL ROLE to the owning module's role before its statements. The login role holds no table privileges itself; cross-schema reads are granted explicitly. Rejected: one wide role per command. Later option: ledger inserts only through a security-definer function. Statement-level retries stay forbidden; a whole command may be retried in a new transaction, at most twice, only after SQLSTATE 40001 or 40P01, restarting the full pipeline including authorisation, with retries counted in a metric | Decided | Your decision, 2026-10-09. R-DB-01; proven by invariant test I-14. Retry amendment 2026-10-09 (review RR-06) |
 | D-42 | Version control: Git. During development, GitHub is the single service for repository hosting and CI (GitHub Actions). The repository stays private until D-14 and D-36 are settled | Decided | Your decision, 2026-10-09. GitHub confirmed the same day |
+| D-43 | Company-specific item data lives on ItemCompany, one row per item and company: status, item posting group, tax class, costing method, sales and purchase permission, default warehouse and units. Item keeps installation-wide identity: number, description, item type, base unit, lot tracking, units and attributes. Posting profile resolution and tax rules read ItemCompany | Decided | Your decision, 2026-10-09 (review RR-11). Costing method is master data on ItemCompany, not on the ItemCostState cache. Status is per company only; there is no installation-wide block, so retiring an item means deactivating it in every company (confirmed the same day) |
+| D-44 | Every state change writes one outbox event (one per document or master data row whose state a command changes), named TYPE plus the command in past tense, version 1 (for example ITEM_CREATED, INVENTORY_ADJUSTMENT_DISCARDED). Document types record business names that replace the generated one (for example GOODS_ISSUED, INVENTORY_ADJUSTED) per document type, command and resulting state in the document type registry (D-40). Business payloads are specified only for events that integrations consume | Decided | Your decision, 2026-10-09 (review RR-04). One event per document or master data row whose state a command changes, with business names per document type, command and resulting state: confirmed the same day |
 
 ## Next steps
 
@@ -386,12 +389,12 @@ The Phase 0 specification exists; the next design steps are the Phase 1 purchasi
 
 - Review this doc and comment on any rule you disagree with
 - Decide D-06, backend language, by scoring the criteria
-- Decide D-07, licence and contributor terms
+- Decide D-07, licence (contributor terms continue as D-36)
 - Confirm D-13, Sweden as first localisation
 - Walk procure-to-pay through the kernel model on paper
 - Write the Phase 0 specification: attribute lists per entity, state machine per document type, posting profile design
 - Write the order-to-cash scenario test catalogue
-- Settle D-13 and D-20 with an accountant
+- Settle D-20 and D-10 with an accountant
 - Write the Phase 1 purchasing specification (purchase order, goods receipt)
 - Choose the rules expression language (D-35)
 - Write the Phase 2 finance specification (supplier invoice, supplier payment, cost adjustment, year-end)

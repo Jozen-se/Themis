@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/artifact/5NwCL8oDM8UmE8tg8Abicz), revision 110, taken 2026-10-09.
+> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/artifact/5NwCL8oDM8UmE8tg8Abicz), revision 150, taken 2026-10-09.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite rule IDs
 > without leaving the repository. Where this copy and the live document differ, the live document wins.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -34,7 +34,7 @@ Every entity carries the common fields below (append-only entities omit the upda
 | Quantity | `numeric(20,6)` | Entered values are limited further by the unit's decimals. |
 | Money | `numeric(20,4)` plus a currency code | Rounded to the currency's minor unit at the defined points only (R-MON-02). |
 | UnitPrice | `numeric(20,6)` | Price per price unit; may carry more decimals than money. |
-| Cost | `numeric(28,10)` | Unit and average cost, kept unrounded. |
+| Cost | `numeric(28,10)` | Unit and average cost. Computed values are rounded half away from zero to 10 decimals when stored and are informational; costing uses value / quantity (moving average algorithm). |
 | Rate | `numeric(20,10)` | Exchange rates. |
 | Percent | `numeric(7,4)` | 25 % is stored as 25.0000. |
 | Date | `date` | Business dates in the company's time zone (R-TIME-01). |
@@ -163,26 +163,38 @@ A Party exists once per installation; what a company does with it (sell, buy, sh
 
 ## Item and unit entities
 
-Items are installation-wide; their base unit, lot tracking and pack factors freeze once used, because posted history depends on them. Nine entities cover items, units, attributes, lots and customer part numbers.
+Item identity is installation-wide, while settings that differ between companies sit on ItemCompany (D-43). Base unit, lot tracking and pack factors freeze once used, because posted history depends on them. Ten entities cover items, their company settings, units, attributes, lots and customer part numbers.
 
 **Item**
 
 | Attribute | Type | Req | Rule |
 |---|---|---|---|
-| `item_number` | Code | Y | Unique per installation. |
+| `item_number` | Code | Y | Unique per installation (R-MD-05). |
 | `description` | Name | Y |  |
 | `item_type` | Enum: Stocked, NonStocked, Service | Y | Only Stocked items create inventory entries. |
 | `base_unit` | UnitCode | Y | Immutable after the first inventory entry. |
-| `item_posting_group` | Code | Y | Key for account mapping, for example TRADE_GOODS. |
-| `tax_class` | Enum: Standard, Reduced, Zero, Exempt | Y | Input to tax rules (R-TAX-01). |
 | `lot_tracking` | Enum: None, Required | Y | Immutable after the first inventory entry. |
 | `attribute_template_id` | → AttributeTemplate | N |  |
 | `net_weight_kg` | Quantity | N | Per base unit, for example 0.0118 kg per piece. |
 | `sales_multiple` | Quantity | N | In base unit. Order quantities round up to a multiple, with a warning. |
 | `min_order_qty` | Quantity | N | In base unit. |
-| `default_sales_unit`, `default_purchase_unit` | UnitCode | N | Must exist as an ItemUnit of this item. |
-| `costing_method` | Enum: MovingAverage | Y | Only value in v1 (R-INV-05). |
-| `status` | Enum: Active, Blocked, Inactive | Y |  |
+
+**ItemCompany** (one row per item and company, D-43)
+
+| Attribute | Type | Req | Rule |
+|---|---|---|---|
+| `item_id`, `company_id` | → Item, → Company | Y | Unique pair (R-MD-05). An item can be used in a company only through an Active row. |
+| `status` | Enum: Active, Blocked, Inactive | Y | Master data lifecycle, per company. |
+| `item_posting_group` | Code | Y | Key for account mapping, for example TRADE_GOODS. |
+| `tax_class` | Enum: Standard, Reduced, Zero, Exempt | Y | Input to tax rules (R-TAX-01). |
+| `costing_method` | Enum: MovingAverage | Y | Only value in v1 (R-INV-05). Master data; never stored on the ItemCostState cache. |
+| `sales_allowed`, `purchase_allowed` | boolean | Y | Default true. |
+| `default_warehouse_id` | → Warehouse | N | Must belong to the company. |
+| `default_sales_unit`, `default_purchase_unit` | UnitCode | N | Must exist as an ItemUnit of the item. |
+
+Planning and replenishment parameters are added to ItemCompany with the Phase 1 purchasing specification.
+
+Item has no status of its own (D-43). There is no installation-wide block: retiring an item means deactivating its ItemCompany row in every company. R-MD-05 still applies to the item number per installation, whatever the status of its ItemCompany rows.
 
 **UnitOfMeasure** (global reference list)
 
@@ -347,6 +359,8 @@ Every business document shares one header, one line and one link model; fields t
 | OPENING_OPEN_ITEMS | On post | Yes | No | Yes | Customer, per line |
 
 Manual journals are gapless because they are accounting vouchers. Journal entries themselves are also numbered gapless per fiscal year (see Ledger entities).
+
+**Event names (D-44).** Every state change writes one outbox event, so a command writes one event for each document or master data row whose state it changes. The event is named TYPE plus the command in past tense, schema version 1: ITEM_CREATED, INVENTORY_ADJUSTMENT_CREATED, INVENTORY_ADJUSTMENT_DISCARDED. Where the state machine tables below give a business name for a transition (for example GOODS_ISSUED for DELIVERY.CONFIRM_SHIPMENT, or INVENTORY_ADJUSTED for INVENTORY_ADJUSTMENT.POST), the registry records it per document type, command and resulting state (so SALES_ORDER.RELEASE can yield SALES_ORDER_RELEASED or SALES_ORDER_CREDIT_BLOCKED), and code reads it from there. Master data commands always use the generated name. Business payloads are specified only for events that integrations consume; every other payload carries the id and the changed fields.
 
 **NumberSeries**
 
@@ -554,20 +568,33 @@ A reservation is a claim, not a ledger entry, so it is updated in place and audi
 | Entity | Key | Derived values |
 |---|---|---|
 | StockBalance | company, item, warehouse, lot, stock_status | `on_hand_base`, `reserved_base`, `last_inventory_entry_id` |
-| ItemCostState | company, item | `quantity_base`, `inventory_value`, `average_cost` (unrounded), `last_inventory_entry_id` |
+| ItemCostState | company, item | `quantity_base`, `inventory_value`, `average_cost` (numeric(28,10), informational), `last_inventory_entry_id` |
 
-Both rows are also the lock targets that serialise concurrent issues and reservations of the same item.
+Both rows are also the lock targets that serialise concurrent issues and reservations of the same item; their place in the lock sequence is in the lock order table below (R-LED-08).
 
 **Moving average cost algorithm** (R-INV-05), per company and item, in recording order:
 
 1. **Inbound with a known cost** (AdjustmentIn with an entered unit cost): cost_amount = q x entered_unit_cost, rounded to the currency's minor unit; value = value + cost_amount; quantity = quantity + q.
-2. **Inbound without an entered cost** (AdjustmentIn): cost_amount = q x average_cost, rounded to the currency's minor unit. Rejected when the item has no stock and no average yet.
+2. **Inbound without an entered cost** (AdjustmentIn): while quantity is above 0, cost_amount = q x value / quantity, computed exactly and then rounded to the currency's minor unit; at zero stock, cost_amount = q x the stored average_cost, rounded the same way. Rejected when the item has no stock and no average yet.
 3. **Outbound** (Issue, AdjustmentOut): if the movement empties the stock, cost_amount = the full remaining value (R-INV-07). Otherwise cost_amount = q x value / quantity, computed exactly and then rounded. The stored average_cost is informational and never used for costing while quantity is above 0. Then value = value - cost_amount; quantity = quantity - q.
 4. **Return** (ReturnIn): cost_amount = q x the unit cost of the original issue (D-11), then as step 1.
 5. **Status change** (StatusOut, StatusIn): quantity moves between statuses; value and average are unchanged (R-INV-08).
-6. After every movement that leaves quantity above 0, average_cost = value / quantity, recalculated and never rounded. When quantity reaches 0, value is 0 (R-INV-07) and the last average_cost is kept for step 2.
+6. After every movement that leaves quantity above 0, average_cost = value / quantity, rounded half away from zero to 10 decimals (numeric(28,10)). The stored value is informational, except as the fallback in step 2 at zero stock. When quantity reaches 0, value is 0 (R-INV-07) and the last average_cost is kept for step 2.
 
 Costing follows recording order, not posting date. A back-dated posting in an open period takes the cost state at the moment it is recorded; there is no retroactive revaluation in v1 (R-INV-09).
+
+**Lock order** (R-LED-08). Every command takes its locks class by class in this sequence. Within a class, rows are locked in one SQL statement, ordered by the key this table states for the class. A phase specification that needs a new lock class adds its row here before the class is used.
+
+| Order | Lock class | Within the class | From |
+|---|---|---|---|
+| 1 | The command's own document or master data row | One row, locked by its versioned update (If-Match) | Phase 0, milestone 1 |
+| 2 | ItemCostState | Missing rows first inserted in one INSERT ... SELECT ... ORDER BY item_id ON CONFLICT DO NOTHING; then all rows locked with one SELECT ... ORDER BY item_id FOR UPDATE | Phase 0, milestone 1 |
+| 3 | StockBalance | Missing rows inserted the same way, then locked with one SELECT ... ORDER BY company, item, warehouse, lot, stock status FOR UPDATE before they are updated | Phase 0, milestone 1 |
+| 4 | Reservations and the source lines they claim | Id order | Phase 1 (specified there) |
+| 5 | OpenItem | Id order | Phase 2 (specified there) |
+| Last | NumberSeries | The series rows the command uses (for a posting: the document's series and the journal entry series), in primary key order; the gapless journal entry number is taken as the last step before commit | Phase 0, milestone 1 |
+
+StockBalance rows written by a posting always belong to items whose ItemCostState row is already locked, so milestone 1 cannot deadlock. A concurrency test posts two adjustments on the same items in opposite line order.
 
 ## Security, audit and integration entities
 
@@ -607,7 +634,7 @@ All master data shares one lifecycle, and nothing is ever deleted (R-MD-03). Fis
 
 Each transition table reads: from state, command, to state, the guards that must hold, and the effects. A command whose guard fails is rejected with the rule ID (R-API-03).
 
-**Master data lifecycle** (Party, PartyRole, Item, Warehouse, Account; Company and Contact use only Active and Inactive)
+**Master data lifecycle** (Party, PartyRole, ItemCompany, Warehouse, Account; Company and Contact use only Active and Inactive)
 
 | From | Command | To | Guards | Effects |
 |---|---|---|---|---|
@@ -669,7 +696,7 @@ Three kernel documents let Phase 0 put stock in, take it out and block it before
 
 | From | Command | To | Guards | Effects |
 |---|---|---|---|---|
-| Draft | POST | Posted | Items Stocked and Active; lot given for lot-tracked items; outbound lines covered by stock in the line's stock status, and Available stock is not reserved (R-INV-03); entered_unit_cost given on inbound lines when the item has no average cost yet; reason code given; period open | InventoryEntries (AdjustmentIn, AdjustmentOut) costed by the moving average algorithm; JournalEntry per posting events E-01 and E-02; caches updated; event INVENTORY_ADJUSTED |
+| Draft | POST | Posted | Items Stocked, and Active in the document's company (ItemCompany, D-43); lot given for lot-tracked items; outbound lines covered by stock in the line's stock status, and Available stock is not reserved (R-INV-03); entered_unit_cost given on inbound lines when the item has no average cost yet; reason code given; period open | InventoryEntries (AdjustmentIn, AdjustmentOut) costed by the moving average algorithm; JournalEntry per posting events E-01 and E-02; caches updated; event INVENTORY_ADJUSTED |
 | Posted | REVERSE | Reversed | The reversal must not make stock negative | Outbound lines come back in at their original cost. Inbound lines go out as outbound movements costed by the algorithm (step 3, including R-INV-07), so stock value can never turn negative. A reversing JournalEntry posts the resulting amounts to the original accounts (R-PP-03) |
 
 **STOCK_STATUS_CHANGE** (each line: item, lot, warehouse, from status, to status, quantity)
@@ -785,7 +812,7 @@ Posting logic never names an account. It names an account role, and each company
 |---|---|---|---|
 | INVENTORY | Value of stock on hand | item posting group | Yes |
 | COGS | Cost of goods sold | item posting group, ship-to scope | No |
-| REVENUE | Sales revenue, including charge lines | item posting group, ship-to scope | No |
+| REVENUE | Sales revenue, including charge lines | item posting group, ship-to scope, tax code | No |
 | RECEIVABLES | Amounts customers owe | party posting group | Yes |
 | OUTPUT_VAT | VAT charged on sales | tax code | Yes |
 | BANK | Money in the bank | none: taken from `BankAccount.gl_account_id` | No |
@@ -802,7 +829,7 @@ Added with purchasing: GOODS_RECEIVED_NOT_INVOICED in Phase 1 (goods receipt); P
 
 | Key | Where it lives | Values |
 |---|---|---|
-| Item posting group | `Item.item_posting_group`, validated against the ItemPostingGroup list (code, name) | Configurable, for example TRADE_GOODS, FREIGHT |
+| Item posting group | `Item``Company``.item_posting_group`, validated against the ItemPostingGroup list (code, name) | Configurable, for example TRADE_GOODS, FREIGHT |
 | Party posting group | `PartyRole.party_posting_group` | Fixed: Domestic, EU, NonEU |
 | Ship-to scope | Derived per line from company country and ship-to country, exactly as for TaxRule | Fixed: Domestic, EU, NonEU |
 | Tax code | The line's resolved `tax_code_id` | Per company, for example SE25 |
@@ -829,7 +856,7 @@ For every journal line the engine picks exactly one account, or rejects the whol
 1. **Collect candidates:** rules for the same company and account role, valid on the posting date, where every non-empty key equals the line's value.
 2. **Rank by specificity**, comparing keys in this fixed order: item posting group, then party posting group or ship-to scope (each role uses at most one of the two), then tax code, then reason code. A rule that sets an earlier key always beats one that leaves it empty, whatever the later keys hold.
 3. **Pick the top candidate.** It is always unique, because two rules with the same keys cannot be valid at the same time.
-4. **No candidate:** reject the command with R-PP-02 and name the role and the line's keys, for example "no account for REVENUE, item group TRADE_GOODS, ship-to scope EU, posting date 2027-03-14".
+4. **No candidate:** reject the command with R-PP-02 and name the role and the line's keys, for example "no account for REVENUE, item group TRADE_GOODS, ship-to scope EU, tax code SE25, posting date 2027-03-14".
 5. **Record the result** on the journal line: `account_role` and `posting_rule_id` (P-05, explainability).
 6. **Reversals do not resolve again.** A reversing entry copies the accounts of the lines it reverses, even if the mapping has changed since (R-PP-03).
 7. **BANK** skips the rules and takes the account of the document's bank account.
@@ -840,12 +867,14 @@ For every journal line the engine picks exactly one account, or rejects the whol
 
 | Item posting group | Ship-to scope | Account | Matches a line with TRADE_GOODS, EU? |
 |---|---|---|---|
-| TRADE_GOODS | Domestic | 3001 | No: party group differs |
+| TRADE_GOODS | Domestic | 3001 | No: ship-to scope differs |
 | TRADE_GOODS | EU | 3108 | Yes, and most specific: chosen |
 | TRADE_GOODS | (any) | 3001 | Yes, but less specific |
 | (any) | EU | 3108 | Yes, but ranks below every rule that sets the item group |
 
-**Configuration check.** The VALIDATE_POSTING_PROFILE command lists every combination of active item groups, party groups, tax codes and reason codes that would fail step 4. It also warns when the key order lets one rule hide another, for example a (TRADE_GOODS, any) rule hiding an (any, EU) rule. It runs before go-live, after any change to the profile, as a guard on SOFT_CLOSE, and on every command that creates or changes an item posting group, party posting group or tax code; such a command is rejected if the profile would become incomplete (R-PP-05). A gap therefore stops a master data change, never a shipment (D-24, D-32).
+**REVENUE and tax code (D-22 as amended).** REVENUE rules also carry the tax code, because ship-to scope alone cannot follow VAT treatment (R-TAX-01). An EU customer without VAT registration is taxed with SE25, so its line has the keys TRADE_GOODS, EU, SE25. With the BAS profile below, neither (TRADE_GOODS, EU, SE_EU_GOODS) nor (TRADE_GOODS, Domestic, SE25) matches it, so the command is rejected with R-PP-02 until a rule (TRADE_GOODS, EU, SE25) maps it, rather than posting to the EU revenue account. A REVENUE rule keyed by ship-to scope without a tax code, such as (TRADE_GOODS, EU, any), would match first and hide that gap, so REVENUE rules should always set the tax code. The configuration check below finds such gaps in advance.
+
+**Configuration check.** The VALIDATE_POSTING_PROFILE command lists every combination of active item groups, party groups, ship-to scopes, tax codes and reason codes that would fail step 4. It also warns when the key order lets one rule hide another, for example a (TRADE_GOODS, any) rule hiding an (any, EU) rule. It runs before go-live, after any change to the profile, as a guard on SOFT_CLOSE, and on every command that creates or changes an item posting group, party posting group or tax code; such a command is rejected if the profile would become incomplete (R-PP-05). A gap therefore stops a master data change, never a shipment (D-24, D-32).
 
 ## Posting rules per event
 
@@ -856,8 +885,8 @@ Thirteen posting events cover Phases 0 to 2 on the sales side (goods-receipt eve
 | E-01 | Inventory adjustment in (POST, positive line) | INVENTORY (item group) | INVENTORY_ADJUSTMENT (item group, reason) | Line cost |
 | E-02 | Inventory adjustment out (POST, negative line) | INVENTORY_ADJUSTMENT (item group, reason) | INVENTORY (item group) | Line cost |
 | E-03 | Goods issue (delivery CONFIRM_SHIPMENT) | COGS (item group, ship-to scope) | INVENTORY (item group) | Line cost at moving average |
-| E-04 | Customer invoice (POST) | RECEIVABLES (party group): gross total | REVENUE (item group, ship-to scope): net per line; OUTPUT_VAT (tax code): tax per tax code | Invoice amounts |
-| E-05 | Credit note (POST) | REVENUE (item group, ship-to scope): net per line; OUTPUT_VAT (tax code): tax per tax code | RECEIVABLES (party group): gross total | Credit note amounts |
+| E-04 | Customer invoice (POST) | RECEIVABLES (party group): gross total | REVENUE (item group, ship-to scope, tax code): net per line; OUTPUT_VAT (tax code): tax per tax code | Invoice amounts |
+| E-05 | Credit note (POST) | REVENUE (item group, ship-to scope, tax code): net per line; OUTPUT_VAT (tax code): tax per tax code | RECEIVABLES (party group): gross total | Credit note amounts |
 | E-06 | Customer payment (POST) | BANK (bank account) | RECEIVABLES (party group) | Payment amount |
 | E-07 | Payment difference within tolerance (at settlement) | PAYMENT_DIFFERENCE | RECEIVABLES (party group) | Difference; signs swap when the customer overpaid |
 | E-08 | Customer return (RECEIVE) | INVENTORY (item group) | COGS (item group, ship-to scope) | Original issue cost |
@@ -885,9 +914,9 @@ Account names are as written in [BAS kontoplan 2026 v2](https://www.bas.se/wp-co
 | RECEIVABLES | any | 1510 | Kundfordringar | Proposed |
 | BANK | via BankAccount | 1930 | Företagskonto | Proposed |
 | OUTPUT_VAT | SE25 | 2611 | Utgående moms på försäljning inom Sverige, 25 % | Proposed |
-| REVENUE | TRADE_GOODS, Domestic | 3001 | Försäljning inom Sverige, 25 % moms | Proposed |
-| REVENUE | TRADE_GOODS, EU | 3108 | Försäljning varor till annat EU-land, momsfri | Proposed |
-| REVENUE | TRADE_GOODS, NonEU | 3105 | Försäljning varor till land utanför EU | Proposed |
+| REVENUE | TRADE_GOODS, Domestic, SE25 | 3001 | Försäljning inom Sverige, 25 % moms | Proposed |
+| REVENUE | TRADE_GOODS, EU, SE_EU_GOODS | 3108 | Försäljning varor till annat EU-land, momsfri | Proposed |
+| REVENUE | TRADE_GOODS, NonEU, SE_EXPORT | 3105 | Försäljning varor till land utanför EU | Proposed |
 | ROUNDING, PAYMENT_DIFFERENCE | none | 3740 | Öres- och kronutjämning | Proposed for small differences |
 | COGS | TRADE_GOODS | 4010 (Inköp av handelsvaror i Sverige) or 4960 (Förändring av lager av handelsvaror) |  | Open: D-20 |
 | INVENTORY_ADJUSTMENT | by reason | To be chosen |  | Open: D-20 |
@@ -949,14 +978,14 @@ This spec adds 17 rules and 9 decisions. Both are mirrored into the foundation d
 | ID | Decision | Status |
 |---|---|---|
 | D-14 | Product name: Themis, with Jozen as the working brand | Decided 2026-10-08; trademark check pending, because Themis is already used by governance, risk and compliance software |
-| D-15 | Journal amounts are signed, debit positive, instead of separate debit and credit columns | Proposed |
-| D-16 | Type-specific header fields live in one-to-one extension tables, not JSON | Proposed |
-| D-17 | Identifiers are UUID v7 | Proposed |
-| D-18 | Stock status (Available, Blocked) is part of the stock balance key | Proposed |
-| D-19 | Posting rule key order: item posting group, party posting group or ship-to scope, tax code, reason code | Proposed |
+| D-15 | Journal amounts are signed, debit positive, instead of separate debit and credit columns | Decided (foundation decision log) |
+| D-16 | Type-specific header fields live in one-to-one extension tables, not JSON | Decided (foundation decision log) |
+| D-17 | Identifiers are UUID v7 | Decided (foundation decision log) |
+| D-18 | Stock status (Available, Blocked) is part of the stock balance key | Decided (foundation decision log) |
+| D-19 | Posting rule key order: item posting group, party posting group or ship-to scope, tax code, reason code | Decided (foundation decision log) |
 | D-20 | Swedish accounts for COGS, inventory adjustments and realised exchange differences | Open: choose with an accountant |
-| D-21 | Foreign-currency documents are allowed from the first business phase, with realised exchange differences posted at settlement (E-11) | Proposed; alternative is base currency only in v1 |
-| D-22 | REVENUE and COGS are keyed by the line's ship-to scope, not the customer's party posting group, so revenue accounts always agree with the line's VAT treatment | Proposed |
+| D-21 | Foreign-currency documents are allowed from the first business phase, with realised exchange differences posted at settlement (E-11) | Decided (foundation decision log) |
+| D-22 | REVENUE is keyed by item posting group, ship-to scope and tax code; COGS by item posting group and ship-to scope | Decided (foundation decision log), amended 2026-10-09 |
 
 **Open questions for the next round**
 
