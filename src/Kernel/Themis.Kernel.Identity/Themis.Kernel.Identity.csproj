@@ -1,6 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Themis.Kernel.Identity: principals, permissions, role assignments, OpenID Connect (D-12). -->
+  <!--
+    Themis.Kernel.Identity: principals, permissions, role assignments, OpenID Connect (D-12). Milestone 1 step 4 holds
+    the permission catalog (one permission per command plus TYPE.READ per resource type, D-47), the milestone 1
+    identity fixture as data (Themis.Kernel.Persistence writes it through the definitions in Themis.Kernel.Contracts,
+    ARCH-08), the subject-only token mapping through the standard JWT bearer handler, the principal resolution and
+    the authorisation of commands and queries against permission and scope (R-SEC-01). No public types (ARCH-07).
+  -->
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../Themis.Kernel.Primitives/Themis.Kernel.Primitives.csproj" />
@@ -8,7 +18,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="Themis.Host" />
+    <InternalsVisibleTo Include="Themis.Migrator" />
     <InternalsVisibleTo Include="Themis.Architecture.Tests" />
     <InternalsVisibleTo Include="Themis.Kernel.Tests" />
     <InternalsVisibleTo Include="Themis.Integration.Tests" />

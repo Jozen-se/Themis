@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Themis.Kernel.Persistence.Entities;
+using Themis.Kernel.Persistence.Entities.Identity;
 using Themis.Kernel.Persistence.Entities.Organisation;
 
 namespace Themis.Kernel.Persistence;
@@ -41,10 +42,23 @@ internal sealed class KernelDbContext : DbContext
 
     public DbSet<FiscalPeriod> FiscalPeriods => Set<FiscalPeriod>();
 
+    public DbSet<UserAccount> Users => Set<UserAccount>();
+
+    public DbSet<Permission> Permissions => Set<Permission>();
+
+    public DbSet<Role> Roles => Set<Role>();
+
+    public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
+
+    public DbSet<RoleAssignment> RoleAssignments => Set<RoleAssignment>();
+
+    public DbSet<SodConflict> SodConflicts => Set<SodConflict>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);
         OrganisationModel.Configure(modelBuilder);
+        IdentityModel.Configure(modelBuilder);
 
         modelBuilder.Entity<IdempotencyRecord>(entity =>
         {

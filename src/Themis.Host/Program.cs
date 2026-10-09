@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Scalar.AspNetCore;
 using Themis.Host.Observability;
 using Themis.Kernel.Contracts.Organisation;
+using Themis.Kernel.Identity;
 using Themis.Kernel.Organisation;
 using Themis.Kernel.Persistence;
 using Themis.Kernel.Pipeline;
@@ -35,6 +36,8 @@ public sealed class Program
 
         builder.Services.AddThemisHealthChecks(databaseConfigured);
         builder.Services.AddKernelPipeline();
+        // D-12: bearer tokens from the configured OpenID Connect provider; the test issuer only in Development and Test.
+        builder.Services.AddKernelIdentity(builder.Configuration, builder.Environment.EnvironmentName);
         builder.Services.AddKernelOrganisation();
         builder.Services.AddKernelOpenApi();
         builder.Services.AddProblemDetails();
@@ -43,6 +46,10 @@ public sealed class Program
 
         app.UseExceptionHandler();
         app.UseCorrelationId();
+        if (app.Services.GetService<Microsoft.AspNetCore.Authentication.IAuthenticationSchemeProvider>() is not null)
+        {
+            app.UseAuthentication();
+        }
 
         app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
         app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") });

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Themis.Kernel.Contracts.Organisation;
 using Themis.Kernel.Contracts.Queries;
+using Themis.Kernel.Contracts.Security;
 
 namespace Themis.Kernel.Organisation;
 
@@ -11,6 +12,7 @@ internal static class KernelOrganisationServices
     {
         services.AddSingleton<IOrganisationReader, OrganisationReader>();
         services.AddScoped<IQueryHandler<GetCompany, CompanyInfo>, GetCompanyHandler>();
+        services.AddScoped<IScopeResolver<GetCompany>, GetCompanyScopeResolver>();
         return services;
     }
 }

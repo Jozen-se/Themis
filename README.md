@@ -55,6 +55,9 @@ dotnet run --project src/Themis.Migrator -- --fixture milestone-1   # needs THEM
 dotnet run --project src/Themis.Host        # http://localhost:5080/health/ready, API reference at /scalar
 ```
 
+The compose stack's Keycloak realm (`docker/keycloak/themis-realm.json`) has the API client `themis-api` and the
+two test users `clerk` and `preparer` of the milestone 1 fixture; see docs/development.md, Identity, for a token.
+
 ## Licence
 
 Apache License 2.0, see [LICENSE](LICENSE).

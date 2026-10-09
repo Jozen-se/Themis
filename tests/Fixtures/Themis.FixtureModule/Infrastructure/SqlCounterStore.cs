@@ -14,12 +14,14 @@ internal sealed class SqlCounterStore : ICounterStore
 {
     public const string Table = FixtureContracts.SchemaName + ".counter";
 
+    private const string Columns = "id, company_id, site_id, value, version, sample, posted";
+
     private static readonly DatabaseRole Role = DatabaseRole.From(FixtureContracts.RoleName);
 
     public async Task<Counter?> FindAsync(IUnitOfWork unitOfWork, Guid id, CancellationToken cancellationToken)
     {
         IReadOnlyList<Counter> rows = await unitOfWork.QueryAsync(Role,
-            $"SELECT id, value, version, sample FROM {Table} WHERE id = @id FOR UPDATE",
+            $"SELECT {Columns} FROM {Table} WHERE id = @id FOR UPDATE",
             new Dictionary<string, object?> { ["id"] = id },
             Read,
             cancellationToken);
@@ -28,7 +30,7 @@ internal sealed class SqlCounterStore : ICounterStore
 
     public Task InsertAsync(IUnitOfWork unitOfWork, Counter counter, CancellationToken cancellationToken) =>
         unitOfWork.ExecuteAsync(Role,
-            $"INSERT INTO {Table} (id, value, version, sample) VALUES (@id, @value, @version, @sample)",
+            $"INSERT INTO {Table} ({Columns}) VALUES (@id, @company, @site, @value, @version, @sample, @posted)",
             Parameters(counter),
             cancellationToken);
 
@@ -36,7 +38,7 @@ internal sealed class SqlCounterStore : ICounterStore
     {
         // R-API-02: the row moves from the previous version only; FindAsync locked it, so zero rows is a bug.
         int rows = await unitOfWork.ExecuteAsync(Role,
-            $"UPDATE {Table} SET value = @value, version = @version, sample = @sample WHERE id = @id AND version = @version - 1",
+            $"UPDATE {Table} SET value = @value, version = @version, sample = @sample, posted = @posted WHERE id = @id AND version = @version - 1",
             Parameters(counter),
             cancellationToken);
         if (rows != 1)
@@ -52,13 +54,16 @@ internal sealed class SqlCounterStore : ICounterStore
             cancellationToken);
 
     private static Counter Read(DbDataReader reader) =>
-        new(reader.GetGuid(0), reader.GetInt64(1), reader.GetInt64(2), reader.GetDecimal(3));
+        new(reader.GetGuid(0), reader.GetGuid(1), reader.IsDBNull(2) ? null : reader.GetGuid(2), reader.GetInt64(3), reader.GetInt64(4), reader.GetDecimal(5), reader.GetBoolean(6));
 
     private static Dictionary<string, object?> Parameters(Counter counter) => new()
     {
         ["id"] = counter.Id,
+        ["company"] = counter.CompanyId,
+        ["site"] = counter.SiteId,
         ["value"] = counter.Value,
         ["version"] = counter.Version,
         ["sample"] = counter.Sample,
+        ["posted"] = counter.Posted,
     };
 }

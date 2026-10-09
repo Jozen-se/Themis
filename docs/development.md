@@ -34,8 +34,8 @@ Keycloak uses its own file database in development; the realm is imported from `
 
 ```bash
 export THEMIS_MIGRATOR_CONNECTION="Host=localhost;Port=5432;Database=themis;Username=themis_migrator;Password=themis"
-dotnet run --project src/Themis.Migrator     # verifies the role, then applies the pending kernel migrations
-dotnet run --project src/Themis.Migrator -- --fixture milestone-1   # also seeds the milestone 1 organisation fixture (idempotent)
+dotnet run --project src/Themis.Migrator     # verifies the role, applies the pending kernel migrations, seeds the permission catalogue
+dotnet run --project src/Themis.Migrator -- --fixture milestone-1   # also seeds the milestone 1 organisation and identity fixtures (idempotent)
 dotnet run --project src/Themis.Host
 curl -i http://localhost:5080/health/live     # 200 as soon as the process serves requests
 curl -i http://localhost:5080/health/ready    # 200 when PostgreSQL answers as themis_app, 503 otherwise
@@ -51,7 +51,9 @@ default warehouse `MAIN` and fiscal year 2026 with 12 monthly periods, period 1 
 value is test data with fixed identifiers; the rows are written by `themis_migrator` with the system user as
 `created_by`, each with one audit event under command name `SYSTEM.SEED_FIXTURE` (R-AUD-01), and a second run
 inserts nothing. Its definition lives in `Themis.Kernel.Organisation` (`Milestone1OrganisationFixture`) and the
-writer in `Themis.Kernel.Persistence` (`OrganisationFixtureSeeder`).
+writer in `Themis.Kernel.Persistence` (`OrganisationFixtureSeeder`). The identity fixture of step 4 (users, roles
+and assignments, see Identity below) is seeded with it by `IdentitySeeder`, after the segregation-of-duties check
+(R-SEC-02); a fixture that fails the check makes the migrator exit with code 4.
 
 The organisation reads (`IOrganisationReader` in Contracts, implemented in `Themis.Kernel.Organisation`) give the
 company, the warehouse with its site and company, the business date of a UTC instant in the company's time zone
@@ -101,11 +103,18 @@ compares every table privilege in `kernel`, `reporting` and `fixture` with the d
 `Themis.Kernel.Persistence` (plus the fixture table's own), so a migration cannot grant more than it declares.
 
 The command pipeline tests start an in-memory host (`tests/Themis.Integration.Tests/Pipeline`) wired like
-`Themis.Host`, with the fixture module's two commands (`FIXTURE_COUNTER.CREATE`, `FIXTURE_COUNTER.TOUCH`) on
-`/v1/fixture/counters` and a header-based test identity: `X-Test-User` (a GUID) and `X-Test-Permissions`
-(comma-separated permission codes, or `*`). The fixture commands take a `failure` member that injects a rejection,
-an exception, a serialization failure on the first attempt or a write to a kernel table after the business write,
-so the tests prove what the pipeline leaves behind in each case.
+`Themis.Host`, with the fixture module's three commands on `/v1/fixture/counters` and the real identity capability
+behind the test token issuer: the tests mint bearer tokens for the fixture's users (see Identity below). Until the
+real commands exist, the fixture commands stand in for them and take their permissions: create takes `ITEM.CREATE`,
+touch `INVENTORY_ADJUSTMENT.UPDATE` and post `INVENTORY_ADJUSTMENT.POST` (step 4 brief). A counter belongs to a
+company and optionally a site, which is where its scope comes from. The fixture commands take a `failure` member
+that injects a rejection, an exception, a serialization failure on the first attempt or a write to a kernel table
+after the business write, so the tests prove what the pipeline leaves behind in each case.
+
+The Keycloak smoke test starts a Keycloak container with the realm export and signs in as the clerk. Without a
+container runtime it is skipped; set `THEMIS_TEST_KEYCLOAK` to the base URL of a running Keycloak with the realm
+(for example `http://localhost:8080` from the compose stack) to run it against that, or
+`THEMIS_TEST_REQUIRE_KEYCLOAK=true` (as CI does) to fail instead of skipping.
 
 ## The command pipeline
 
@@ -114,7 +123,9 @@ Every command goes through `Themis.Kernel.Pipeline` (brief, One command, one tra
 | Step | What happens | Rules |
 |---|---|---|
 | Headers | `Idempotency-Key` is required (400 without it); `If-Match` is required on commands that change an existing record (428 without it) and its value becomes the command's `expectedVersion`, overwriting anything the body supplies; route values such as `{id}` are merged into the body and win over it. Every success returns the record's new version as the `ETag` header, ready for the next `If-Match` | R-API-01, R-API-02 |
-| Authorisation | the signed-in user needs the permission named by the command's `[Command("TYPE.COMMAND")]` attribute, else 403 with `ruleId` R-SEC-01; validators run before any statement | R-SEC-01 |
+| Authentication | the bearer token is validated against the configured provider (issuer, audience, signature, lifetime); a request without a valid token is 401. The token's `sub` claim is the only claim read; roles and email in the token are ignored | D-12 |
+| Validation | validators run before any statement; their outcome is never stored | R-API-03 |
+| Authorisation | inside the transaction, before any business statement and again on every retry: the subject's User row becomes the principal (403 `subject_unknown`, `user_disabled`; no user is created on login), the command names its scope from its own data or from the record it loads (403 `scope_undeclared`), and the principal must hold the permission named by `[Command("TYPE.COMMAND")]` through a role assigned in that company (and site, where one applies) and valid on the company's business date, `valid_from` inclusive to `valid_to` exclusive (403 `permission_missing`, `out_of_scope`). A site-limited assignment never satisfies a command without a site. Every 403 carries `ruleId` R-SEC-01 and none is stored | R-SEC-01, R-TIME-01, D-47 |
 | Transaction | one connection as `themis_app`, one transaction; each statement switches with `SET LOCAL ROLE` to the role that owns the table (the kernel stores to `themis_kernel`, a module's own SQL to its role) | D-41, R-DB-01 |
 | Duplicate | a transaction-scoped advisory lock on (user, key) is tried, never waited for: a second request while the first runs gets 409 at once | R-API-01 |
 | Replay | a stored record with the same request fingerprint (command type, body and If-Match version) is replayed with the header `Idempotency-Replayed: true`; a different fingerprint is rejected with 422 and R-API-04 | R-API-01, R-API-04 |
@@ -122,7 +133,7 @@ Every command goes through `Themis.Kernel.Pipeline` (brief, One command, one tra
 | Success | the buffered audit events (one per changed entity, with user, time, command, key and correlation id) and outbox rows (`TYPE_VERB` in past tense, schema version 1) are written as `themis_kernel`, then the idempotency record, then commit | R-AUD-01, D-44 |
 | Retry | only SQLSTATE 40001 and 40P01 restart the whole command, authorisation included, at most twice; the retries are counted in the metric `themis.command.retries` | D-41 |
 | Errors | problem details (RFC 9457) with `code`, `ruleId`, `correlationId` and `errors`; an unhandled exception rolls everything back, stores nothing and returns 500 | R-API-03 |
-| Queries | `GET` only; a query names its permission with `[Query("TYPE.READ")]`, needs a signed-in user and that permission, runs in one read-only transaction that is rolled back, and returns its result or problem details; no idempotency, audit or outbox | P-04, R-SEC-01 |
+| Queries | `GET` only; a query names its permission with `[Query("TYPE.READ")]` and its scope like a command, is authenticated and authorised the same way, runs in one read-only transaction that is rolled back, and returns its result or problem details; no idempotency, audit or outbox | P-04, R-SEC-01, D-47 |
 | Numbers | decimals are JSON strings on output and strings or numbers on input; integers stay numbers; the OpenAPI description declares decimals as `string` with format `decimal`, integers as `integer`, keeps `expectedVersion` out of request schemas and documents the `Idempotency-Key`, `If-Match` and `ETag` headers | D-37, R-API-02 |
 
 Idempotency records expire after 7 days (the specification's default). The owner approved a temporary exception to
@@ -131,6 +142,51 @@ Phase 0 is declared complete. The purge that deletes expired records is later wo
 
 A caller outside HTTP (a background service, a test) dispatches through `ICommandDispatcher` with a `CommandEnvelope`;
 when it supplies no correlation id, the pipeline creates one, so audit events always carry it (D-25).
+
+## Identity
+
+Themis never handles passwords (D-12). The host trusts one OpenID Connect provider, configured in section `Identity`
+of `appsettings`: `Authority` (the issuer, `http://localhost:8080/realms/themis` for the compose stack), `Audience`
+(`themis-api`) and `RequireHttpsMetadata` (false only for the local stack). Tokens are validated by the standard
+JWT bearer handler against the provider's discovery document. Without an authority the host starts, serves its
+health endpoints and answers 401 to every command and query.
+
+Permissions, roles and assignments live in the ERP (Phase 0 Specification, Security entities):
+
+| Table | Holds |
+|---|---|
+| `user_account` | a user per OpenID Connect subject (`external_subject`), display name and email (personal data), service account flag, status Active or Disabled. Named `user_account` because `user` is reserved in PostgreSQL |
+| `permission` | the command catalogue: one row per command plus one `TYPE.READ` per resource type with a query (D-47), with a risk level (`INVENTORY_ADJUSTMENT.POST` is Sensitive). Seeded by `Themis.Migrator` on every run from `PermissionCatalog` in `Themis.Kernel.Identity`; a unit test keeps catalogue and command types equal in both directions |
+| `role`, `role_permission` | named sets of permissions |
+| `role_assignment` | a role held by a user in one company, optionally narrowed to one site, valid from `valid_from` (inclusive) to `valid_to` (exclusive) on the company's business date (R-TIME-01). Assignments end by `valid_to`; nothing is deleted |
+| `sod_conflict` | the pairs one user may not hold in the same company (R-SEC-02), seeded with the specification's v1 examples; the fixture seeder refuses a fixture that combines a pair |
+
+The system user (`WellKnownUsers.System`, subject `themis:system`) owns every row written outside a command:
+migrations and fixture seeds. Audit events and idempotency records reference the user table; the system user can
+never act through the API.
+
+The milestone 1 fixture (`--fixture milestone-1`) adds two users, mapped to the users of the Keycloak realm in
+`docker/keycloak/themis-realm.json`, both assigned to company SE01 without site restriction:
+
+| User | Password (compose stack only) | Roles | May post |
+|---|---|---|---|
+| `clerk` | `clerk` | INVENTORY_PREPARER and INVENTORY_POSTER | yes |
+| `preparer` | `preparer` | INVENTORY_PREPARER | no |
+
+INVENTORY_PREPARER grants COMPANY.READ, ITEM.CREATE, ITEM.READ and INVENTORY_ADJUSTMENT.CREATE, UPDATE, DISCARD and
+READ; INVENTORY_POSTER grants INVENTORY_ADJUSTMENT.POST alone. To call the API from the compose stack, take a token
+with the password grant and send it as a bearer token:
+
+```bash
+curl -s -X POST http://localhost:8080/realms/themis/protocol/openid-connect/token \
+  -d grant_type=password -d client_id=themis-api -d client_secret=themis-dev-secret \
+  -d username=clerk -d password=clerk | jq -r .access_token
+```
+
+**Test token issuer.** The integration tests configure `Identity:TestIssuer:Issuer` and
+`Identity:TestIssuer:SigningKey` (base64, at least 32 bytes) instead of an authority and mint their own HMAC-signed
+tokens, so issuer, audience, signature and lifetime are still validated without a provider running. The host refuses
+to start with a test issuer configured outside the Development and Test environments.
 
 ## Linting, formatting and the licence scan
 

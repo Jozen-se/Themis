@@ -18,8 +18,13 @@ namespace Themis.Kernel.Pipeline.Dispatch;
 /// <summary>
 /// Runs one command through the kernel pipeline (brief, One command, one transaction):
 /// <list type="number">
-/// <item>Principal and permission TYPE.COMMAND (R-SEC-01); validation by the command's validators.</item>
+/// <item>A signed-in subject (401) and an Idempotency-Key (400); validation by the command's validators.</item>
 /// <item>One connection as themis_app, one transaction; every statement switches to its owning role (D-41, R-DB-01).</item>
+/// <item>Inside the transaction, before any business statement (Build Brief, Authorisation): the subject's User row
+/// becomes the principal (403 subject_unknown, user_disabled), the command names its scope from its own data or
+/// from the record it loads (403 scope_undeclared), and the principal must hold the permission TYPE.COMMAND
+/// through an assignment covering that scope and valid on the company's business date (403 permission_missing,
+/// out_of_scope); all under R-SEC-01, none of them stored.</item>
 /// <item>A transaction-scoped advisory lock on (user, idempotency key): a concurrent duplicate fails to take it and
 /// gets 409 at once, without waiting on the first request (R-API-01).</item>
 /// <item>A stored record with the same request hash is replayed; a different hash is rejected (R-API-01, R-API-04).</item>
@@ -39,8 +44,8 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
     private const string DeadlockDetected = "40P01";
 
     private readonly IServiceProvider _services;
-    private readonly ICurrentPrincipal _currentPrincipal;
-    private readonly IPermissionEvaluator _permissions;
+    private readonly ICurrentSubject _currentSubject;
+    private readonly IAccessControl _accessControl;
     private readonly IUnitOfWorkFactory _unitOfWorkFactory;
     private readonly IIdempotencyStore _idempotency;
     private readonly IAuditStore _auditStore;
@@ -52,8 +57,8 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
 
     public CommandDispatcher(
         IServiceProvider services,
-        ICurrentPrincipal currentPrincipal,
-        IPermissionEvaluator permissions,
+        ICurrentSubject currentSubject,
+        IAccessControl accessControl,
         IUnitOfWorkFactory unitOfWorkFactory,
         IIdempotencyStore idempotency,
         IAuditStore auditStore,
@@ -64,8 +69,8 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
         ILogger<CommandDispatcher> logger)
     {
         _services = services;
-        _currentPrincipal = currentPrincipal;
-        _permissions = permissions;
+        _currentSubject = currentSubject;
+        _accessControl = accessControl;
         _unitOfWorkFactory = unitOfWorkFactory;
         _idempotency = idempotency;
         _auditStore = auditStore;
@@ -83,8 +88,7 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
         ArgumentNullException.ThrowIfNull(envelope);
 
         CommandMetadata metadata = CommandMetadata.For(typeof(TCommand));
-        Principal? principal = _currentPrincipal.Current;
-        string userId = principal?.UserId.ToString() ?? "anonymous";
+        AuthenticatedSubject? subject = _currentSubject.Current;
         if (envelope.CorrelationId is null)
         {
             // D-25: a caller outside HTTP gets a correlation id from the pipeline, so audit events always carry one.
@@ -93,31 +97,30 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
 
         CorrelationId correlationId = envelope.CorrelationId.Value;
 
-        // Every log line of the command carries its name, correlation id and user (D-25).
+        // Every log line of the command carries its name, correlation id and subject (D-25); the user id joins once resolved.
         using IDisposable? scope = _logger.BeginScope(new Dictionary<string, object>
         {
             ["CommandName"] = metadata.Name,
             ["CorrelationId"] = correlationId.Value,
-            ["UserId"] = userId,
+            ["Subject"] = subject?.Subject ?? "anonymous",
         });
         using Activity? activity = _telemetry.Source.StartActivity($"command {metadata.Name}");
         activity?.SetTag("themis.command", metadata.Name);
         activity?.SetTag("themis.correlation_id", correlationId.Value);
-        activity?.SetTag("themis.user_id", userId);
 
-        CommandResponse response = await RunAsync<TCommand, TResult>(command, envelope, correlationId, metadata, principal, cancellationToken);
+        CommandResponse response = await RunAsync<TCommand, TResult>(command, envelope, correlationId, metadata, subject, cancellationToken);
         _telemetry.Commands.Add(1, new KeyValuePair<string, object?>("command", metadata.Name), new KeyValuePair<string, object?>("outcome", Outcome(response)));
         activity?.SetTag("http.response.status_code", response.StatusCode);
         activity?.SetTag("themis.replayed", response.Replayed);
         return response;
     }
 
-    private async Task<CommandResponse> RunAsync<TCommand, TResult>(TCommand command, CommandEnvelope envelope, CorrelationId correlationId, CommandMetadata metadata, Principal? principal, CancellationToken cancellationToken)
+    private async Task<CommandResponse> RunAsync<TCommand, TResult>(TCommand command, CommandEnvelope envelope, CorrelationId correlationId, CommandMetadata metadata, AuthenticatedSubject? subject, CancellationToken cancellationToken)
         where TCommand : ICommand<TResult>
     {
-        if (principal is null)
+        if (subject is null)
         {
-            return ProblemDetailsBody.Http(StatusCodes.Status401Unauthorized, "authentication_required", "R-SEC-01", "The command requires a signed-in user.", correlationId);
+            return ProblemDetailsBody.Http(StatusCodes.Status401Unauthorized, "authentication_required", AccessDenied.RuleId, "The command requires a signed-in user.", correlationId);
         }
 
         if (envelope.IdempotencyKey is not { } idempotencyKey)
@@ -125,11 +128,18 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
             return ProblemDetailsBody.Http(StatusCodes.Status400BadRequest, "idempotency_key_required", "R-API-01", "Every command carries an Idempotency-Key header.", correlationId);
         }
 
+        // Validators run before any statement; their outcome is never stored (R-API-03).
+        List<Error> validationErrors = [.. _services.GetServices<ICommandValidator<TCommand>>().SelectMany(validator => validator.Validate(command))];
+        if (validationErrors.Count > 0)
+        {
+            return ProblemDetailsBody.ToResponse(validationErrors, correlationId);
+        }
+
         for (int attempt = 1; ; attempt++)
         {
             try
             {
-                return await AttemptAsync<TCommand, TResult>(command, correlationId, metadata, principal, idempotencyKey, cancellationToken);
+                return await AttemptAsync<TCommand, TResult>(command, correlationId, metadata, subject, idempotencyKey, cancellationToken);
             }
             catch (DbException exception) when (IsRetryable(exception) && attempt < KernelPipelineOptions.MaxAttempts)
             {
@@ -140,26 +150,45 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
         }
     }
 
-    private async Task<CommandResponse> AttemptAsync<TCommand, TResult>(TCommand command, CorrelationId correlationId, CommandMetadata metadata, Principal principal, IdempotencyKey idempotencyKey, CancellationToken cancellationToken)
+    private async Task<CommandResponse> AttemptAsync<TCommand, TResult>(TCommand command, CorrelationId correlationId, CommandMetadata metadata, AuthenticatedSubject subject, IdempotencyKey idempotencyKey, CancellationToken cancellationToken)
         where TCommand : ICommand<TResult>
     {
-        // R-SEC-01: authorisation runs on every attempt, before any statement.
-        if (!await _permissions.HasPermissionAsync(principal, metadata.Name, cancellationToken))
-        {
-            return ProblemDetailsBody.ToResponse(Error.Forbidden("permission_missing", $"The user lacks permission {metadata.Name}."), correlationId);
-        }
-
-        List<Error> validationErrors = [.. _services.GetServices<ICommandValidator<TCommand>>().SelectMany(validator => validator.Validate(command))];
-        if (validationErrors.Count > 0)
-        {
-            return ProblemDetailsBody.ToResponse(validationErrors, correlationId);
-        }
-
         // R-API-04: the fingerprint covers the command type, the body and the If-Match version.
         string requestHash = RequestHash.Compute(command, (command as IVersionedCommand)?.ExpectedVersion);
         DateTimeOffset now = _clock.GetUtcNow();
 
         await using IKernelUnitOfWork unitOfWork = await _unitOfWorkFactory.BeginAsync(cancellationToken);
+
+        // R-SEC-01: the subject's User row, on every attempt, before any business statement (D-41).
+        Result<Principal> resolved = await _accessControl.ResolvePrincipalAsync(unitOfWork, subject, cancellationToken);
+        if (resolved.IsFailure)
+        {
+            await unitOfWork.RollbackAsync(cancellationToken);
+            LogSubjectRefused(_logger, metadata.Name, subject.Subject, resolved.Primary!.Code);
+            return ProblemDetailsBody.ToResponse(resolved.Errors, correlationId);
+        }
+
+        Principal principal = resolved.Value;
+        using IDisposable? userScope = _logger.BeginScope(new Dictionary<string, object> { ["UserId"] = principal.UserId.ToString() });
+        Activity.Current?.SetTag("themis.user_id", principal.UserId.ToString());
+
+        // D-47: the command names its scope from its own data or the record it loads; a missing record is a 404.
+        Result<RequestScope> scope = await ScopeSources.ResolveAsync(command, unitOfWork, _services, cancellationToken);
+        if (scope.IsFailure)
+        {
+            await unitOfWork.RollbackAsync(cancellationToken);
+            LogRejected(_logger, metadata.Name, scope.Primary!.Code, scope.Primary.RuleId);
+            return ProblemDetailsBody.ToResponse(scope.Errors, correlationId);
+        }
+
+        // R-SEC-01: permission and scope, inside the transaction, before any business logic; never stored.
+        Result authorised = await _accessControl.AuthorizeAsync(unitOfWork, principal, metadata.Name, scope.Value, now, cancellationToken);
+        if (authorised.IsFailure)
+        {
+            await unitOfWork.RollbackAsync(cancellationToken);
+            LogRejected(_logger, metadata.Name, authorised.Primary!.Code, authorised.Primary.RuleId);
+            return ProblemDetailsBody.ToResponse(authorised.Errors, correlationId);
+        }
 
         // R-API-01: a concurrent duplicate cannot take the lock and is answered at once with 409; nothing is stored,
         // so the client retries after the first request completed and then receives the replay.
@@ -226,6 +255,10 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Command {CommandName} rejected with {Code} ({RuleId}).")]
     private static partial void LogRejected(ILogger logger, string commandName, string code, string? ruleId);
+
+    // Build Brief, Authorisation: an unknown subject or a disabled user cannot have an audit event, so the attempt is logged.
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Command {CommandName} refused for subject {Subject}: {Code} (R-SEC-01).")]
+    private static partial void LogSubjectRefused(ILogger logger, string commandName, string subject, string code);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Command {CommandName} attempt {Attempt} failed with SQLSTATE {SqlState}; retrying the whole command (D-41).")]
     private static partial void LogRetrying(ILogger logger, Exception exception, string commandName, int attempt, string? sqlState);

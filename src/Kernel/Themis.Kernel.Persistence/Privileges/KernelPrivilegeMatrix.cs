@@ -29,11 +29,24 @@ internal static class KernelPrivilegeMatrix
         TableGrant.Mutable(Kernel, "warehouse", KernelRole),
         TableGrant.Mutable(Kernel, "fiscal_year", KernelRole),
         TableGrant.Mutable(Kernel, "fiscal_period", KernelRole),
+
+        // Security entities (milestone 1 step 4): SELECT, INSERT, UPDATE; never DELETE. Users are Disabled and
+        // assignments end by valid_to (step 4 brief; R-MD-03).
+        TableGrant.Mutable(Kernel, "user_account", KernelRole),
+        TableGrant.Mutable(Kernel, "permission", KernelRole),
+        TableGrant.Mutable(Kernel, "role", KernelRole),
+        TableGrant.Mutable(Kernel, "role_permission", KernelRole),
+        TableGrant.Mutable(Kernel, "role_assignment", KernelRole),
+        TableGrant.Mutable(Kernel, "sod_conflict", KernelRole),
     ];
 
     /// <summary>The tables the organisation migration creates, in dependency order.</summary>
     public static IReadOnlyList<string> OrganisationTables { get; } =
         ["installation", "party", "chart_of_accounts", "company", "site", "warehouse", "fiscal_year", "fiscal_period"];
+
+    /// <summary>The tables the identity migration creates, in dependency order.</summary>
+    public static IReadOnlyList<string> IdentityTables { get; } =
+        ["user_account", "permission", "role", "role_permission", "role_assignment", "sod_conflict"];
 
     /// <summary>The grant statements a migration emits for the tables it creates.</summary>
     public static IEnumerable<string> GrantsFor(params string[] tables) =>

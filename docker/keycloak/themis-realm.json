@@ -4,37 +4,55 @@
   "enabled": true,
   "sslRequired": "none",
   "registrationAllowed": false,
-  "roles": {
-    "realm": [
-      { "name": "themis-user", "description": "Any signed-in Themis user. Permissions and scopes are held in Themis, not here (D-12)." }
-    ]
-  },
-  "defaultRoles": ["themis-user"],
   "clients": [
     {
       "clientId": "themis-api",
       "name": "Themis API",
+      "description": "The Themis API. Tokens carry this client as audience; Themis maps the subject only (D-12). The realm carries no roles: permissions and scope are held in Themis.",
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": false,
       "secret": "themis-dev-secret",
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": true,
-      "serviceAccountsEnabled": true,
+      "serviceAccountsEnabled": false,
       "redirectUris": ["http://localhost:5080/*", "http://localhost:3000/*"],
-      "webOrigins": ["http://localhost:5080", "http://localhost:3000"]
+      "webOrigins": ["http://localhost:5080", "http://localhost:3000"],
+      "protocolMappers": [
+        {
+          "name": "themis-api audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "themis-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
     }
   ],
   "users": [
     {
-      "username": "dev",
-      "email": "dev@themis.local",
-      "firstName": "Dev",
-      "lastName": "User",
+      "id": "cccccccc-1111-4111-8111-cccccccccccc",
+      "username": "clerk",
+      "email": "clerk@themis.local",
+      "firstName": "Clerk",
+      "lastName": "Carlsson",
       "enabled": true,
       "emailVerified": true,
-      "credentials": [{ "type": "password", "value": "dev", "temporary": false }],
-      "realmRoles": ["themis-user"]
+      "credentials": [{ "type": "password", "value": "clerk", "temporary": false }]
+    },
+    {
+      "id": "dddddddd-2222-4222-8222-dddddddddddd",
+      "username": "preparer",
+      "email": "preparer@themis.local",
+      "firstName": "Preparer",
+      "lastName": "Persson",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "preparer", "temporary": false }]
     }
   ]
 }

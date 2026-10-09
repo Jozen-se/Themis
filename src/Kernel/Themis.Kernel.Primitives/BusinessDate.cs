@@ -11,6 +11,17 @@ public readonly record struct BusinessDate(DateOnly Value) : IComparable<Busines
     public static BusinessDate Parse(string isoDate) =>
         new(DateOnly.ParseExact(isoDate, "yyyy-MM-dd", CultureInfo.InvariantCulture));
 
+    /// <summary>The calendar date of a UTC instant in a time zone (R-TIME-01): the one conversion every capability uses.</summary>
+    public static BusinessDate InZone(DateTimeOffset instant, TimeZoneInfo zone)
+    {
+        ArgumentNullException.ThrowIfNull(zone);
+        return new BusinessDate(DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, zone).DateTime));
+    }
+
+    /// <summary>The calendar date of a UTC instant in the IANA time zone named, for example Europe/Stockholm (R-TIME-01).</summary>
+    public static BusinessDate InZone(DateTimeOffset instant, string timeZoneId) =>
+        InZone(instant, TimeZoneInfo.FindSystemTimeZoneById(timeZoneId));
+
     public static bool operator <(BusinessDate left, BusinessDate right) => left.Value < right.Value;
 
     public static bool operator >(BusinessDate left, BusinessDate right) => left.Value > right.Value;

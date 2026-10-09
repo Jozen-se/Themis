@@ -31,9 +31,9 @@ internal static class KernelPipelineServices
         services.AddScoped<ICommandDispatcher, CommandDispatcher>();
         services.AddScoped<IQueryDispatcher, QueryDispatcher>();
 
-        // R-SEC-01: deny by default until the identity capability registers the real principal and evaluator.
-        services.TryAddScoped<ICurrentPrincipal, NoCurrentPrincipal>();
-        services.TryAddSingleton<IPermissionEvaluator, DenyAllPermissionEvaluator>();
+        // R-SEC-01: deny by default until the identity capability registers the real subject and access control.
+        services.TryAddScoped<ICurrentSubject, NoCurrentSubject>();
+        services.TryAddSingleton<IAccessControl, DenyAllAccessControl>();
         return services;
     }
 
