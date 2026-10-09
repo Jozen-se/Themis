@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Themis.Kernel.Primitives: Money, Quantity, UnitCode, BusinessDate, DateRange, typed identifiers, and Result and
+    Error carrying rule IDs (brief, Repository layout). Public, framework-free, and referenced by every kernel capability
+    and every module. The types arrive with milestone 1 step 2; this pull request holds the project only.
+  -->
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Themis.Architecture.Tests" />
+    <InternalsVisibleTo Include="Themis.Kernel.Tests" />
+    <InternalsVisibleTo Include="Themis.Invariants.Tests" />
+  </ItemGroup>
+
+</Project>

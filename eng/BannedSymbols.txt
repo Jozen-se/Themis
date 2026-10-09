@@ -1,0 +1,11 @@
+# Banned symbols, enforced by Microsoft.CodeAnalysis.BannedApiAnalyzers (diagnostic RS0030, an error in this build).
+# R-MON-01: money and quantities use exact decimals; floating point is forbidden.
+T:System.Single; R-MON-01: use System.Decimal for money and quantities
+T:System.Double; R-MON-01: use System.Decimal for money and quantities
+T:System.Half; R-MON-01: use System.Decimal for money and quantities
+# R-TIME-01: system timestamps are UTC. Take time from an injected TimeProvider, never from the static clock.
+P:System.DateTime.Now; R-TIME-01: use TimeProvider.GetUtcNow()
+P:System.DateTime.UtcNow; R-TIME-01: use TimeProvider.GetUtcNow()
+P:System.DateTime.Today; R-TIME-01: business dates come from the command, system time from TimeProvider
+P:System.DateTimeOffset.Now; R-TIME-01: use TimeProvider.GetUtcNow()
+P:System.DateTimeOffset.UtcNow; R-TIME-01: use TimeProvider.GetUtcNow()

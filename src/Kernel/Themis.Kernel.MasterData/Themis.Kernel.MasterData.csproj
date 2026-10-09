@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Themis.Kernel.MasterData: items, units, item posting groups, currencies; parties and prices later in Phase 0 (P-02). -->
+
+  <ItemGroup>
+    <ProjectReference Include="../Themis.Kernel.Primitives/Themis.Kernel.Primitives.csproj" />
+    <ProjectReference Include="../Themis.Kernel.Contracts/Themis.Kernel.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Themis.Host" />
+    <InternalsVisibleTo Include="Themis.Architecture.Tests" />
+    <InternalsVisibleTo Include="Themis.Kernel.Tests" />
+    <InternalsVisibleTo Include="Themis.Integration.Tests" />
+    <InternalsVisibleTo Include="Themis.Invariants.Tests" />
+  </ItemGroup>
+
+</Project>

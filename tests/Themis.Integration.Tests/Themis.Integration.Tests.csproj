@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Integration tests run against a real PostgreSQL. By default Testcontainers starts one (Docker or Podman required).
+    Set THEMIS_TEST_CONNECTION to a superuser connection string to use an existing server instead.
+    The bootstrap applied is the same file the compose stack applies, db/bootstrap/01-roles.sql, followed by the
+    fixture module's test-only bootstrap.
+  -->
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Kernel/Themis.Kernel.Persistence/Themis.Kernel.Persistence.csproj" />
+    <ProjectReference Include="../Fixtures/Themis.FixtureModule/Themis.FixtureModule.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../db/bootstrap/*.sql" Link="db/bootstrap/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

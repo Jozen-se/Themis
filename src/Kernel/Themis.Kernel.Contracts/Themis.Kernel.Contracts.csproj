@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Themis.Kernel.Contracts: the interfaces modules may call and the kernel capabilities use to reach each other:
+    posting, documents, organisation, master data, identity (brief, Repository layout; D-26, D-39).
+    Public types live here and in Primitives only (ARCH-07). No framework references (ARCH-06).
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="../Themis.Kernel.Primitives/Themis.Kernel.Primitives.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Themis.Architecture.Tests" />
+    <InternalsVisibleTo Include="Themis.Kernel.Tests" />
+  </ItemGroup>
+
+</Project>

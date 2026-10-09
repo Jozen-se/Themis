@@ -1,0 +1,44 @@
+<Project>
+
+  <!--
+    Build settings shared by every project in the solution.
+    Decisions: D-06 (C# on the current .NET LTS, .NET 10), D-38 (licence scan, see Directory.Packages.props and eng/licenses).
+    Rule R-MON-01 (floating point is forbidden for money and quantities) is enforced at compile time by the
+    banned-symbol analyzer configured below; see eng/BannedSymbols.txt.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <RootNamespace>$(MSBuildProjectName)</RootNamespace>
+    <AssemblyName>$(MSBuildProjectName)</AssemblyName>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Product>Themis</Product>
+    <Authors>Themis contributors</Authors>
+    <Copyright>Copyright (c) Themis contributors. Licensed under the Apache License, Version 2.0.</Copyright>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!-- R-MON-01: System.Single, System.Double and System.Half are banned in every project. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)eng/BannedSymbols.txt" Link="BannedSymbols.txt" />
+  </ItemGroup>
+
+</Project>

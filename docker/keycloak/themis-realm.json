@@ -1,0 +1,40 @@
+{
+  "realm": "themis",
+  "displayName": "Themis (development)",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "roles": {
+    "realm": [
+      { "name": "themis-user", "description": "Any signed-in Themis user. Permissions and scopes are held in Themis, not here (D-12)." }
+    ]
+  },
+  "defaultRoles": ["themis-user"],
+  "clients": [
+    {
+      "clientId": "themis-api",
+      "name": "Themis API",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "themis-dev-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "redirectUris": ["http://localhost:5080/*", "http://localhost:3000/*"],
+      "webOrigins": ["http://localhost:5080", "http://localhost:3000"]
+    }
+  ],
+  "users": [
+    {
+      "username": "dev",
+      "email": "dev@themis.local",
+      "firstName": "Dev",
+      "lastName": "User",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "dev", "temporary": false }],
+      "realmRoles": ["themis-user"]
+    }
+  ]
+}

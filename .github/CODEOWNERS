@@ -1,0 +1,11 @@
+# Code owners (working model: the owner steers and reviews).
+# Ledger, inventory and posting code (R-LED, R-INV, R-PP), the database role model and the design snapshots always
+# get the owner's explicit review; branch protection on main requires a code owner review.
+
+*                      @SebastianHanssonPriv
+
+/src/Kernel/           @SebastianHanssonPriv
+/db/                   @SebastianHanssonPriv
+/docs/design/          @SebastianHanssonPriv
+/CLAUDE.md             @SebastianHanssonPriv
+/.github/              @SebastianHanssonPriv

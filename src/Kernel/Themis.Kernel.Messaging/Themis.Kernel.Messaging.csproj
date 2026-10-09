@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Themis.Kernel.Messaging: the outbox and its relay. -->
+
+  <ItemGroup>
+    <ProjectReference Include="../Themis.Kernel.Primitives/Themis.Kernel.Primitives.csproj" />
+    <ProjectReference Include="../Themis.Kernel.Contracts/Themis.Kernel.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Themis.Host" />
+    <InternalsVisibleTo Include="Themis.Architecture.Tests" />
+    <InternalsVisibleTo Include="Themis.Kernel.Tests" />
+    <InternalsVisibleTo Include="Themis.Integration.Tests" />
+    <InternalsVisibleTo Include="Themis.Invariants.Tests" />
+  </ItemGroup>
+
+</Project>

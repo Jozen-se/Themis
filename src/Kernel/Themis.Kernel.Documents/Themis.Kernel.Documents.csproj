@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Themis.Kernel.Documents: the document framework (D-39, D-40): shared tables, state machine engine, numbering (R-DOC-07). -->
+
+  <ItemGroup>
+    <ProjectReference Include="../Themis.Kernel.Primitives/Themis.Kernel.Primitives.csproj" />
+    <ProjectReference Include="../Themis.Kernel.Contracts/Themis.Kernel.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Themis.Host" />
+    <InternalsVisibleTo Include="Themis.Architecture.Tests" />
+    <InternalsVisibleTo Include="Themis.Kernel.Tests" />
+    <InternalsVisibleTo Include="Themis.Integration.Tests" />
+    <InternalsVisibleTo Include="Themis.Invariants.Tests" />
+  </ItemGroup>
+
+</Project>
