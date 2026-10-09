@@ -56,7 +56,7 @@ internal sealed class CorrelationIdMiddleware
             return sent;
         }
 
-        return CorrelationId.TryFrom(Activity.Current?.TraceId.ToString(), out CorrelationId traced) ? traced : CorrelationId.From(Guid.NewGuid().ToString("N"));
+        return CorrelationIds.Fresh();
     }
 }
 

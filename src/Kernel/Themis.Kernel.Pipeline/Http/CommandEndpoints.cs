@@ -32,6 +32,7 @@ internal static class CommandEndpoints
         CommandMetadata metadata = CommandMetadata.For(typeof(TCommand));
         return routes.MapPost(pattern, (HttpContext http, CancellationToken cancellationToken) => HandleAsync<TCommand, TResult>(http, metadata, cancellationToken))
             .WithName(metadata.Name)
+            .WithMetadata(metadata)
             .Accepts<TCommand>(CommandResponse.JsonContentType)
             .Produces<TResult>(StatusCodes.Status200OK, CommandResponse.JsonContentType)
             .ProducesProblem(StatusCodes.Status400BadRequest)
@@ -64,6 +65,12 @@ internal static class CommandEndpoints
         if (response.Replayed)
         {
             http.Response.Headers[ReplayedHeader] = "true";
+        }
+
+        if (response.Version is { } version)
+        {
+            // R-API-02: the new version goes back as a strong entity tag, ready for the next If-Match.
+            http.Response.Headers.ETag = string.Create(CultureInfo.InvariantCulture, $"\"{version}\"");
         }
 
         await http.Response.WriteAsync(response.Body, cancellationToken);

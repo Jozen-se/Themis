@@ -96,7 +96,7 @@ Every command goes through `Themis.Kernel.Pipeline` (brief, One command, one tra
 
 | Step | What happens | Rules |
 |---|---|---|
-| Headers | `Idempotency-Key` is required (400 without it); `If-Match` is required on commands that change an existing record (428 without it) and its value becomes the command's `expectedVersion`; route values such as `{id}` are merged into the body and win over it | R-API-01, R-API-02 |
+| Headers | `Idempotency-Key` is required (400 without it); `If-Match` is required on commands that change an existing record (428 without it) and its value becomes the command's `expectedVersion`, overwriting anything the body supplies; route values such as `{id}` are merged into the body and win over it. Every success returns the record's new version as the `ETag` header, ready for the next `If-Match` | R-API-01, R-API-02 |
 | Authorisation | the signed-in user needs the permission named by the command's `[Command("TYPE.COMMAND")]` attribute, else 403 with `ruleId` R-SEC-01; validators run before any statement | R-SEC-01 |
 | Transaction | one connection as `themis_app`, one transaction; each statement switches with `SET LOCAL ROLE` to the role that owns the table (the kernel stores to `themis_kernel`, a module's own SQL to its role) | D-41, R-DB-01 |
 | Duplicate | a transaction-scoped advisory lock on (user, key) is tried, never waited for: a second request while the first runs gets 409 at once | R-API-01 |
@@ -105,9 +105,14 @@ Every command goes through `Themis.Kernel.Pipeline` (brief, One command, one tra
 | Success | the buffered audit events (one per changed entity, with user, time, command, key and correlation id) and outbox rows (`TYPE_VERB` in past tense, schema version 1) are written as `themis_kernel`, then the idempotency record, then commit | R-AUD-01, D-44 |
 | Retry | only SQLSTATE 40001 and 40P01 restart the whole command, authorisation included, at most twice; the retries are counted in the metric `themis.command.retries` | D-41 |
 | Errors | problem details (RFC 9457) with `code`, `ruleId`, `correlationId` and `errors`; an unhandled exception rolls everything back, stores nothing and returns 500 | R-API-03 |
-| Numbers | decimals are JSON strings on output and strings or numbers on input; integers stay numbers; the OpenAPI description declares decimals as `string` with format `decimal` | D-37 |
+| Numbers | decimals are JSON strings on output and strings or numbers on input; integers stay numbers; the OpenAPI description declares decimals as `string` with format `decimal`, integers as `integer`, keeps `expectedVersion` out of request schemas and documents the `Idempotency-Key`, `If-Match` and `ETag` headers | D-37, R-API-02 |
 
-Idempotency records expire after 7 days (the specification's default); the purge that deletes them is later work.
+Idempotency records expire after 7 days (the specification's default). The owner approved a temporary exception to
+P-11: the value stays a constant until the settings framework (review finding RR-12) exists and moves there before
+Phase 0 is declared complete. The purge that deletes expired records is later work.
+
+A caller outside HTTP (a background service, a test) dispatches through `ICommandDispatcher` with a `CommandEnvelope`;
+when it supplies no correlation id, the pipeline creates one, so audit events always carry it (D-25).
 
 ## Linting, formatting and the licence scan
 

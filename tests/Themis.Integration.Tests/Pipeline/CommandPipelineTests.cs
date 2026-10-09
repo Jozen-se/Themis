@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -280,6 +281,68 @@ public sealed class CommandPipelineTests : IAsyncLifetime
         Assert.Equal("idempotency_key_reused", otherVersion.Code);
         Assert.Equal("R-API-04", otherVersion.RuleId);
         Assert.Equal(2L, await _host.ScalarAsync("SELECT version FROM fixture.counter WHERE id = @id", Ct, ("id", id)));
+    }
+
+    [Fact]
+    public async Task R_API_02_every_success_returns_the_new_version_as_ETag_and_a_replay_returns_the_stored_one()
+    {
+        CommandReply created = await _host.PostAsync(Counters, new { initialValue = 1, sample = "1" }, "etag-create", cancellationToken: Ct);
+        Guid id = created.Json!["id"]!.GetValue<Guid>();
+        CommandReply touched = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 1 }, "etag-touch", ifMatch: created.ETag, cancellationToken: Ct);
+        CommandReply replayed = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 1 }, "etag-touch", ifMatch: created.ETag, cancellationToken: Ct);
+        CommandReply rejected = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 0 }, "etag-reject", ifMatch: touched.ETag, cancellationToken: Ct);
+
+        Assert.Equal("\"1\"", created.ETag);
+        Assert.Equal("\"2\"", touched.ETag);
+        Assert.True(replayed.Replayed);
+        Assert.Equal("\"2\"", replayed.ETag);
+        Assert.Equal(422, rejected.Status);
+        Assert.Null(rejected.ETag);
+    }
+
+    [Fact]
+    public async Task D_25_the_pipeline_creates_a_correlation_id_when_a_caller_outside_HTTP_supplies_none()
+    {
+        await using AsyncServiceScope scope = _host.Services.CreateAsyncScope();
+        DefaultHttpContext http = new() { RequestServices = scope.ServiceProvider };
+        http.Request.Headers[HeaderPrincipal.UserHeader] = TestUsers.Alice.ToString();
+        http.Request.Headers[HeaderPermissionEvaluator.PermissionsHeader] = PipelineTestHost.DefaultPermissions;
+        scope.ServiceProvider.GetRequiredService<IHttpContextAccessor>().HttpContext = http;
+        ICommandDispatcher dispatcher = scope.ServiceProvider.GetRequiredService<ICommandDispatcher>();
+
+        CommandResponse response = await dispatcher.DispatchAsync<CreateCounter, CounterSnapshot>(new CreateCounter(1, 1m), new CommandEnvelope(IdempotencyKey.From("no-correlation-1")), Ct);
+
+        Assert.Equal(200, response.StatusCode);
+        Assert.Equal(1L, response.Version);
+        string? stored = (string?)await _host.ScalarAsync("SELECT correlation_id FROM kernel.audit_event WHERE idempotency_key = 'no-correlation-1'", Ct);
+        Assert.False(string.IsNullOrWhiteSpace(stored));
+        Assert.True(CorrelationId.TryFrom(stored, out _));
+    }
+
+    [Fact]
+    public async Task R_API_02_the_OpenAPI_document_keeps_expectedVersion_out_and_describes_the_headers_and_decimals()
+    {
+        using HttpResponseMessage response = await _host.Client.GetAsync(new Uri("/openapi/v1.json", UriKind.Relative), Ct);
+        string document = await response.Content.ReadAsStringAsync(Ct);
+        JsonNode root = JsonNode.Parse(document)!;
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.DoesNotContain("expectedVersion", document, StringComparison.Ordinal);
+
+        JsonNode touch = root["paths"]!["/v1/fixture/counters/{id}/touch"]!["post"]!;
+        JsonArray parameters = touch["parameters"]!.AsArray();
+        Assert.Contains(parameters, p => p!["name"]!.GetValue<string>() == "Idempotency-Key" && p["in"]!.GetValue<string>() == "header" && p["required"]!.GetValue<bool>());
+        Assert.Contains(parameters, p => p!["name"]!.GetValue<string>() == "If-Match" && p["in"]!.GetValue<string>() == "header" && p["required"]!.GetValue<bool>());
+        Assert.NotNull(touch["responses"]!["200"]!["headers"]!["ETag"]);
+
+        JsonNode create = root["paths"]!["/v1/fixture/counters"]!["post"]!;
+        Assert.DoesNotContain(create["parameters"]!.AsArray(), p => p!["name"]!.GetValue<string>() == "If-Match");
+
+        // D-37: decimals are strings with format decimal; integers stay integers.
+        JsonNode snapshot = root["components"]!["schemas"]!["CounterSnapshot"]!["properties"]!;
+        Assert.Equal("string", snapshot["sample"]!["type"]!.GetValue<string>());
+        Assert.Equal("decimal", snapshot["sample"]!["format"]!.GetValue<string>());
+        Assert.Equal("integer", snapshot["version"]!["type"]!.GetValue<string>());
     }
 
     [Fact]

@@ -62,12 +62,14 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         builder.Services.AddFixtureTestAuthentication();
         builder.Services.AddKernelPipeline();
         builder.Services.AddFixtureModule();
+        builder.Services.AddKernelOpenApi();
         builder.Services.AddProblemDetails();
 
         WebApplication app = builder.Build();
         app.UseExceptionHandler();
         app.UseCorrelationId();
         app.MapCommandRoutes(FixtureContracts.Routes);
+        app.MapOpenApi();
         await app.StartAsync();
 
         PipelineTestHost host = new(app, app.GetTestClient(), logs, new MeterListener(), db);
@@ -106,7 +108,8 @@ internal sealed class PipelineTestHost : IAsyncDisposable
             content,
             content.Length > 0 ? JsonNode.Parse(content) : null,
             response.Headers.TryGetValues("Idempotency-Replayed", out IEnumerable<string>? replayed) && replayed.Contains("true"),
-            response.Headers.TryGetValues("X-Correlation-Id", out IEnumerable<string>? correlation) ? correlation.First() : null);
+            response.Headers.TryGetValues("X-Correlation-Id", out IEnumerable<string>? correlation) ? correlation.First() : null,
+            response.Headers.ETag?.Tag);
     }
 
     /// <summary>A superuser view of what the command left behind.</summary>
@@ -143,7 +146,7 @@ internal sealed class PipelineTestHost : IAsyncDisposable
     }
 }
 
-internal sealed record CommandReply(int Status, string? MediaType, string Body, JsonNode? Json, bool Replayed, string? CorrelationId)
+internal sealed record CommandReply(int Status, string? MediaType, string Body, JsonNode? Json, bool Replayed, string? CorrelationId, string? ETag)
 {
     public string? Code => Json?["code"]?.GetValue<string>();
 

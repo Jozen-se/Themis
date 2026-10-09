@@ -26,7 +26,7 @@ internal sealed class KernelIdempotencyStore : IIdempotencyStore
         StoredResponse stored = JsonSerializer.Deserialize<StoredResponse>(record.Response, ResponseJson)
             ?? throw new InvalidOperationException("Stored idempotency response is unreadable.");
         return new StoredIdempotencyRecord(key, userId, record.CommandName, record.RequestHash,
-            new CommandResponse(stored.StatusCode, stored.ContentType, stored.Body, Replayed: true), record.ExpiresAt);
+            new CommandResponse(stored.StatusCode, stored.ContentType, stored.Body, Replayed: true, stored.Version), record.ExpiresAt);
     }
 
     public async Task AddAsync(IKernelUnitOfWork unitOfWork, StoredIdempotencyRecord record, CancellationToken cancellationToken)
@@ -38,13 +38,13 @@ internal sealed class KernelIdempotencyStore : IIdempotencyStore
             Key = record.Key.Value,
             CommandName = record.CommandName,
             RequestHash = record.RequestHash,
-            Response = JsonSerializer.Serialize(new StoredResponse(record.Response.StatusCode, record.Response.ContentType, record.Response.Body), ResponseJson),
+            Response = JsonSerializer.Serialize(new StoredResponse(record.Response.StatusCode, record.Response.ContentType, record.Response.Body, record.Response.Version), ResponseJson),
             ExpiresAt = record.ExpiresAt,
         });
         await context.SaveChangesAsync(cancellationToken);
     }
 
-    private sealed record StoredResponse(int StatusCode, string ContentType, string Body);
+    private sealed record StoredResponse(int StatusCode, string ContentType, string Body, long? Version);
 }
 
 /// <summary>Audit events on the command's unit of work, insert only (R-AUD-01, R-LED-06).</summary>

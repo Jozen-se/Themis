@@ -48,4 +48,4 @@ public sealed record CreateCounter(long InitialValue, decimal Sample, FixtureFai
 public sealed record TouchCounter(Guid Id, long ExpectedVersion, long Increment, FixtureFailure Failure = FixtureFailure.None) : ICommand<CounterSnapshot>, IVersionedCommand;
 
 /// <summary>The counter after the command. Sample is a decimal, so the response proves D-37 (strings for decimals, numbers for integers).</summary>
-public sealed record CounterSnapshot(Guid Id, long Value, long Version, decimal Sample);
+public sealed record CounterSnapshot(Guid Id, long Value, long Version, decimal Sample) : IVersionedResult;

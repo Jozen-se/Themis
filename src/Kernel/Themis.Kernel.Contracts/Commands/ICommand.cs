@@ -17,3 +17,9 @@ public interface IVersionedCommand
 {
     long ExpectedVersion { get; }
 }
+
+/// <summary>A command result that carries the record's new version; the API returns it as the <c>ETag</c> header (R-API-02).</summary>
+public interface IVersionedResult
+{
+    long Version { get; }
+}

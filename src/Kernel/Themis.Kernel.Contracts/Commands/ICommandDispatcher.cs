@@ -15,7 +15,12 @@ public interface ICommandDispatcher
 /// <summary>Request-level inputs that are not part of the command body.</summary>
 /// <param name="IdempotencyKey">The Idempotency-Key header; missing means the command is rejected (R-API-01).</param>
 /// <param name="CorrelationId">The request's correlation id (D-25).</param>
-public sealed record CommandEnvelope(IdempotencyKey? IdempotencyKey, CorrelationId CorrelationId);
+/// <summary>
+/// What accompanies a command into the pipeline: the idempotency key (required on every command, R-API-01) and the
+/// correlation id of the request. A caller outside HTTP may leave the correlation id out; the pipeline then creates
+/// one, so audit events always carry it (R-AUD-01, D-25).
+/// </summary>
+public sealed record CommandEnvelope(IdempotencyKey? IdempotencyKey, CorrelationId? CorrelationId = null);
 
 /// <summary>
 /// The HTTP representation of a command's outcome. A replayed response is byte-for-byte the first one (R-API-01).
@@ -24,7 +29,8 @@ public sealed record CommandEnvelope(IdempotencyKey? IdempotencyKey, Correlation
 /// <param name="ContentType">application/json for a result, application/problem+json for a rejection (R-API-03).</param>
 /// <param name="Body">The JSON body.</param>
 /// <param name="Replayed">True when the response came from the idempotency store.</param>
-public sealed record CommandResponse(int StatusCode, string ContentType, string Body, bool Replayed)
+/// <param name="Version">The record's new version on every success, rendered as the ETag header (R-API-02); a replay carries the stored one.</param>
+public sealed record CommandResponse(int StatusCode, string ContentType, string Body, bool Replayed, long? Version = null)
 {
     public const string JsonContentType = "application/json";
     public const string ProblemContentType = "application/problem+json";

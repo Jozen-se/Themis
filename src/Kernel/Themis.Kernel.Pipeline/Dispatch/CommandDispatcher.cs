@@ -85,44 +85,51 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
         CommandMetadata metadata = CommandMetadata.For(typeof(TCommand));
         Principal? principal = _currentPrincipal.Current;
         string userId = principal?.UserId.ToString() ?? "anonymous";
+        if (envelope.CorrelationId is null)
+        {
+            // D-25: a caller outside HTTP gets a correlation id from the pipeline, so audit events always carry one.
+            envelope = envelope with { CorrelationId = CorrelationIds.Fresh() };
+        }
+
+        CorrelationId correlationId = envelope.CorrelationId.Value;
 
         // Every log line of the command carries its name, correlation id and user (D-25).
         using IDisposable? scope = _logger.BeginScope(new Dictionary<string, object>
         {
             ["CommandName"] = metadata.Name,
-            ["CorrelationId"] = envelope.CorrelationId.Value,
+            ["CorrelationId"] = correlationId.Value,
             ["UserId"] = userId,
         });
         using Activity? activity = _telemetry.Source.StartActivity($"command {metadata.Name}");
         activity?.SetTag("themis.command", metadata.Name);
-        activity?.SetTag("themis.correlation_id", envelope.CorrelationId.Value);
+        activity?.SetTag("themis.correlation_id", correlationId.Value);
         activity?.SetTag("themis.user_id", userId);
 
-        CommandResponse response = await RunAsync<TCommand, TResult>(command, envelope, metadata, principal, cancellationToken);
+        CommandResponse response = await RunAsync<TCommand, TResult>(command, envelope, correlationId, metadata, principal, cancellationToken);
         _telemetry.Commands.Add(1, new KeyValuePair<string, object?>("command", metadata.Name), new KeyValuePair<string, object?>("outcome", Outcome(response)));
         activity?.SetTag("http.response.status_code", response.StatusCode);
         activity?.SetTag("themis.replayed", response.Replayed);
         return response;
     }
 
-    private async Task<CommandResponse> RunAsync<TCommand, TResult>(TCommand command, CommandEnvelope envelope, CommandMetadata metadata, Principal? principal, CancellationToken cancellationToken)
+    private async Task<CommandResponse> RunAsync<TCommand, TResult>(TCommand command, CommandEnvelope envelope, CorrelationId correlationId, CommandMetadata metadata, Principal? principal, CancellationToken cancellationToken)
         where TCommand : ICommand<TResult>
     {
         if (principal is null)
         {
-            return ProblemDetailsBody.Http(StatusCodes.Status401Unauthorized, "authentication_required", "R-SEC-01", "The command requires a signed-in user.", envelope.CorrelationId);
+            return ProblemDetailsBody.Http(StatusCodes.Status401Unauthorized, "authentication_required", "R-SEC-01", "The command requires a signed-in user.", correlationId);
         }
 
         if (envelope.IdempotencyKey is not { } idempotencyKey)
         {
-            return ProblemDetailsBody.Http(StatusCodes.Status400BadRequest, "idempotency_key_required", "R-API-01", "Every command carries an Idempotency-Key header.", envelope.CorrelationId);
+            return ProblemDetailsBody.Http(StatusCodes.Status400BadRequest, "idempotency_key_required", "R-API-01", "Every command carries an Idempotency-Key header.", correlationId);
         }
 
         for (int attempt = 1; ; attempt++)
         {
             try
             {
-                return await AttemptAsync<TCommand, TResult>(command, envelope, metadata, principal, idempotencyKey, cancellationToken);
+                return await AttemptAsync<TCommand, TResult>(command, correlationId, metadata, principal, idempotencyKey, cancellationToken);
             }
             catch (DbException exception) when (IsRetryable(exception) && attempt < KernelPipelineOptions.MaxAttempts)
             {
@@ -133,19 +140,19 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
         }
     }
 
-    private async Task<CommandResponse> AttemptAsync<TCommand, TResult>(TCommand command, CommandEnvelope envelope, CommandMetadata metadata, Principal principal, IdempotencyKey idempotencyKey, CancellationToken cancellationToken)
+    private async Task<CommandResponse> AttemptAsync<TCommand, TResult>(TCommand command, CorrelationId correlationId, CommandMetadata metadata, Principal principal, IdempotencyKey idempotencyKey, CancellationToken cancellationToken)
         where TCommand : ICommand<TResult>
     {
         // R-SEC-01: authorisation runs on every attempt, before any statement.
         if (!await _permissions.HasPermissionAsync(principal, metadata.Name, cancellationToken))
         {
-            return ProblemDetailsBody.ToResponse(Error.Forbidden("permission_missing", $"The user lacks permission {metadata.Name}."), envelope.CorrelationId);
+            return ProblemDetailsBody.ToResponse(Error.Forbidden("permission_missing", $"The user lacks permission {metadata.Name}."), correlationId);
         }
 
         List<Error> validationErrors = [.. _services.GetServices<ICommandValidator<TCommand>>().SelectMany(validator => validator.Validate(command))];
         if (validationErrors.Count > 0)
         {
-            return ProblemDetailsBody.ToResponse(validationErrors, envelope.CorrelationId);
+            return ProblemDetailsBody.ToResponse(validationErrors, correlationId);
         }
 
         // R-API-04: the fingerprint covers the command type, the body and the If-Match version.
@@ -159,7 +166,7 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
         if (!await unitOfWork.TryAdvisoryLockAsync(AdvisoryLockKey.For(principal.UserId, idempotencyKey), cancellationToken))
         {
             await unitOfWork.RollbackAsync(cancellationToken);
-            return ProblemDetailsBody.ToResponse(Error.Conflict("idempotency_key_in_progress", "A request with this Idempotency-Key is still running.", "R-API-01"), envelope.CorrelationId);
+            return ProblemDetailsBody.ToResponse(Error.Conflict("idempotency_key_in_progress", "A request with this Idempotency-Key is still running.", "R-API-01"), correlationId);
         }
 
         StoredIdempotencyRecord? stored = await _idempotency.FindAsync(unitOfWork, principal.UserId, idempotencyKey, cancellationToken);
@@ -169,14 +176,14 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
             if (!string.Equals(stored.RequestHash, requestHash, StringComparison.Ordinal))
             {
                 // R-API-04: the same key with a different request is a client bug, reported and never stored.
-                return ProblemDetailsBody.ToResponse(Error.Rule("R-API-04", "idempotency_key_reused", "The Idempotency-Key was already used for a different request."), envelope.CorrelationId);
+                return ProblemDetailsBody.ToResponse(Error.Rule("R-API-04", "idempotency_key_reused", "The Idempotency-Key was already used for a different request."), correlationId);
             }
 
             LogReplayed(_logger, metadata.Name);
             return stored.Response with { Replayed = true };
         }
 
-        CommandContext context = new(CommandId.New(), envelope.CorrelationId, principal, idempotencyKey, now, unitOfWork);
+        CommandContext context = new(CommandId.New(), correlationId, principal, idempotencyKey, now, unitOfWork);
         ICommandHandler<TCommand, TResult> handler = _services.GetRequiredService<ICommandHandler<TCommand, TResult>>();
 
         await unitOfWork.SavepointAsync(BusinessSavepoint, cancellationToken);
@@ -188,11 +195,12 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
             await unitOfWork.ReleaseSavepointAsync(BusinessSavepoint, cancellationToken);
             await _auditStore.AddAsync(unitOfWork, context, metadata.Name, context.AuditEntries, cancellationToken);
             await _outboxStore.AddAsync(unitOfWork, now, context.OutboxEntries, cancellationToken);
-            response = new CommandResponse(StatusCodes.Status200OK, CommandResponse.JsonContentType, JsonSerializer.Serialize(result.Value, ThemisJson.Options), Replayed: false);
+            // R-API-02: every success returns the record's new version, rendered as the ETag header.
+            response = new CommandResponse(StatusCodes.Status200OK, CommandResponse.JsonContentType, JsonSerializer.Serialize(result.Value, ThemisJson.Options), Replayed: false, (result.Value as IVersionedResult)?.Version);
         }
         else
         {
-            response = ProblemDetailsBody.ToResponse(result.Errors, envelope.CorrelationId);
+            response = ProblemDetailsBody.ToResponse(result.Errors, correlationId);
             LogRejected(_logger, metadata.Name, result.Primary!.Code, result.Primary.RuleId);
             if (result.Errors.Any(error => error.Kind == ErrorKind.PreconditionFailed))
             {

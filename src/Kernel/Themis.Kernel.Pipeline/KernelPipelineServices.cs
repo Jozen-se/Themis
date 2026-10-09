@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Themis.Kernel.Contracts.Commands;
 using Themis.Kernel.Contracts.Security;
 using Themis.Kernel.Pipeline.Dispatch;
+using Themis.Kernel.Pipeline.Json;
 using Themis.Kernel.Pipeline.OpenApi;
 using Themis.Kernel.Pipeline.Security;
 using Themis.Kernel.Pipeline.Telemetry;
@@ -22,6 +23,10 @@ internal static class KernelPipelineServices
 
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<PipelineTelemetry>();
+
+        // D-37: the host's HTTP JSON options follow the same number contract, so the OpenAPI description declares
+        // integers as integers and decimals as strings.
+        services.ConfigureHttpJsonOptions(options => ThemisJson.Apply(options.SerializerOptions));
         services.AddScoped<ICommandDispatcher, CommandDispatcher>();
 
         // R-SEC-01: deny by default until the identity capability registers the real principal and evaluator.
@@ -30,7 +35,12 @@ internal static class KernelPipelineServices
         return services;
     }
 
-    /// <summary>The API description with decimals declared as strings (D-37).</summary>
+    /// <summary>The API description with decimals declared as strings (D-37) and the command headers described (R-API-01, R-API-02).</summary>
     public static IServiceCollection AddKernelOpenApi(this IServiceCollection services) =>
-        services.AddOpenApi(options => options.AddSchemaTransformer<DecimalSchemaTransformer>());
+        services.AddOpenApi(options =>
+        {
+            options.AddSchemaTransformer<DecimalSchemaTransformer>();
+            options.AddSchemaTransformer<CommandSchemaTransformer>();
+            options.AddOperationTransformer<CommandOperationTransformer>();
+        });
 }

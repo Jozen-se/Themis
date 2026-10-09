@@ -15,15 +15,23 @@ internal static class ThemisJson
     /// <summary>Problem details omit absent members (ruleId when no rule failed) instead of writing null.</summary>
     public static JsonSerializerOptions ProblemOptions { get; } = Create(JsonIgnoreCondition.WhenWritingNull);
 
-    private static JsonSerializerOptions Create(JsonIgnoreCondition ignoreCondition)
+    /// <summary>
+    /// Applies the API's number and enum rules to another options instance, such as the host's HTTP JSON options,
+    /// so the OpenAPI description and minimal API responses follow the same contract (D-37): decimals as strings,
+    /// integers strictly as numbers, enums as strings.
+    /// </summary>
+    public static void Apply(JsonSerializerOptions options)
     {
-        JsonSerializerOptions options = new(JsonSerializerDefaults.Web)
-        {
-            DefaultIgnoreCondition = ignoreCondition,
-            NumberHandling = JsonNumberHandling.Strict,
-        };
+        ArgumentNullException.ThrowIfNull(options);
+        options.NumberHandling = JsonNumberHandling.Strict;
         options.Converters.Add(new DecimalJsonConverter());
         options.Converters.Add(new JsonStringEnumConverter());
+    }
+
+    private static JsonSerializerOptions Create(JsonIgnoreCondition ignoreCondition)
+    {
+        JsonSerializerOptions options = new(JsonSerializerDefaults.Web) { DefaultIgnoreCondition = ignoreCondition };
+        Apply(options);
         options.MakeReadOnly(populateMissingResolver: true);
         return options;
     }
