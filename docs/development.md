@@ -35,7 +35,7 @@ Keycloak uses its own file database in development; the realm is imported from `
 ```bash
 export THEMIS_MIGRATOR_CONNECTION="Host=localhost;Port=5432;Database=themis;Username=themis_migrator;Password=themis"
 dotnet run --project src/Themis.Migrator     # verifies the role, applies the pending kernel migrations, seeds the permission catalogue
-dotnet run --project src/Themis.Migrator -- --fixture milestone-1   # also seeds the milestone 1 organisation and identity fixtures (idempotent)
+dotnet run --project src/Themis.Migrator -- --fixture milestone-1   # also seeds the milestone 1 organisation, identity and master data fixtures (idempotent)
 dotnet run --project src/Themis.Host
 curl -i http://localhost:5080/health/live     # 200 as soon as the process serves requests
 curl -i http://localhost:5080/health/ready    # 200 when PostgreSQL answers as themis_app, 503 otherwise
@@ -53,7 +53,8 @@ value is test data with fixed identifiers; the rows are written by `themis_migra
 inserts nothing. Its definition lives in `Themis.Kernel.Organisation` (`Milestone1OrganisationFixture`) and the
 writer in `Themis.Kernel.Persistence` (`OrganisationFixtureSeeder`). The identity fixture of step 4 (users, roles
 and assignments, see Identity below) is seeded with it by `IdentitySeeder`, after the segregation-of-duties check
-(R-SEC-02); a fixture that fails the check makes the migrator exit with code 4.
+(R-SEC-02); a fixture that fails the check makes the migrator exit with code 4. The master data fixture of step 5
+(the item posting group `TRADE_GOODS`, see Master data below) is seeded after it by `MasterDataFixtureSeeder`.
 
 The organisation reads (`IOrganisationReader` in Contracts, implemented in `Themis.Kernel.Organisation`) give the
 company, the warehouse with its site and company, the business date of a UTC instant in the company's time zone
@@ -103,7 +104,8 @@ compares every table privilege in `kernel`, `reporting` and `fixture` with the d
 `Themis.Kernel.Persistence` (plus the fixture table's own), so a migration cannot grant more than it declares.
 
 The command pipeline tests start an in-memory host (`tests/Themis.Integration.Tests/Pipeline`) wired like
-`Themis.Host`, with the fixture module's three commands on `/v1/fixture/counters` and the real identity capability
+`Themis.Host`, with the fixture module's three commands on `/v1/fixture/counters`, the kernel's own commands and
+queries (the company read, `ITEM.CREATE` and the item reads) and the real identity capability
 behind the test token issuer: the tests mint bearer tokens for the fixture's users (see Identity below). Until the
 real commands exist, the fixture commands stand in for them and take their permissions: create takes `ITEM.CREATE`,
 touch `INVENTORY_ADJUSTMENT.UPDATE` and post `INVENTORY_ADJUSTMENT.POST` (step 4 brief). A counter belongs to a
@@ -187,6 +189,41 @@ curl -s -X POST http://localhost:8080/realms/themis/protocol/openid-connect/toke
 `Identity:TestIssuer:SigningKey` (base64, at least 32 bytes) instead of an authority and mint their own HMAC-signed
 tokens, so issuer, audience, signature and lifetime are still validated without a provider running. The host refuses
 to start with a test issuer configured outside the Development and Test environments.
+
+## Master data
+
+Step 5 brings the master data entities of the Phase 0 Specification into the kernel (P-02): `unit_of_measure`,
+`currency`, `item_posting_group`, `item` and `item_company`. Reference data is seeded by the migration itself, in
+every installation, with one audit event per row under the system user and command name `SYSTEM.MIGRATE`
+(R-AUD-01): the units `H87` (piece, 0 decimals), `KGM` (kilogram, 3) and `MTR` (metre, 3), and the currencies `SEK`
+and `EUR` (2 minor units). The rows carry fixed, name-derived identifiers so that a re-run on a restored database
+inserts nothing. The item posting group `TRADE_GOODS` is company configuration, not reference data, so it comes only
+with `--fixture milestone-1`, under `SYSTEM.SEED_FIXTURE` like the organisation fixture. References to reference data
+are by code and are real, validated foreign keys: `item.base_unit` to `unit_of_measure.code`,
+`company.base_currency` to `currency.code`, `item_company.item_posting_group` to `item_posting_group.code`; the
+default warehouse of an item in a company must belong to that company (company scope convention). The kernel role
+holds SELECT, INSERT and UPDATE on the five tables and never DELETE (R-MD-03).
+
+An item is installation-wide and its company row holds what differs per company (D-43). `ITEM.CREATE`
+(`POST /v1/kernel/items`) creates both in one command for the company in the body, which is also the command's scope
+(R-SEC-01). The item number is stored uppercase and is unique per installation; a duplicate is 422 with ruleId
+`R-MD-05` and code `item_number_duplicate`. An unknown base unit, item posting group or default warehouse, a warehouse
+of another company, or a sales multiple or minimum order quantity finer than the unit's decimals, is a 400 with its
+own code (`base_unit_unknown`, `item_posting_group_unknown`, `default_warehouse_unknown`,
+`default_warehouse_other_company`, `sales_multiple_precision`, `min_order_qty_precision`) and no ruleId; found inside
+the transaction, it is stored as the key's result, so a replay returns the same 400 (Build Brief, Errors). Shape
+errors (`description_required`, `net_weight_kg_negative`, `net_weight_kg_precision` and the like) are refused before
+the transaction and are not stored, so a corrected retry with the same key runs. An unknown enum value such as a
+costing method other than `MovingAverage` is refused at binding. The command writes one audit event and one outbox
+event per created row: `ITEM_CREATED` with the item's id as aggregate id and `ITEM_COMPANY_CREATED` with the company
+row's id (D-44). Quantities (net weight, sales multiple, minimum order quantity) are returned at the storage scale of
+the Specification's Quantity type, six decimals, so a create and a later read return the same text (D-37).
+
+The reads `GET /v1/kernel/companies/{companyId}/items/{id}` and
+`GET /v1/kernel/companies/{companyId}/items/by-number/{itemNumber}` need `ITEM.READ` in the company of the route
+(D-47); the scope is checked before anything is loaded, so a company the user is not assigned to is 403 even for an
+item that exists, and an item without a row in that company is 404 `item_not_found`. Default sales and purchase
+units, item updates, status changes, attribute templates, parties, prices and accounts are later steps.
 
 ## Linting, formatting and the licence scan
 

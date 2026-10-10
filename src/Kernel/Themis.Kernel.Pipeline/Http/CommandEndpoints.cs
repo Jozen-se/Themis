@@ -32,8 +32,10 @@ internal static class CommandEndpoints
         CommandMetadata metadata = CommandMetadata.For(typeof(TCommand));
         // D-47: a command that names no scope cannot be mapped; the host fails to start instead of allowing it.
         ScopeSources.RequireDeclared(typeof(TCommand), routes.ServiceProvider);
+        // Endpoint names are global and a permission can be shared (the fixture module's commands stand in with the real ones' permissions), so the command type names the endpoint.
         return routes.MapPost(pattern, (HttpContext http, CancellationToken cancellationToken) => HandleAsync<TCommand, TResult>(http, metadata, cancellationToken))
-            .WithName(metadata.Name)
+            .WithName(typeof(TCommand).Name)
+            .WithSummary(metadata.Name)
             .WithMetadata(metadata)
             .Accepts<TCommand>(CommandResponse.JsonContentType)
             .Produces<TResult>(StatusCodes.Status200OK, CommandResponse.JsonContentType)

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Themis.Kernel.Persistence.Entities;
 using Themis.Kernel.Persistence.Entities.Identity;
+using Themis.Kernel.Persistence.Entities.MasterData;
 using Themis.Kernel.Persistence.Entities.Organisation;
 
 namespace Themis.Kernel.Persistence;
@@ -54,11 +55,22 @@ internal sealed class KernelDbContext : DbContext
 
     public DbSet<SodConflict> SodConflicts => Set<SodConflict>();
 
+    public DbSet<UnitOfMeasure> UnitsOfMeasure => Set<UnitOfMeasure>();
+
+    public DbSet<Currency> Currencies => Set<Currency>();
+
+    public DbSet<ItemPostingGroup> ItemPostingGroups => Set<ItemPostingGroup>();
+
+    public DbSet<Item> Items => Set<Item>();
+
+    public DbSet<ItemCompany> ItemCompanies => Set<ItemCompany>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);
         OrganisationModel.Configure(modelBuilder);
         IdentityModel.Configure(modelBuilder);
+        MasterDataModel.Configure(modelBuilder);
 
         modelBuilder.Entity<IdempotencyRecord>(entity =>
         {

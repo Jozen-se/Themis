@@ -3,6 +3,7 @@ using Themis.Kernel.Contracts.Identity;
 using Themis.Kernel.Contracts.Organisation;
 using Themis.Kernel.Contracts.Security;
 using Themis.Kernel.Identity;
+using Themis.Kernel.MasterData;
 using Themis.Kernel.Organisation;
 using Themis.Kernel.Persistence;
 using Themis.Kernel.Persistence.Seeding;
@@ -98,6 +99,10 @@ public static class Program
                 }
 
                 Console.WriteLine($"Fixture '{fixture}' (identity): {identityRows.Value} row(s) inserted, the rest already present.");
+
+                // Step 5: the item posting group is company configuration, fixture-seeded; units and currencies came with the migration.
+                int masterDataRows = await MasterDataFixtureSeeder.ApplyAsync(connectionString, Milestone1MasterDataFixture.Definition, now, WellKnownUsers.System, CancellationToken.None);
+                Console.WriteLine($"Fixture '{fixture}' (master data): {masterDataRows} row(s) inserted, the rest already present.");
             }
 
             return 0;

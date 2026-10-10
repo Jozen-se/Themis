@@ -522,6 +522,417 @@ namespace Themis.Kernel.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Themis.Kernel.Persistence.Entities.MasterData.Currency", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Extension")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("extension")
+                        .HasDefaultValueSql("'{}'::jsonb");
+
+                    b.Property<int>("MinorUnits")
+                        .HasColumnType("integer")
+                        .HasColumnName("minor_units");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.Property<long>("Version")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_currency");
+
+                    b.HasAlternateKey("Code")
+                        .HasName("ak_currency_code");
+
+                    b.ToTable("currency", "kernel", t =>
+                        {
+                            t.HasCheckConstraint("ck_currency_minor_units", "minor_units BETWEEN 0 AND 3");
+                        });
+                });
+
+            modelBuilder.Entity("Themis.Kernel.Persistence.Entities.MasterData.Item", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("AttributeTemplateId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("attribute_template_id");
+
+                    b.Property<string>("BaseUnit")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("base_unit");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Extension")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("extension")
+                        .HasDefaultValueSql("'{}'::jsonb");
+
+                    b.Property<string>("ItemNumber")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("item_number");
+
+                    b.Property<string>("ItemType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("item_type");
+
+                    b.Property<string>("LotTracking")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("lot_tracking");
+
+                    b.Property<decimal?>("MinOrderQty")
+                        .HasColumnType("numeric(20,6)")
+                        .HasColumnName("min_order_qty");
+
+                    b.Property<decimal?>("NetWeightKg")
+                        .HasColumnType("numeric(20,6)")
+                        .HasColumnName("net_weight_kg");
+
+                    b.Property<decimal?>("SalesMultiple")
+                        .HasColumnType("numeric(20,6)")
+                        .HasColumnName("sales_multiple");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.Property<long>("Version")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_item");
+
+                    b.HasIndex("BaseUnit");
+
+                    b.HasIndex("ItemNumber")
+                        .IsUnique()
+                        .HasDatabaseName("ux_item_item_number");
+
+                    b.ToTable("item", "kernel", t =>
+                        {
+                            t.HasCheckConstraint("ck_item_item_type", "item_type IN ('Stocked', 'NonStocked', 'Service')");
+
+                            t.HasCheckConstraint("ck_item_lot_tracking", "lot_tracking IN ('None', 'Required')");
+
+                            t.HasCheckConstraint("ck_item_min_order_qty", "min_order_qty IS NULL OR min_order_qty > 0");
+
+                            t.HasCheckConstraint("ck_item_net_weight_kg", "net_weight_kg IS NULL OR net_weight_kg >= 0");
+
+                            t.HasCheckConstraint("ck_item_sales_multiple", "sales_multiple IS NULL OR sales_multiple > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Themis.Kernel.Persistence.Entities.MasterData.ItemCompany", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("company_id");
+
+                    b.Property<string>("CostingMethod")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("costing_method");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("DefaultPurchaseUnit")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("default_purchase_unit");
+
+                    b.Property<string>("DefaultSalesUnit")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("default_sales_unit");
+
+                    b.Property<Guid?>("DefaultWarehouseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("default_warehouse_id");
+
+                    b.Property<string>("Extension")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("extension")
+                        .HasDefaultValueSql("'{}'::jsonb");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("item_id");
+
+                    b.Property<string>("ItemPostingGroup")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("item_posting_group");
+
+                    b.Property<bool>("PurchaseAllowed")
+                        .HasColumnType("boolean")
+                        .HasColumnName("purchase_allowed");
+
+                    b.Property<bool>("SalesAllowed")
+                        .HasColumnType("boolean")
+                        .HasColumnName("sales_allowed");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("TaxClass")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("tax_class");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.Property<long>("Version")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_item_company");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("ItemPostingGroup");
+
+                    b.HasIndex("DefaultWarehouseId", "CompanyId");
+
+                    b.HasIndex("ItemId", "CompanyId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_item_company_item_company");
+
+                    b.ToTable("item_company", "kernel", t =>
+                        {
+                            t.HasCheckConstraint("ck_item_company_costing_method", "costing_method IN ('MovingAverage')");
+
+                            t.HasCheckConstraint("ck_item_company_status", "status IN ('Active', 'Blocked', 'Inactive')");
+
+                            t.HasCheckConstraint("ck_item_company_tax_class", "tax_class IN ('Standard', 'Reduced', 'Zero', 'Exempt')");
+                        });
+                });
+
+            modelBuilder.Entity("Themis.Kernel.Persistence.Entities.MasterData.ItemPostingGroup", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Extension")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("extension")
+                        .HasDefaultValueSql("'{}'::jsonb");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.Property<long>("Version")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_item_posting_group");
+
+                    b.HasAlternateKey("Code")
+                        .HasName("ak_item_posting_group_code");
+
+                    b.ToTable("item_posting_group", "kernel");
+                });
+
+            modelBuilder.Entity("Themis.Kernel.Persistence.Entities.MasterData.UnitOfMeasure", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<int>("Decimals")
+                        .HasColumnType("integer")
+                        .HasColumnName("decimals");
+
+                    b.Property<string>("Dimension")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("dimension");
+
+                    b.Property<string>("Extension")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("extension")
+                        .HasDefaultValueSql("'{}'::jsonb");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.Property<long>("Version")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_unit_of_measure");
+
+                    b.HasAlternateKey("Code")
+                        .HasName("ak_unit_of_measure_code");
+
+                    b.ToTable("unit_of_measure", "kernel", t =>
+                        {
+                            t.HasCheckConstraint("ck_unit_of_measure_decimals", "decimals BETWEEN 0 AND 6");
+
+                            t.HasCheckConstraint("ck_unit_of_measure_dimension", "dimension IN ('Count', 'Mass', 'Length', 'Volume', 'Time')");
+                        });
+                });
+
             modelBuilder.Entity("Themis.Kernel.Persistence.Entities.Organisation.ChartOfAccounts", b =>
                 {
                     b.Property<Guid>("Id")
@@ -698,6 +1109,8 @@ namespace Themis.Kernel.Persistence.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_company");
+
+                    b.HasIndex("BaseCurrency");
 
                     b.HasIndex("ChartOfAccountsId");
 
@@ -1349,8 +1762,59 @@ namespace Themis.Kernel.Persistence.Migrations
                         .HasConstraintName("fk_role_permission_role");
                 });
 
+            modelBuilder.Entity("Themis.Kernel.Persistence.Entities.MasterData.Item", b =>
+                {
+                    b.HasOne("Themis.Kernel.Persistence.Entities.MasterData.UnitOfMeasure", null)
+                        .WithMany()
+                        .HasForeignKey("BaseUnit")
+                        .HasPrincipalKey("Code")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_item_base_unit");
+                });
+
+            modelBuilder.Entity("Themis.Kernel.Persistence.Entities.MasterData.ItemCompany", b =>
+                {
+                    b.HasOne("Themis.Kernel.Persistence.Entities.Organisation.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_item_company_company");
+
+                    b.HasOne("Themis.Kernel.Persistence.Entities.MasterData.Item", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_item_company_item");
+
+                    b.HasOne("Themis.Kernel.Persistence.Entities.MasterData.ItemPostingGroup", null)
+                        .WithMany()
+                        .HasForeignKey("ItemPostingGroup")
+                        .HasPrincipalKey("Code")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_item_company_item_posting_group");
+
+                    b.HasOne("Themis.Kernel.Persistence.Entities.Organisation.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("DefaultWarehouseId", "CompanyId")
+                        .HasPrincipalKey("Id", "CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_item_company_default_warehouse_company");
+                });
+
             modelBuilder.Entity("Themis.Kernel.Persistence.Entities.Organisation.Company", b =>
                 {
+                    b.HasOne("Themis.Kernel.Persistence.Entities.MasterData.Currency", null)
+                        .WithMany()
+                        .HasForeignKey("BaseCurrency")
+                        .HasPrincipalKey("Code")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_company_base_currency");
+
                     b.HasOne("Themis.Kernel.Persistence.Entities.Organisation.ChartOfAccounts", null)
                         .WithMany()
                         .HasForeignKey("ChartOfAccountsId")
