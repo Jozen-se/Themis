@@ -38,10 +38,10 @@ public sealed class PrivilegeMatrixTests
     }
 
     [Fact]
-    public void The_declared_matrix_covers_the_pipeline_organisation_and_identity_tables_of_the_first_three_migrations()
+    public void The_declared_matrix_covers_the_pipeline_organisation_identity_and_master_data_tables_of_the_first_four_migrations()
     {
         Assert.Equal(
-            ["audit_event", "chart_of_accounts", "company", "fiscal_period", "fiscal_year", "idempotency_record", "installation", "outbox_event", "party", "permission", "role", "role_assignment", "role_permission", "site", "sod_conflict", "user_account", "warehouse"],
+            ["audit_event", "chart_of_accounts", "company", "currency", "fiscal_period", "fiscal_year", "idempotency_record", "installation", "item", "item_company", "item_posting_group", "outbox_event", "party", "permission", "role", "role_assignment", "role_permission", "site", "sod_conflict", "unit_of_measure", "user_account", "warehouse"],
             KernelPrivilegeMatrix.Declared.Select(grant => grant.Table).Order(StringComparer.Ordinal));
         Assert.All(KernelPrivilegeMatrix.Declared, grant => Assert.Equal("themis_kernel", grant.Role));
     }

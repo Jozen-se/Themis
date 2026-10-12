@@ -376,6 +376,7 @@
         "dependencies": {
           "Npgsql": "[10.0.3, )",
           "Themis.Kernel.Identity": "[1.0.0, )",
+          "Themis.Kernel.MasterData": "[1.0.0, )",
           "Themis.Kernel.Organisation": "[1.0.0, )",
           "Themis.Kernel.Persistence": "[1.0.0, )"
         }

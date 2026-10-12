@@ -36,6 +36,11 @@ internal sealed class IdentityTestData : IAsyncDisposable
 
     public string OtherSiteSubject { get; } = "othersite-" + Guid.NewGuid().ToString("N");
 
+    /// <summary>Holds the poster role only, company-wide: may post, lacks ITEM.CREATE and ITEM.READ.</summary>
+    public Guid PosterOnlyUser { get; } = Guid.NewGuid();
+
+    public string PosterOnlySubject { get; } = "posteronly-" + Guid.NewGuid().ToString("N");
+
     public static async Task<IdentityTestData> CreateAsync(PostgresFixture db, CancellationToken cancellationToken)
     {
         IdentityTestData data = new(db);
@@ -46,7 +51,7 @@ internal sealed class IdentityTestData : IAsyncDisposable
         await data.RunAsync($"INSERT INTO kernel.site (id, company_id, code, name, created_at, created_by, updated_at, updated_by) VALUES ('{data.OtherSite}', '{Company}', 'OTHER', 'Other site', now(), '{system}', now(), '{system}')", cancellationToken);
         data._cleanup.Add($"DELETE FROM kernel.site WHERE id = '{data.OtherSite}'");
 
-        foreach ((Guid id, string subject, string status) in new[] { (data.DisabledUser, data.DisabledSubject, "Disabled"), (data.ExpiredUser, data.ExpiredSubject, "Active"), (data.OtherSiteUser, data.OtherSiteSubject, "Active") })
+        foreach ((Guid id, string subject, string status) in new[] { (data.DisabledUser, data.DisabledSubject, "Disabled"), (data.ExpiredUser, data.ExpiredSubject, "Active"), (data.OtherSiteUser, data.OtherSiteSubject, "Active"), (data.PosterOnlyUser, data.PosterOnlySubject, "Active") })
         {
             await data.RunAsync($"INSERT INTO kernel.user_account (id, external_subject, display_name, is_service_account, status, created_at, created_by, updated_at, updated_by) VALUES ('{id}', '{subject}', 'Test {status}', false, '{status}', now(), '{system}', now(), '{system}')", cancellationToken);
             data._cleanup.Insert(0, $"DELETE FROM kernel.user_account WHERE id = '{id}'");
@@ -59,12 +64,13 @@ internal sealed class IdentityTestData : IAsyncDisposable
             ('{Guid.NewGuid()}', '{data.DisabledUser}', '{preparerRole}', '{Company}', NULL, '2026-01-01', NULL, '{system}', now(), '{system}', now(), '{system}'),
             ('{Guid.NewGuid()}', '{data.ExpiredUser}', '{preparerRole}', '{Company}', NULL, '2026-01-01', '2026-02-01', '{system}', now(), '{system}', now(), '{system}'),
             ('{Guid.NewGuid()}', '{data.OtherSiteUser}', '{preparerRole}', '{Company}', '{data.OtherSite}', '2026-01-01', NULL, '{system}', now(), '{system}', now(), '{system}'),
-            ('{Guid.NewGuid()}', '{data.OtherSiteUser}', '{posterRole}', '{Company}', '{data.OtherSite}', '2026-01-01', NULL, '{system}', now(), '{system}', now(), '{system}')
+            ('{Guid.NewGuid()}', '{data.OtherSiteUser}', '{posterRole}', '{Company}', '{data.OtherSite}', '2026-01-01', NULL, '{system}', now(), '{system}', now(), '{system}'),
+            ('{Guid.NewGuid()}', '{data.PosterOnlyUser}', '{posterRole}', '{Company}', NULL, '2026-01-01', NULL, '{system}', now(), '{system}', now(), '{system}')
             """;
         await data.RunAsync(assignments, cancellationToken);
-        data._cleanup.Insert(0, $"DELETE FROM kernel.role_assignment WHERE user_id IN ('{data.DisabledUser}', '{data.ExpiredUser}', '{data.OtherSiteUser}')");
-        data._cleanup.Insert(0, $"DELETE FROM kernel.idempotency_record WHERE user_id IN ('{data.DisabledUser}', '{data.ExpiredUser}', '{data.OtherSiteUser}')");
-        data._cleanup.Insert(0, $"DELETE FROM kernel.audit_event WHERE user_id IN ('{data.DisabledUser}', '{data.ExpiredUser}', '{data.OtherSiteUser}')");
+        data._cleanup.Insert(0, $"DELETE FROM kernel.role_assignment WHERE user_id IN ('{data.DisabledUser}', '{data.ExpiredUser}', '{data.OtherSiteUser}', '{data.PosterOnlyUser}')");
+        data._cleanup.Insert(0, $"DELETE FROM kernel.idempotency_record WHERE user_id IN ('{data.DisabledUser}', '{data.ExpiredUser}', '{data.OtherSiteUser}', '{data.PosterOnlyUser}')");
+        data._cleanup.Insert(0, $"DELETE FROM kernel.audit_event WHERE user_id IN ('{data.DisabledUser}', '{data.ExpiredUser}', '{data.OtherSiteUser}', '{data.PosterOnlyUser}')");
         return data;
     }
 

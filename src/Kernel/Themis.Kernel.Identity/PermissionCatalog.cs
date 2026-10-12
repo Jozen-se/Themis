@@ -9,7 +9,7 @@ namespace Themis.Kernel.Identity;
 /// every run and never removes a permission. A unit test holds the catalogue and the command and query types to
 /// each other in both directions: every type names a permission here, and every permission here has its type, or
 /// is listed in <see cref="AwaitingCommands"/> with the milestone step that builds the command (Build Brief, step 4
-/// names ITEM.CREATE and the INVENTORY_ADJUSTMENT verbs ahead of steps 5 and 7).
+/// names the INVENTORY_ADJUSTMENT verbs ahead of step 7).
 /// </summary>
 internal static class PermissionCatalog
 {
@@ -51,8 +51,6 @@ internal static class PermissionCatalog
     /// <summary>Permissions seeded ahead of their commands, with the milestone step that builds the command. Shrinks as the steps land.</summary>
     public static IReadOnlyDictionary<string, string> AwaitingCommands { get; } = new Dictionary<string, string>(StringComparer.Ordinal)
     {
-        [ItemCreate] = "milestone 1 step 5",
-        [ItemRead] = "milestone 1 step 5",
         [InventoryAdjustmentCreate] = "milestone 1 step 7",
         [InventoryAdjustmentUpdate] = "milestone 1 step 7",
         [InventoryAdjustmentPost] = "milestone 1 step 7",

@@ -1,6 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Themis.Kernel.MasterData: items, units, item posting groups, currencies; parties and prices later in Phase 0 (P-02). -->
+  <!--
+    Themis.Kernel.MasterData: items, units, item posting groups, currencies; parties and prices later in Phase 0
+    (P-02). Milestone 1 step 5 holds ITEM.CREATE (the installation-wide Item and its ItemCompany row in one command,
+    D-43), the item queries scoped by the company in the route (D-47), the duplicate check (R-MD-05) and the
+    milestone 1 posting group fixture as data (Themis.Kernel.Persistence writes it through the definitions in
+    Themis.Kernel.Contracts, ARCH-08). No public types (ARCH-07).
+  -->
 
   <ItemGroup>
     <ProjectReference Include="../Themis.Kernel.Primitives/Themis.Kernel.Primitives.csproj" />
@@ -8,7 +14,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="Themis.Host" />
+    <InternalsVisibleTo Include="Themis.Migrator" />
     <InternalsVisibleTo Include="Themis.Architecture.Tests" />
     <InternalsVisibleTo Include="Themis.Kernel.Tests" />
     <InternalsVisibleTo Include="Themis.Integration.Tests" />

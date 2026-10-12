@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/artifact/5NwCL8oDM8UmE8tg8Abicz), revision 156, taken 2026-10-09.
+> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/artifact/5NwCL8oDM8UmE8tg8Abicz), revision 159, taken 2026-10-10.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite rule IDs
 > without leaving the repository. Where this copy and the live document differ, the live document wins.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -110,7 +110,7 @@ Four entities set the boundaries: an installation holds one company group's comp
 | `organisation_number` | text | Y | Format validated by the country's localisation. |
 | `vat_number` | text | N | Required when the company is VAT registered. |
 | `country_code` | CountryCode | Y |  |
-| `base_currency` | CurrencyCode | Y | Immutable after the first posting. |
+| `base_currency` | CurrencyCode | Y | A required reference to Currency (by code). Immutable after the first posting. |
 | `time_zone` | text (IANA, for example Europe/Stockholm) | Y | Immutable after the first posting. |
 | `fiscal_year_start_month` | integer 1 to 12 | Y |  |
 | `chart_of_accounts_id` | → ChartOfAccounts | Y |  |
@@ -230,7 +230,7 @@ Item identity is installation-wide, while settings that differ between companies
 | `tax_class` | Enum: Standard, Reduced, Zero, Exempt | Y | Input to tax rules (R-TAX-01). |
 | `costing_method` | Enum: MovingAverage | Y | Only value in v1 (R-INV-05). Master data; never stored on the ItemCostState cache. |
 | `sales_allowed`, `purchase_allowed` | boolean | Y | Default true. |
-| `default_warehouse_id` | → Warehouse | N | Must belong to the company. |
+| `default_warehouse_id` | → Warehouse | N | Must belong to the company. Empty unless given; never filled in automatically. |
 | `default_sales_unit`, `default_purchase_unit` | UnitCode | N | Must exist as an ItemUnit of the item. |
 
 Planning and replenishment parameters are added to ItemCompany with the Phase 1 purchasing specification.
@@ -314,6 +314,8 @@ Eight entities hold money terms, bank accounts, VAT and prices. Two choices keep
 | ExchangeRate | `source` | text | N | For example the central bank feed name. |
 
 A document uses the latest Daily rate on or before its document date and stores it (R-MON-03). No rate found: the command is rejected.
+
+**Reference data.** Currencies and units are reference data, seeded by migration in every installation, each seeded row with an audit event under the system user (R-AUD-01). Starter rows: units H87, KGM and MTR; currencies SEK and EUR. The full ISO 4217 and UN/ECE Recommendation 20 lists are a later data decision (register RR-36). Seeding happens before any foreign key that points at these tables is added.
 
 **PaymentTerms**
 

@@ -38,6 +38,13 @@ internal static class KernelPrivilegeMatrix
         TableGrant.Mutable(Kernel, "role_permission", KernelRole),
         TableGrant.Mutable(Kernel, "role_assignment", KernelRole),
         TableGrant.Mutable(Kernel, "sod_conflict", KernelRole),
+
+        // Master data (milestone 1 step 5): reference lists, posting groups, items and their company rows; never DELETE (R-MD-03).
+        TableGrant.Mutable(Kernel, "unit_of_measure", KernelRole),
+        TableGrant.Mutable(Kernel, "currency", KernelRole),
+        TableGrant.Mutable(Kernel, "item_posting_group", KernelRole),
+        TableGrant.Mutable(Kernel, "item", KernelRole),
+        TableGrant.Mutable(Kernel, "item_company", KernelRole),
     ];
 
     /// <summary>The tables the organisation migration creates, in dependency order.</summary>
@@ -47,6 +54,10 @@ internal static class KernelPrivilegeMatrix
     /// <summary>The tables the identity migration creates, in dependency order.</summary>
     public static IReadOnlyList<string> IdentityTables { get; } =
         ["user_account", "permission", "role", "role_permission", "role_assignment", "sod_conflict"];
+
+    /// <summary>The tables the master data migration creates, in dependency order.</summary>
+    public static IReadOnlyList<string> MasterDataTables { get; } =
+        ["unit_of_measure", "currency", "item_posting_group", "item", "item_company"];
 
     /// <summary>The grant statements a migration emits for the tables it creates.</summary>
     public static IEnumerable<string> GrantsFor(params string[] tables) =>
