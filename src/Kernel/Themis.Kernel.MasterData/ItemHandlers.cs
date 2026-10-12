@@ -82,8 +82,8 @@ internal sealed class CreateItemHandler : ICommandHandler<CreateItem, ItemView>
             command.PurchaseAllowed,
             command.DefaultWarehouseId,
             Version: 1);
-        // Quantities are numeric(20,6) (Specification, Data types): the response carries the value as the table stores it,
-        // so a create and a later read return the same text (D-37).
+        // Quantities in the base unit are shown at the unit's decimals and the net weight without trailing zeros, on
+        // create and on read alike (D-37, R-INV-02); the owner chose this over the storage scale of numeric(20,6).
         ItemView item = new(
             EntityId.New(),
             command.ItemNumber,
@@ -91,9 +91,9 @@ internal sealed class CreateItemHandler : ICommandHandler<CreateItem, ItemView>
             command.ItemType,
             command.BaseUnit,
             command.LotTracking,
-            AtStorageScale(command.NetWeightKg),
-            AtStorageScale(command.SalesMultiple),
-            AtStorageScale(command.MinOrderQty),
+            command.NetWeightKg is { } weight ? DecimalRounding.Trim(weight) : null,
+            command.SalesMultiple is { } salesMultiple ? DecimalRounding.AtScale(salesMultiple, unitDecimals.Value) : null,
+            command.MinOrderQty is { } minOrderQty ? DecimalRounding.AtScale(minOrderQty, unitDecimals.Value) : null,
             Version: 1,
             companyRow);
 
@@ -108,10 +108,8 @@ internal sealed class CreateItemHandler : ICommandHandler<CreateItem, ItemView>
         return item;
     }
 
-    /// <summary>The storage scale of a quantity column, numeric(20,6); the validator has refused anything finer.</summary>
+    /// <summary>The storage scale of a quantity column, numeric(20,6) (Specification, Data types); the validator refuses anything finer.</summary>
     public const int QuantityScale = 6;
-
-    private static decimal? AtStorageScale(decimal? value) => value is null ? null : value.Value + 0.000000m;
 
     /// <summary>The ITEM_COMPANY_CREATED payload: the id and fields of the row, with the item it belongs to.</summary>
     internal sealed record ItemCompanyCreated(Guid ItemId, ItemCompanyView Row);
