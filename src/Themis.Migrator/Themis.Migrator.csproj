@@ -16,6 +16,7 @@
     <ProjectReference Include="../Kernel/Themis.Kernel.Organisation/Themis.Kernel.Organisation.csproj" />
     <ProjectReference Include="../Kernel/Themis.Kernel.Identity/Themis.Kernel.Identity.csproj" />
     <ProjectReference Include="../Kernel/Themis.Kernel.MasterData/Themis.Kernel.MasterData.csproj" />
+    <ProjectReference Include="../Kernel/Themis.Kernel.Posting/Themis.Kernel.Posting.csproj" />
   </ItemGroup>
 
   <ItemGroup>

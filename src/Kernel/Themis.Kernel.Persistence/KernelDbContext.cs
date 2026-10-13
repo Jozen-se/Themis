@@ -3,6 +3,7 @@ using Themis.Kernel.Persistence.Entities;
 using Themis.Kernel.Persistence.Entities.Identity;
 using Themis.Kernel.Persistence.Entities.MasterData;
 using Themis.Kernel.Persistence.Entities.Organisation;
+using Themis.Kernel.Persistence.Entities.Posting;
 
 namespace Themis.Kernel.Persistence;
 
@@ -65,12 +66,17 @@ internal sealed class KernelDbContext : DbContext
 
     public DbSet<ItemCompany> ItemCompanies => Set<ItemCompany>();
 
+    public DbSet<Account> Accounts => Set<Account>();
+
+    public DbSet<PostingProfileRule> PostingProfileRules => Set<PostingProfileRule>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);
         OrganisationModel.Configure(modelBuilder);
         IdentityModel.Configure(modelBuilder);
         MasterDataModel.Configure(modelBuilder);
+        GeneralLedgerModel.Configure(modelBuilder);
 
         modelBuilder.Entity<IdempotencyRecord>(entity =>
         {

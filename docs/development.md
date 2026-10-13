@@ -17,7 +17,9 @@
 | Keycloak | `quay.io/keycloak/keycloak:26.8` | 8080 | admin console `admin` / `admin`; realm `themis`, client `themis-api` (secret `themis-dev-secret`), user `dev` / `dev` |
 
 On first start PostgreSQL runs `db/bootstrap/01-roles.sql`, which creates the roles and the `kernel` and
-`reporting` schemas and revokes every default. The roles:
+`reporting` schemas, revokes every default and installs the `btree_gist` extension, which the no-overlap exclusion
+constraints on effective-dated rows need (R-MD-02; first used by `kernel.posting_profile_rule`). A hand-made database
+needs the same script run once as a superuser, or the general ledger migration fails on the missing extension. The roles:
 
 | Role | Login | Purpose |
 |---|---|---|
@@ -54,7 +56,9 @@ inserts nothing. Its definition lives in `Themis.Kernel.Organisation` (`Mileston
 writer in `Themis.Kernel.Persistence` (`OrganisationFixtureSeeder`). The identity fixture of step 4 (users, roles
 and assignments, see Identity below) is seeded with it by `IdentitySeeder`, after the segregation-of-duties check
 (R-SEC-02); a fixture that fails the check makes the migrator exit with code 4. The master data fixture of step 5
-(the item posting group `TRADE_GOODS`, see Master data below) is seeded after it by `MasterDataFixtureSeeder`.
+(the item posting group `TRADE_GOODS`, see Master data below) is seeded after it by `MasterDataFixtureSeeder`, and the
+general ledger fixture of step 6 (two accounts and two posting profile rules, see General ledger below) after that by
+`GeneralLedgerFixtureSeeder`, behind the posting profile rule check; a fixture that fails it exits with code 5.
 
 The organisation reads (`IOrganisationReader` in Contracts, implemented in `Themis.Kernel.Organisation`) give the
 company, the warehouse with its site and company, the business date of a UTC instant in the company's time zone
@@ -229,6 +233,40 @@ The reads `GET /v1/kernel/companies/{companyId}/items/{id}` and
 (D-47); the scope is checked before anything is loaded, so a company the user is not assigned to is 403 even for an
 item that exists, and an item without a row in that company is 404 `item_not_found`. Default sales and purchase
 units, item updates, status changes, attribute templates, parties, prices and accounts are later steps.
+
+## General ledger
+
+Step 6 brings the general ledger core into the kernel: `kernel.account` (number unique per chart, R-MD-05; type,
+control flag and status as in the Specification) and `kernel.posting_profile_rule` (a company's mapping of an account
+role to an account, keyed by the role's mapping keys, effective-dated). Both are company configuration, so they come
+with `--fixture milestone-1` only, each row with one `SYSTEM.SEED_FIXTURE` audit event and no outbox event: in the
+BAS chart, `1460` Lager av handelsvaror (Asset, control) and `TEST-ADJ` "Test placeholder, inventory adjustment
+(D-20 open)" (Expense, non-control, letters on purpose so it can never be mistaken for a BAS account), and the rules
+INVENTORY for `TRADE_GOODS` to 1460 and INVENTORY_ADJUSTMENT for `TRADE_GOODS` with reason `CountDifference` to
+TEST-ADJ, both valid from 2026-01-01 open-ended. No other reason code has a rule, so a Scrap adjustment is rejected
+with R-PP-02.
+
+The account roles are the Specification's system-defined list, a catalogue in code (`AccountRoles` in
+`Themis.Kernel.Contracts`, no table, D-46) with each role's mapping keys and whether it must map to a control
+account. The database constraints are generated from it: the `account_role` check lists the roles; R-PP-06 (a rule
+sets only the keys of its role) is a check per role; R-PP-04 is the stored column `expects_control` with a composite
+foreign key `(account_id, expects_control)` to the account's `(id, is_control)`, so a control role cannot point at a
+non-control account and a referenced account cannot flip its control flag. The no-overlap rule (R-MD-02) is an
+exclusion constraint over company, role, the five keys and the half-open validity range; an empty key is coalesced to
+a sentinel inside the constraint, so two rules that both leave the same key empty overlap, while the stored columns
+stay NULL and mean "any value" for resolution. An integration test probes every role against the database, so a role
+added to the catalogue without its migration fails CI. `tax_code_id` exists without a foreign key until the TaxCode
+table does; the R-PP-06 check keeps it empty for every milestone 1 role.
+
+`PostingProfileValidator` (`Themis.Kernel.Posting`) is the rule check the seeder runs now and the Phase 0 commands
+will run: the account belongs to the company's chart, is Active, R-PP-04 and R-PP-06. `IAccountResolver` (contract in
+`Themis.Kernel.Contracts`, implemented in `Themis.Kernel.Posting`) resolves an account for a company, role, posting
+date and the line's keys on the command's unit of work, exactly as the Specification's algorithm says: candidates
+valid on the date whose non-empty keys equal the line's, only the role's keys compared; ranked by item posting group,
+then party posting group or ship-to scope, then tax code, then reason code (R-PP-01, D-19); no candidate is a
+rejection with R-PP-02 naming the role, the keys and the date; a winner whose account is not Active is R-PP-02 as
+well, and resolution never falls back to a less specific rule (D-49). The result carries the account, the role and
+the rule id for the journal line's explainability. Step 8 calls it; nothing posts in step 6.
 
 ## Linting, formatting and the licence scan
 

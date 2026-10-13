@@ -45,6 +45,10 @@ internal static class KernelPrivilegeMatrix
         TableGrant.Mutable(Kernel, "item_posting_group", KernelRole),
         TableGrant.Mutable(Kernel, "item", KernelRole),
         TableGrant.Mutable(Kernel, "item_company", KernelRole),
+
+        // General ledger core (milestone 1 step 6): accounts and posting profile rules; never DELETE (R-MD-03).
+        TableGrant.Mutable(Kernel, "account", KernelRole),
+        TableGrant.Mutable(Kernel, "posting_profile_rule", KernelRole),
     ];
 
     /// <summary>The tables the organisation migration creates, in dependency order.</summary>
@@ -58,6 +62,9 @@ internal static class KernelPrivilegeMatrix
     /// <summary>The tables the master data migration creates, in dependency order.</summary>
     public static IReadOnlyList<string> MasterDataTables { get; } =
         ["unit_of_measure", "currency", "item_posting_group", "item", "item_company"];
+
+    /// <summary>The tables the general ledger migration creates, in dependency order.</summary>
+    public static IReadOnlyList<string> GeneralLedgerTables { get; } = ["account", "posting_profile_rule"];
 
     /// <summary>The grant statements a migration emits for the tables it creates.</summary>
     public static IEnumerable<string> GrantsFor(params string[] tables) =>
