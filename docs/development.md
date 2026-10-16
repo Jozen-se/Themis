@@ -13,7 +13,7 @@
 
 | Service | Image | Port | Credentials (development only) |
 |---|---|---|---|
-| PostgreSQL | `postgres:17` | 5432 | superuser `postgres` / `postgres`, database `themis` |
+| PostgreSQL | `postgres:18` | 5432 | superuser `postgres` / `postgres`, database `themis` |
 | Keycloak | `quay.io/keycloak/keycloak:26.8` | 8080 | admin console `admin` / `admin`; realm `themis`, client `themis-api` (secret `themis-dev-secret`), user `dev` / `dev` |
 
 On first start PostgreSQL runs `db/bootstrap/01-roles.sql`, which creates the roles and the `kernel` and
@@ -170,14 +170,17 @@ never act through the API.
 The milestone 1 fixture (`--fixture milestone-1`) adds two users, mapped to the users of the Keycloak realm in
 `docker/keycloak/themis-realm.json`, both assigned to company SE01 without site restriction:
 
-| User | Password (compose stack only) | Roles | May post |
-|---|---|---|---|
-| `clerk` | `clerk` | INVENTORY_PREPARER and INVENTORY_POSTER | yes |
-| `preparer` | `preparer` | INVENTORY_PREPARER | no |
+| User | Password (compose stack only) | Roles | May post | May create items |
+|---|---|---|---|---|
+| `clerk` | `clerk` | INVENTORY_PREPARER, INVENTORY_POSTER and ITEM_MAINTAINER | yes | yes |
+| `preparer` | `preparer` | INVENTORY_PREPARER | no | no |
 
-INVENTORY_PREPARER grants COMPANY.READ, ITEM.CREATE, ITEM.READ and INVENTORY_ADJUSTMENT.CREATE, UPDATE, DISCARD and
-READ; INVENTORY_POSTER grants INVENTORY_ADJUSTMENT.POST alone. To call the API from the compose stack, take a token
-with the password grant and send it as a bearer token:
+INVENTORY_PREPARER grants COMPANY.READ, ITEM.READ and INVENTORY_ADJUSTMENT.CREATE, UPDATE, DISCARD and READ;
+INVENTORY_POSTER grants INVENTORY_ADJUSTMENT.POST alone; ITEM_MAINTAINER grants ITEM.CREATE and ITEM.READ (step 5
+brief, acceptance 6: the preparer without ITEM.CREATE gets 403). The fixture seeder only inserts, so a development
+database seeded before ITEM.CREATE left INVENTORY_PREPARER keeps the old row; reset the stack (`docker compose down
+-v`) to get the current fixture. To call the API from the compose stack, take a token with the password grant and
+send it as a bearer token:
 
 ```bash
 curl -s -X POST http://localhost:8080/realms/themis/protocol/openid-connect/token \
@@ -216,8 +219,10 @@ errors (`description_required`, `net_weight_kg_negative`, `net_weight_kg_precisi
 the transaction and are not stored, so a corrected retry with the same key runs. An unknown enum value such as a
 costing method other than `MovingAverage` is refused at binding. The command writes one audit event and one outbox
 event per created row: `ITEM_CREATED` with the item's id as aggregate id and `ITEM_COMPANY_CREATED` with the company
-row's id (D-44). Quantities (net weight, sales multiple, minimum order quantity) are returned at the storage scale of
-the Specification's Quantity type, six decimals, so a create and a later read return the same text (D-37).
+row's id (D-44). Sales multiple and minimum order quantity are returned at the base unit's decimals (`10` pieces,
+`0.250` kilograms) and the net weight without trailing zeros, on create and on read alike, so both return the same
+text whatever scale the client sent (D-37, R-INV-02); the columns themselves are `numeric(20,6)`, and a net weight
+with more than six decimals is refused (`net_weight_kg_precision`).
 
 The reads `GET /v1/kernel/companies/{companyId}/items/{id}` and
 `GET /v1/kernel/companies/{companyId}/items/by-number/{itemNumber}` need `ITEM.READ` in the company of the route
