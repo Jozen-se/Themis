@@ -82,9 +82,10 @@ internal static class ItemStore
         string condition = itemId is not null ? "i.id = @item" : "i.item_number = @number";
         IReadOnlyList<ItemView> rows = await unitOfWork.QueryAsync(DatabaseRole.Kernel,
             $"""
-            SELECT {ItemColumns}, {CompanyColumns}
+            SELECT {ItemColumns}, {CompanyColumns}, u.decimals
             FROM kernel.item i
             JOIN kernel.item_company c ON c.item_id = i.id AND c.company_id = @company
+            JOIN kernel.unit_of_measure u ON u.code = i.base_unit
             WHERE {condition}
             """,
             new Dictionary<string, object?> { ["company"] = companyId, ["item"] = itemId, ["number"] = itemNumber?.Value },
@@ -93,16 +94,20 @@ internal static class ItemStore
         return rows.Count == 0 ? null : rows[0];
     }
 
-    private static ItemView Read(DbDataReader reader) => new(
+    /// <summary>Quantities read back at the unit's decimals and the net weight without trailing zeros, as the create returned them (D-37).</summary>
+    private static ItemView Read(DbDataReader reader)
+    {
+        int unitDecimals = reader.GetInt32(20);
+        return new ItemView(
         reader.GetGuid(0),
         Code.From(reader.GetString(1)),
         reader.GetString(2),
         Enum.Parse<ItemType>(reader.GetString(3)),
         UnitCode.From(reader.GetString(4)),
         Enum.Parse<LotTracking>(reader.GetString(5)),
-        reader.IsDBNull(6) ? null : reader.GetDecimal(6),
-        reader.IsDBNull(7) ? null : reader.GetDecimal(7),
-        reader.IsDBNull(8) ? null : reader.GetDecimal(8),
+        reader.IsDBNull(6) ? null : DecimalRounding.Trim(reader.GetDecimal(6)),
+        reader.IsDBNull(7) ? null : DecimalRounding.AtScale(reader.GetDecimal(7), unitDecimals),
+        reader.IsDBNull(8) ? null : DecimalRounding.AtScale(reader.GetDecimal(8), unitDecimals),
         reader.GetInt64(9),
         new ItemCompanyView(
             reader.GetGuid(10),
@@ -115,4 +120,5 @@ internal static class ItemStore
             reader.GetBoolean(17),
             reader.IsDBNull(18) ? null : reader.GetGuid(18),
             reader.GetInt64(19)));
+    }
 }

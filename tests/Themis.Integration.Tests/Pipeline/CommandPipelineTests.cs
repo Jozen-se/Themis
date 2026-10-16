@@ -113,13 +113,17 @@ public sealed class CommandPipelineTests : IAsyncLifetime
     [Fact]
     public async Task R_API_01_idempotency_keys_are_scoped_per_user()
     {
-        CommandReply clerk = await _host.PostAsync(Counters, new { companyId = Company, initialValue = 1, sample = "1" }, "shared-key", subject: TestUsers.ClerkSubject, cancellationToken: Ct);
-        CommandReply preparer = await _host.PostAsync(Counters, new { companyId = Company, initialValue = 1, sample = "1" }, "shared-key", subject: TestUsers.PreparerSubject, cancellationToken: Ct);
+        // Both users hold INVENTORY_ADJUSTMENT.UPDATE (touch); only the clerk holds ITEM.CREATE since step 5.
+        CommandReply created = await _host.PostAsync(Counters, new { companyId = Company, initialValue = 1, sample = "1" }, "shared-key-create", cancellationToken: Ct);
+        Guid id = created.Json!["id"]!.GetValue<Guid>();
+        CommandReply clerk = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 1 }, "shared-key", ifMatch: "\"1\"", subject: TestUsers.ClerkSubject, cancellationToken: Ct);
+        CommandReply preparer = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 1 }, "shared-key", ifMatch: "\"2\"", subject: TestUsers.PreparerSubject, cancellationToken: Ct);
 
         Assert.Equal(200, clerk.Status);
         Assert.Equal(200, preparer.Status);
         Assert.False(preparer.Replayed);
-        Assert.Equal(2L, await _host.CountAsync("fixture.counter", Ct));
+        Assert.Equal(3, preparer.Json!["value"]!.GetValue<long>());
+        Assert.Equal(2L, await _host.ScalarAsync("SELECT count(*) FROM kernel.idempotency_record WHERE key = 'shared-key'", Ct));
     }
 
     [Fact]

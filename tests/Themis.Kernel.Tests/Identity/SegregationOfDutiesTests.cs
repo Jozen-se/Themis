@@ -50,7 +50,7 @@ public sealed class SegregationOfDutiesTests
     }
 
     [Fact]
-    public void The_milestone_1_fixture_passes_the_check_and_gives_the_clerk_POST_and_the_preparer_not()
+    public void The_milestone_1_fixture_passes_the_check_and_gives_the_clerk_POST_and_ITEM_CREATE_and_the_preparer_neither()
     {
         IdentityFixtureDefinition fixture = Milestone1IdentityFixture.For(Milestone1OrganisationFixture.CompanyId);
 
@@ -62,7 +62,9 @@ public sealed class SegregationOfDutiesTests
 
         Assert.Superset(new HashSet<string> { "ITEM.CREATE", "INVENTORY_ADJUSTMENT.CREATE", "INVENTORY_ADJUSTMENT.UPDATE", "INVENTORY_ADJUSTMENT.POST", "INVENTORY_ADJUSTMENT.DISCARD" }, clerk);
         Assert.DoesNotContain("INVENTORY_ADJUSTMENT.POST", preparer);
-        Assert.Equal(clerk.Where(p => p != "INVENTORY_ADJUSTMENT.POST").Order(), preparer.Order());
+        Assert.DoesNotContain("ITEM.CREATE", preparer);
+        Assert.Contains("ITEM.READ", preparer);
+        Assert.Equal(clerk.Where(p => p is not "INVENTORY_ADJUSTMENT.POST" and not "ITEM.CREATE").Order(), preparer.Order());
         Assert.All(fixture.Assignments, assignment => Assert.Null(assignment.SiteId));
         Assert.All(fixture.Assignments, assignment => Assert.Equal(Milestone1OrganisationFixture.CompanyId, assignment.CompanyId));
         Assert.All(fixture.Roles.SelectMany(role => role.Permissions), permission => Assert.True(PermissionCatalog.Contains(permission)));
