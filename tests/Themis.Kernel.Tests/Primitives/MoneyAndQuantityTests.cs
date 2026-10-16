@@ -97,4 +97,26 @@ public sealed class MoneyAndQuantityTests
         Assert.True(new DateRange(BusinessDate.Parse("2026-01-15"), null).Overlaps(range));
         Assert.False(new DateRange(BusinessDate.Parse("2026-02-01"), null).Overlaps(range));
     }
+
+    [Theory]
+    [InlineData("0.125000", "0.125")]
+    [InlineData("10.000000", "10")]
+    [InlineData("100", "100")]
+    [InlineData("0", "0")]
+    [InlineData("-1.50", "-1.5")]
+    public void D_37_Trim_removes_trailing_zeros_and_nothing_else(string value, string expected)
+    {
+        Assert.Equal(expected, DecimalRounding.Trim(decimal.Parse(value, System.Globalization.CultureInfo.InvariantCulture)).ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [Theory]
+    [InlineData("10.000000", 0, "10")]
+    [InlineData("0.25", 3, "0.250")]
+    [InlineData("2.5000", 3, "2.500")]
+    [InlineData("7", 2, "7.00")]
+    [InlineData("0.1234", 3, "0.1234")]
+    public void R_INV_02_AtScale_shows_a_quantity_at_the_units_decimals_and_never_rounds(string value, int decimals, string expected)
+    {
+        Assert.Equal(expected, DecimalRounding.AtScale(decimal.Parse(value, System.Globalization.CultureInfo.InvariantCulture), decimals).ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
 }
