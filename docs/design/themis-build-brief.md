@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Build Brief* (https://claude.ai/artifact/MghYVSVm65mLxjfuBUGvSe), revision 48, taken 2026-10-10.
+> **Snapshot** of the live document *Themis Build Brief* (https://claude.ai/artifact/MghYVSVm65mLxjfuBUGvSe), revision 53, taken 2026-10-13.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite rule IDs
 > without leaving the repository. Where this copy and the live document differ, the live document wins.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -15,7 +15,7 @@ This brief tells Claude Code how to start building Themis: the stack, the reposi
 
 When two sources disagree, the higher one wins and the coder reports the conflict instead of choosing.
 
-1. **Themis Foundation Design:** principles P-01 to P-11, the 56 core rules and 9 order-to-cash rules (R-xx) with their invariant or default classification, the decision log (D-xx), phases and the build constraints for the scaffold.
+1. **Themis Foundation Design:** principles P-01 to P-11, the 57 core rules and 9 order-to-cash rules (R-xx) with their invariant or default classification, the decision log (D-xx), phases and the build constraints for the scaffold.
 2. **Themis Phase 0 Specification:** entity attributes, state machines, posting profile, posting events (E-xx) and invariants (I-xx).
 3. **This brief:** stack, layout, database model and milestone scope.
 4. **Code and tests.** They implement the documents; they never redefine them.
@@ -70,7 +70,7 @@ themis/
   Directory.Build.props            nullable reference types on, warnings as errors, analysers
   Themis.sln
   compose.yaml                     PostgreSQL and Keycloak; Docker Compose or Podman Compose
-  db/bootstrap/                    login roles, module roles, schemas, revokes (D-41); run once per database
+  db/bootstrap/                    login roles, module roles, schemas, revokes, btree_gist (D-41, R-MD-02); run once per database
   docs/design/                     dated read-only snapshots of the design documents
   src/
     Themis.Host/                   composition root: wiring only, no business logic; never runs migrations
@@ -172,7 +172,7 @@ Milestone 1 proves the architecture end to end with the smallest real business f
 3. **Organisation fixture:** one installation; the company's own party row (name, organisation number, country); one company (SEK, Europe/Stockholm, tax rounding level Line as a test value until D-10); one site; one warehouse; fiscal year 2026 with 12 periods, period 1 Closed and the rest Open.
 4. **Identity:** a Keycloak realm with two test users; User rows mapped to their subjects; roles and role assignments; permissions ITEM.CREATE and INVENTORY_ADJUSTMENT.CREATE, UPDATE, POST and DISCARD, of which the second user lacks POST. Integration tests use a local test token issuer; one smoke test logs in through Keycloak. TYPE.READ permissions for queries (D-47). Segregation of duties: SodConflict seeded with the specification's v1 example pairs and checked when the fixture assigns roles (R-SEC-02). A system user owns seeded rows; the foreign keys from audit and idempotency records to User are added and validated.
 5. **Master data in the kernel:** UnitOfMeasure H87 (0 decimals), Currency SEK (2 minor units), ItemPostingGroup TRADE_GOODS. ITEM.CREATE and a GET query. ITEM.CREATE creates, in one command, the installation-wide Item (item number, description, item type Stocked, base unit H87, lot tracking None) and its ItemCompany row for the company (status Active, item posting group, tax class Standard, costing method MovingAverage; D-43). A duplicate item number is rejected with R-MD-05. Creating item posting groups, and the R-PP-05 check that goes with it, come later in Phase 0.
-6. **General ledger core:** chart of accounts fixture with BAS 1460 Lager av handelsvaror as a control account, and a non-control placeholder account clearly named as a test account for INVENTORY_ADJUSTMENT until D-20; posting profile rows for both roles.
+6. **General ledger core:** through the test/dev seeder (audit events, no outbox events), accounts BAS 1460 Lager av handelsvaror (Asset, control) and TEST-ADJ "Test placeholder, inventory adjustment (D-20 open)" (Expense, non-control) in the company's chart, and posting profile rules INVENTORY (TRADE_GOODS) to 1460 and INVENTORY_ADJUSTMENT (TRADE_GOODS, CountDifference) to TEST-ADJ, valid from 2026-01-01. Account roles are a catalogue in code; database constraints generated from it enforce the role list, R-PP-04 (composite foreign key on the account's control flag) and R-PP-06; an exclusion constraint enforces R-MD-02 with empty keys compared as a value. The rule validator (account in the company's chart, Active, R-PP-04, R-PP-06) and the resolver (R-PP-01, R-PP-02, D-19) are built here; the resolver rejects a winning rule whose account is not Active and never falls back. Step 8 calls the resolver.
 7. **Document framework:** registry row for INVENTORY_ADJUSTMENT (numbered on post, not gapless); number series rows for INVENTORY_ADJUSTMENT and for JOURNAL_ENTRY (per fiscal year, gapless); shared document tables; state machine engine for CREATE, UPDATE, POST and DISCARD.
 8. **Posting service:** AdjustmentIn and AdjustmentOut entries. Inbound cost = quantity x entered unit cost, rounded to the currency's minor unit; an inbound line without an entered cost takes quantity x value / quantity on hand while stock is above 0, and the stored average only at zero stock. Outbound cost = quantity x value / quantity on hand, computed exactly and then rounded, never from the stored average (spec, moving average algorithm). Stock balance and cost state caches, journal entry per E-01 and E-02 through the posting profile, locks per R-LED-08.
 9. **Outbox:** INVENTORY_ADJUSTED written in the posting transaction; the relay marks it published and logs it. No external delivery yet.
@@ -212,7 +212,7 @@ Each step is its own INVENTORY_ADJUSTMENT document with reason code CountDiffere
 - Posting an adjustment writes the document status, inventory entries, one balanced journal entry, the audit events and the outbox event in one transaction, and all 13 reference steps match to the last decimal.
 - A failure injected after the inventory entries and before commit leaves nothing behind (R-LED-05).
 - An adjustment whose lines all have zero cost posts its inventory entries and no journal entry, as I-08 allows.
-- Posting with a missing posting profile row is rejected with R-PP-02; posting dated in period 1, which is Closed, is rejected with R-LED-04.
+- A Scrap adjustment with a non-zero cost, which no posting profile rule maps, is rejected with R-PP-02 naming the role, the keys and the date, and nothing is saved (step 6 proves the resolver part, step 8 the end-to-end part); posting dated in period 1, which is Closed, is rejected with R-LED-04.
 - Journal entry numbers are gapless per fiscal year, also when a posting fails mid-transaction (R-DOC-07, I-09).
 - Replaying a command with the same Idempotency-Key returns the first result and posts nothing twice; a concurrent duplicate gets 409; the same key with a different request is rejected (R-API-01, R-API-04).
 - A command with a stale If-Match version is rejected (R-API-02).
@@ -267,6 +267,7 @@ Snapshots are refreshed from the live documents at the revision the planner name
 Reference only (not sources of truth; the documents above win on any conflict):
 - Themis Review Remediation Register: https://claude.ai/code/artifact/91610c8f-7465-46a7-9f48-0bf2c5171ede (findings RR-xx and the owner's decision on each; accepted items are already in the documents above)
 - Themis Architecture Recommendations: https://claude.ai/artifact/Lo9h7fGS2L4hbw7RsFDvDz (background input; the foundation wins where they differ)
+- Themis Capability Coverage Map: https://claude.ai/code/artifact/fb7a2e56-0e18-44ef-980b-846a9be72acd (capability checklist with gaps G-xx; nothing in it is in scope until a D-xx entry puts it there)
 
 ## Ground rules
 - Cite rule IDs: in a comment where a rule is enforced, and in the test name that proves it.

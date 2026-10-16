@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Foundation Design* (https://claude.ai/artifact/B7yhaqHmFJqQCAo23KSDXq), revision 136, taken 2026-10-09.
+> **Snapshot** of the live document *Themis Foundation Design* (https://claude.ai/artifact/B7yhaqHmFJqQCAo23KSDXq), revision 144, taken 2026-10-13.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite rule IDs
 > without leaving the repository. Where this copy and the live document differ, the live document wins.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -122,7 +122,7 @@ The kernel has seven areas and every later module builds on them; no module adds
 
 ## Core rulesets
 
-These 56 rules (17 added by the Phase 0 specification, 3 by D-24 and its follow-ons, 1 by D-41, 1 by the 2026-10-09 review) apply to every module; code, tests and API errors refer to them by ID. A rule changes only through a recorded decision.
+These 57 rules (17 added by the Phase 0 specification, 3 by D-24 and its follow-ons, 1 by D-41, 1 by the 2026-10-09 review, 1 by D-49) apply to every module; code, tests and API errors refer to them by ID. A rule changes only through a recorded decision.
 
 | ID | Rule | Why |
 |---|---|---|
@@ -172,7 +172,7 @@ These 56 rules (17 added by the Phase 0 specification, 3 by D-24 and its follow-
 | R-PER-01 | A Closed fiscal period is final in v1. | Reported figures never change. |
 | R-API-04 | Reusing an idempotency key with a different request is rejected. | Catches integration bugs early. |
 | R-PP-01 | The most specific valid posting rule wins, with keys ranked: item posting group, party posting group or ship-to scope, tax code, reason code. | Deterministic account mapping. |
-| R-PP-02 | A line with no matching posting rule rejects the command, naming the role and the keys. | No posting to a guessed account. |
+| R-PP-02 | A line with no matching posting rule, or whose matching rule's account is not Active, rejects the command, naming the role and the keys. Resolution never falls back to a less specific rule. | No posting to a guessed account. |
 | R-PP-03 | Reversals reuse the original lines' accounts and never resolve again. | A reversal exactly undoes the original. |
 | R-PP-04 | Control roles map only to control accounts; other roles map only to non-control accounts. | Protects reconciliation. |
 | R-LED-06 | The application's database role has no UPDATE or DELETE rights on ledger and audit tables. | Immutability enforced by the database, not only by code. |
@@ -181,11 +181,12 @@ These 56 rules (17 added by the Phase 0 specification, 3 by D-24 and its follow-
 | R-LED-07 | Stock movements and their journal entries are written by one kernel posting service in one transaction, behind a published interface. No inline cross-module subscribers exist in v1. | Stock and the books always agree (D-24). |
 | R-LED-08 | Locks in a command transaction are taken by lock class in one fixed sequence, set out in the lock order table of the Phase 0 specification; each phase specification extends that table before it adds a lock class. Within a class, rows are locked in one SQL statement, ordered by the key that table states for the class. The number series is always last, and the gapless number is taken as the last step before commit. | No deadlocks; shortest possible lock on the series (D-34). |
 | R-PP-05 | Creating or changing an item posting group, party posting group or tax code is rejected if the posting profile would become incomplete. | A configuration gap stops a master data change, never a shipment (D-32). |
+| R-PP-06 | A posting profile rule sets only the mapping keys of its account role. | A key the role does not use can never redirect a posting to another account (D-49). |
 | R-DB-01 | Every statement runs under the role of the module that owns the data, switched with SET LOCAL ROLE inside the command's single transaction. The login role holds no table privileges of its own. | Module boundaries enforced by the database while R-LED-05 stays atomic (D-41). |
 
 **Invariants and configurable defaults (P-11, D-29).** A rule is fixed only when correctness, law or security needs it. Every other rule ships as the best-practice default and can be adjusted per company through audited configuration. Where a setting is planned but not yet built, v1 ships the default only, and the design must keep the setting possible.
 
-**Invariants** (changing one needs a decision): R-LED-01 to R-LED-08, R-DB-01, R-INV-01, R-INV-02, R-INV-06, R-INV-07, R-INV-08, R-DOC-01 (system states), R-DOC-02, R-DOC-03 (the limit itself), R-DOC-04 (where law requires gapless numbering), R-DOC-05, R-DOC-07, R-MD-02, R-MD-03, R-MD-05, R-MON-01, R-MON-03, R-TAX-02, R-TAX-03, R-TIME-01, R-SEC-01, R-AUD-01, R-API-01 to R-API-04, R-EXT-01, R-EXT-02, R-UOM-01, R-ACC-01, R-PP-01 to R-PP-05, R-OI-01, R-OI-02, R-O2C-05 (the billing limit), R-O2C-08 (a credit note references the invoice line), R-O2C-09.
+**Invariants** (changing one needs a decision): R-LED-01 to R-LED-08, R-DB-01, R-INV-01, R-INV-02, R-INV-06, R-INV-07, R-INV-08, R-DOC-01 (system states), R-DOC-02, R-DOC-03 (the limit itself), R-DOC-04 (where law requires gapless numbering), R-DOC-05, R-DOC-07, R-MD-02, R-MD-03, R-MD-05, R-MON-01, R-MON-03, R-TAX-02, R-TAX-03, R-TIME-01, R-SEC-01, R-AUD-01, R-API-01 to R-API-04, R-EXT-01, R-EXT-02, R-UOM-01, R-ACC-01, R-PP-01 to R-PP-06, R-OI-01, R-OI-02, R-O2C-05 (the billing limit), R-O2C-08 (a credit note references the invoice line), R-O2C-09.
 
 **Configurable defaults**
 
@@ -334,7 +335,7 @@ The biggest risk is a kernel model that turns out wrong after code depends on it
 
 ## Decision log
 
-Forty-four decisions are made and three are open (D-10, D-20, D-36); none of the open ones blocks the walking skeleton.
+Forty-five decisions are made and four are open (D-10, D-20, D-36, D-48); none of the open ones blocks the walking skeleton.
 
 | ID | Decision | Status | Note |
 |---|---|---|---|
@@ -385,6 +386,8 @@ Forty-four decisions are made and three are open (D-10, D-20, D-36); none of the
 | D-45 | Temporary exception to P-11: the 7-day idempotency retention (IdempotencyRecord.expires_at) is a constant in KernelPipelineOptions until the settings framework (review RR-12) exists. It moves to a setting before Phase 0 is declared complete; this exception then ends | [Decided] | Your decision, 2026-10-09, on the coder's step 2 proposal (PR #5) |
 | D-46 | P-02 amended with a kernel guard: a business concept or master data entity enters the kernel only if a ledger references it or at least two module specifications name it; kernel infrastructure is outside the test; every kernel entity records its justification in the Phase 0 specification, and a pull request adding one cites it. Ledger (L): a ledger row references the entity through a chain of required (NOT NULL) foreign keys, or the posting service reads its rows at posting time to determine, classify, value or post a ledger row; ledger caches count as L; data copied onto a document before posting does not make its source L. Module, provisional: names the two module specifications expected to need it; when the second is released the entity is confirmed or scheduled to leave the kernel before that module's build; a provisional entity is never read by posting or referenced by a ledger | [Decided] | Your decision, 2026-10-09 (second external review, register RR-34). Wording refined with the coder; definitions of L and provisional M confirmed the same day after the independent review of the justification table |
 | D-47 | R-SEC-01 amended: queries are authorised like commands, against a TYPE.READ permission and scope; a site-limited assignment never satisfies a command or query without a site; a command or query that cannot name its scope is rejected (installation-wide ones declare installation scope) | [Decided] | Your decision, 2026-10-09, while settling the milestone 1 step 4 brief with the coder |
+| D-48 | Placement of replenishment planning for distribution (reorder point, order quantity, safety stock, forecast-driven requisitions) on the roadmap: a new phase or an extension of Phase 3. Any placement changes the phase list set by D-30 | [Open] | Raised 2026-10-12 from the Capability Coverage Map (gap G-02). Decide when the Phase 1 scope is set; D-30 stands unchanged until then |
+| D-49 | Posting profile rules hardened: R-PP-06 added (a rule sets only the mapping keys of its account role); R-PP-02 amended (a line whose matching rule's account is not Active is also rejected, and resolution never falls back to a less specific rule) | [Decided] | Your decision, 2026-10-13, while settling the milestone 1 step 6 brief with the coder. Enforced by database constraints generated from the account role catalogue (R-PP-04, R-PP-06) and by the resolver (R-PP-02) |
 
 ## Next steps
 

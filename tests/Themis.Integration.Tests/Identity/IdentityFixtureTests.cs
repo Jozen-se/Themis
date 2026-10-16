@@ -31,7 +31,7 @@ public sealed class IdentityFixtureTests
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
-    public async Task The_fixture_holds_the_system_user_the_clerk_the_preparer_two_roles_and_their_assignments_in_SE01()
+    public async Task The_fixture_holds_the_system_user_the_clerk_the_preparer_three_roles_and_their_assignments_in_SE01()
     {
         await using NpgsqlConnection connection = await PostgresFixture.OpenAsync(_db.SuperuserConnectionString, Ct);
 
@@ -42,17 +42,20 @@ public sealed class IdentityFixtureTests
         Assert.Equal(Milestone1IdentityFixture.ClerkSubject, await ScalarAsync(connection, "SELECT external_subject FROM kernel.user_account WHERE id = @id", ("id", Milestone1IdentityFixture.ClerkId)));
         Assert.Equal(Milestone1IdentityFixture.PreparerSubject, await ScalarAsync(connection, "SELECT external_subject FROM kernel.user_account WHERE id = @id", ("id", Milestone1IdentityFixture.PreparerId)));
 
-        Assert.Equal(2L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.role"));
-        Assert.Equal(8L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.role_permission"));
-        Assert.Equal(3L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.role_assignment"));
-        Assert.Equal(3L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.role_assignment WHERE company_id = @company AND site_id IS NULL AND valid_to IS NULL", ("company", Milestone1OrganisationFixture.CompanyId)));
+        Assert.Equal(3L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.role"));
+        Assert.Equal(9L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.role_permission"));
+        Assert.Equal(4L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.role_assignment"));
+        Assert.Equal(4L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.role_assignment WHERE company_id = @company AND site_id IS NULL AND valid_to IS NULL", ("company", Milestone1OrganisationFixture.CompanyId)));
         Assert.Equal(new DateOnly(2026, 1, 1), await ScalarAsync(connection, "SELECT min(valid_from) FROM kernel.role_assignment"));
         Assert.Equal(WellKnownUsers.System.Value, await ScalarAsync(connection, "SELECT DISTINCT assigned_by FROM kernel.role_assignment"));
 
-        // The clerk may post, the preparer may not (step 4 brief).
-        const string permissionsOf = "SELECT count(*) FROM kernel.role_assignment a JOIN kernel.role_permission rp ON rp.role_id = a.role_id WHERE a.user_id = @user AND rp.permission_code = 'INVENTORY_ADJUSTMENT.POST'";
-        Assert.Equal(1L, await ScalarAsync(connection, permissionsOf, ("user", Milestone1IdentityFixture.ClerkId)));
-        Assert.Equal(0L, await ScalarAsync(connection, permissionsOf, ("user", Milestone1IdentityFixture.PreparerId)));
+        // The clerk may post and create items, the preparer may do neither (step 4 brief; step 5 brief, acceptance 6).
+        const string permissionsOf = "SELECT count(*) FROM kernel.role_assignment a JOIN kernel.role_permission rp ON rp.role_id = a.role_id WHERE a.user_id = @user AND rp.permission_code = @permission";
+        Assert.Equal(1L, await ScalarAsync(connection, permissionsOf, ("user", Milestone1IdentityFixture.ClerkId), ("permission", "INVENTORY_ADJUSTMENT.POST")));
+        Assert.Equal(0L, await ScalarAsync(connection, permissionsOf, ("user", Milestone1IdentityFixture.PreparerId), ("permission", "INVENTORY_ADJUSTMENT.POST")));
+        Assert.Equal(1L, await ScalarAsync(connection, permissionsOf, ("user", Milestone1IdentityFixture.ClerkId), ("permission", "ITEM.CREATE")));
+        Assert.Equal(0L, await ScalarAsync(connection, permissionsOf, ("user", Milestone1IdentityFixture.PreparerId), ("permission", "ITEM.CREATE")));
+        Assert.Equal(1L, await ScalarAsync(connection, permissionsOf, ("user", Milestone1IdentityFixture.PreparerId), ("permission", "ITEM.READ")));
     }
 
     [Fact]
@@ -94,8 +97,9 @@ public sealed class IdentityFixtureTests
         const string fixtureAudit = "FROM kernel.audit_event WHERE command_name = 'SYSTEM.SEED_FIXTURE' AND entity_type IN ('User', 'Role', 'RolePermission', 'RoleAssignment')";
         const string catalogueAudit = "FROM kernel.audit_event WHERE command_name = 'SYSTEM.SEED_CATALOGUE'";
 
-        Assert.Equal(2L + 2L + 8L + 3L, await ScalarAsync(connection, $"SELECT count(*) {fixtureAudit}"));
-        Assert.Equal(15L, await ScalarAsync(connection, $"SELECT count(DISTINCT entity_id) {fixtureAudit}"));
+        // 2 users, 3 roles, 9 role permissions, 4 assignments.
+        Assert.Equal(2L + 3L + 9L + 4L, await ScalarAsync(connection, $"SELECT count(*) {fixtureAudit}"));
+        Assert.Equal(18L, await ScalarAsync(connection, $"SELECT count(DISTINCT entity_id) {fixtureAudit}"));
         Assert.Equal((long)(PermissionCatalog.Definition.Permissions.Count + PermissionCatalog.Definition.Conflicts.Count), await ScalarAsync(connection, $"SELECT count(*) {catalogueAudit}"));
         Assert.Equal(WellKnownUsers.System.Value, await ScalarAsync(connection, $"SELECT DISTINCT user_id {fixtureAudit}"));
         Assert.Equal(1L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.audit_event WHERE command_name = 'SYSTEM.MIGRATE' AND entity_type = 'User'"));
@@ -103,7 +107,7 @@ public sealed class IdentityFixtureTests
 
         Assert.Equal(0, await Themis.Migrator.Program.Main(["--connection", _db.ConnectionStringFor("themis_migrator"), "--fixture", "milestone-1"]));
 
-        Assert.Equal(15L, await ScalarAsync(connection, $"SELECT count(*) {fixtureAudit}"));
+        Assert.Equal(18L, await ScalarAsync(connection, $"SELECT count(*) {fixtureAudit}"));
         Assert.Equal(3L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.user_account"));
         Assert.Equal((long)PermissionCatalog.Definition.Permissions.Count, await ScalarAsync(connection, "SELECT count(*) FROM kernel.permission"));
     }

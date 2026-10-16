@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/artifact/5NwCL8oDM8UmE8tg8Abicz), revision 159, taken 2026-10-10.
+> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/artifact/5NwCL8oDM8UmE8tg8Abicz), revision 164, taken 2026-10-13.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite rule IDs
 > without leaving the repository. Where this copy and the live document differ, the live document wins.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -42,7 +42,7 @@ Every entity carries the common fields below (append-only entities omit the upda
 | Enum | `text` with a check constraint | Allowed values are listed in the attribute tables. |
 | CountryCode, CurrencyCode, UnitCode | `text` | ISO 3166-1 alpha-2, ISO 4217, UN/ECE Recommendation 20. |
 
-**Effective dating.** Effective-dated entities carry `valid_from` (inclusive) and `valid_to` (exclusive; empty means open-ended). Periods for the same business key never overlap; the database enforces this with an exclusion constraint (R-MD-02).
+**Effective dating.** Effective-dated entities carry `valid_from` (inclusive) and `valid_to` (exclusive; empty means open-ended). Periods for the same business key never overlap; the database enforces this with an exclusion constraint (R-MD-02). For this check an empty key counts as a value of its own, so two rules that both leave the same key empty overlap; for resolution an empty key still means any value.
 
 **Company scope.** Every company-owned table carries `company_id`. Where an attribute table derives the company from a parent (Warehouse from Site, FiscalPeriod from FiscalYear), the column is stored and enforced by a composite foreign key (parent id, company_id), so codes can be unique per company and row-level security (D-28) needs no data migration.
 
@@ -669,7 +669,6 @@ One permission exists per command, plus one TYPE.READ permission per resource ty
 | OutboxEvent | `aggregate_id`, `payload` | UUID, JSON | Y | Written in the same transaction as the change. |
 | OutboxEvent | `occurred_at`, `published_at`, `attempts` | Timestamp, Timestamp, integer | Y, N, Y |  |
 
-
 **Example conflict pairs for v1:** CUSTOMER.SET_CREDIT_LIMIT with SALES_ORDER.APPROVE_CREDIT; ACCOUNT.MAINTAIN with MANUAL_JOURNAL.POST; FISCAL_PERIOD.REOPEN with MANUAL_JOURNAL.POST.
 
 ## State machines, part 1: master data and fiscal periods
@@ -886,7 +885,7 @@ Charge lines (freight, small-order surcharge) reference a Service item such as F
 | Attribute | Type | Req | Rule |
 |---|---|---|---|
 | `company_id` | → Company | Y |  |
-| `account_role` | Code | Y | One of the roles above. |
+| `account_role` | Code | Y | One of the roles above. A rule sets only the mapping keys of its role; the others stay empty (R-PP-06). |
 | `item_posting_group`, `party_posting_group`, `tax_code_id`, `reason_code` | as above | N | Empty means "any value". Rules also carry ship_to_scope (Domestic, EU, NonEU), used by REVENUE and COGS. |
 | `account_id` | → Account | Y | Must be Active. Control roles map only to control accounts and other roles only to non-control accounts (R-PP-04). |
 | `valid_from`, `valid_to` | Date | Y, N | No two rules with the same role and the same key values may overlap in time. |
@@ -897,9 +896,9 @@ Charge lines (freight, small-order surcharge) reference a Service item such as F
 
 For every journal line the engine picks exactly one account, or rejects the whole command; it never guesses. The most specific valid rule wins, with a fixed key order so that two rules can never tie (R-PP-01, D-19).
 
-1. **Collect candidates:** rules for the same company and account role, valid on the posting date, where every non-empty key equals the line's value.
+1. **Collect candidates:** rules for the same company and account role, valid on the posting date, where every non-empty key equals the line's value. Only the role's mapping keys are compared (R-PP-06).
 2. **Rank by specificity**, comparing keys in this fixed order: item posting group, then party posting group or ship-to scope (each role uses at most one of the two), then tax code, then reason code. A rule that sets an earlier key always beats one that leaves it empty, whatever the later keys hold.
-3. **Pick the top candidate.** It is always unique, because two rules with the same keys cannot be valid at the same time.
+3. **Pick the top candidate.** It is always unique, because two rules with the same keys cannot be valid at the same time. If the top candidate's account is not Active, reject the command with R-PP-02 as in the next step; resolution never falls back to a less specific rule, because that would post to an account nobody chose for the line.
 4. **No candidate:** reject the command with R-PP-02 and name the role and the line's keys, for example "no account for REVENUE, item group TRADE_GOODS, ship-to scope EU, tax code SE25, posting date 2027-03-14".
 5. **Record the result** on the journal line: `account_role` and `posting_rule_id` (P-05, explainability).
 6. **Reversals do not resolve again.** A reversing entry copies the accounts of the lines it reverses, even if the mapping has changed since (R-PP-03).
@@ -1010,7 +1009,7 @@ This spec adds 17 rules and 9 decisions. Both are mirrored into the foundation d
 | R-PER-01 | A Closed fiscal period is final in v1. |
 | R-API-04 | Reusing an idempotency key with a different request is rejected. |
 | R-PP-01 | The most specific valid posting rule wins, with keys ranked: item posting group, party posting group or ship-to scope, tax code, reason code. |
-| R-PP-02 | A line with no matching posting rule rejects the command, naming the role and the keys. |
+| R-PP-02 | A line with no matching posting rule, or whose matching rule's account is not Active, rejects the command, naming the role and the keys (amended by D-49). |
 | R-PP-03 | Reversals reuse the original lines' accounts and never resolve again. |
 | R-PP-04 | Control roles map only to control accounts; other roles map only to non-control accounts. |
 | R-LED-06 | The application's database role has no UPDATE or DELETE rights on ledger and audit tables. |
