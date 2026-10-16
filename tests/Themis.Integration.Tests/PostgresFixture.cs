@@ -12,7 +12,7 @@ namespace Themis.Integration.Tests;
 public sealed class PostgresFixture : IAsyncLifetime
 {
     private const string ConnectionEnvironmentVariable = "THEMIS_TEST_CONNECTION";
-    private const string Image = "postgres:17";
+    private const string Image = "postgres:18";
 
     private PostgreSqlContainer? _container;
 

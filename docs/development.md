@@ -13,7 +13,7 @@
 
 | Service | Image | Port | Credentials (development only) |
 |---|---|---|---|
-| PostgreSQL | `postgres:17` | 5432 | superuser `postgres` / `postgres`, database `themis` |
+| PostgreSQL | `postgres:18` | 5432 | superuser `postgres` / `postgres`, database `themis` |
 | Keycloak | `quay.io/keycloak/keycloak:26.8` | 8080 | admin console `admin` / `admin`; realm `themis`, client `themis-api` (secret `themis-dev-secret`), user `dev` / `dev` |
 
 On first start PostgreSQL runs `db/bootstrap/01-roles.sql`, which creates the roles and the `kernel` and
