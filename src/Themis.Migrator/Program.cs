@@ -1,12 +1,14 @@
 using Npgsql;
 using Themis.Kernel.Contracts.Identity;
 using Themis.Kernel.Contracts.Organisation;
+using Themis.Kernel.Contracts.Posting;
 using Themis.Kernel.Contracts.Security;
 using Themis.Kernel.Identity;
 using Themis.Kernel.MasterData;
 using Themis.Kernel.Organisation;
 using Themis.Kernel.Persistence;
 using Themis.Kernel.Persistence.Seeding;
+using Themis.Kernel.Posting;
 using Themis.Kernel.Primitives;
 
 namespace Themis.Migrator;
@@ -17,7 +19,8 @@ namespace Themis.Migrator;
 /// <c>THEMIS_MIGRATOR_CONNECTION</c>. Fixture: argument <c>--fixture milestone-1</c> or the environment variable
 /// <c>THEMIS_MIGRATOR_FIXTURE</c>; the milestone 1 organisation and identity fixtures (brief, steps 3 and 4) are
 /// seeded idempotently after the migrations. Exit codes: 0 up to date, 1 usage error, 2 connected as the wrong
-/// role, 3 database unreachable, 4 the fixture violates segregation of duties (R-SEC-02).
+/// role, 3 database unreachable, 4 the fixture violates segregation of duties (R-SEC-02), 5 the fixture violates the
+/// posting profile rules (R-PP-04, R-PP-06, or an account outside the company's chart or not Active).
 /// </summary>
 public static class Program
 {
@@ -103,6 +106,19 @@ public static class Program
                 // Step 5: the item posting group is company configuration, fixture-seeded; units and currencies came with the migration.
                 int masterDataRows = await MasterDataFixtureSeeder.ApplyAsync(connectionString, Milestone1MasterDataFixture.Definition, now, WellKnownUsers.System, CancellationToken.None);
                 Console.WriteLine($"Fixture '{fixture}' (master data): {masterDataRows} row(s) inserted, the rest already present.");
+
+                // Step 6: accounts and posting profile rules are company configuration, fixture-seeded after the rule check
+                // (account in the company's chart, Active, R-PP-04, R-PP-06); the database constraints are the second line of defence.
+                GeneralLedgerFixtureDefinition generalLedger = Milestone1GeneralLedgerFixture.For(organisation.Company.Id, organisation.Company.ChartOfAccountsId);
+                Dictionary<Guid, Guid> chartByCompany = new() { [organisation.Company.Id] = organisation.Company.ChartOfAccountsId };
+                Result<int> ledgerRows = await GeneralLedgerFixtureSeeder.ApplyAsync(connectionString, generalLedger, definition => PostingProfileValidator.CheckFixture(definition, chartByCompany), now, WellKnownUsers.System, CancellationToken.None);
+                if (ledgerRows.IsFailure)
+                {
+                    Console.Error.WriteLine($"Fixture '{fixture}' refused: {ledgerRows.Primary}");
+                    return 5;
+                }
+
+                Console.WriteLine($"Fixture '{fixture}' (general ledger): {ledgerRows.Value} row(s) inserted, the rest already present.");
             }
 
             return 0;

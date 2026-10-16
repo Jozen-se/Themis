@@ -19,6 +19,7 @@ using Themis.Kernel.Persistence;
 using Themis.Kernel.Pipeline;
 using Themis.Kernel.Pipeline.Http;
 using Themis.Kernel.Pipeline.Telemetry;
+using Themis.Kernel.Posting;
 
 namespace Themis.Integration.Tests.Pipeline;
 
@@ -73,6 +74,7 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         builder.Services.AddFixtureModule();
         builder.Services.AddKernelOrganisation();
         builder.Services.AddKernelMasterData();
+        builder.Services.AddKernelPosting();
         builder.Services.AddKernelOpenApi();
         builder.Services.AddProblemDetails();
 

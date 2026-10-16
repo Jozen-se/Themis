@@ -81,6 +81,12 @@ CREATE SCHEMA IF NOT EXISTS reporting AUTHORIZATION themis_migrator;
 REVOKE ALL ON SCHEMA reporting FROM PUBLIC;
 GRANT USAGE ON SCHEMA reporting TO themis_reporting;
 
+-- btree_gist lets the no-overlap exclusion constraints of effective-dated rows (R-MD-02; first used by
+-- kernel.posting_profile_rule in milestone 1 step 6) compare the business keys with = next to the date range with &&.
+-- The extension is installed per database by a superuser, like the roles and schemas; a migration that needs it
+-- fails loudly when it is missing.
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
 -- Functions created by the migrations are not executable by PUBLIC (pending the owner's confirmation).
 ALTER DEFAULT PRIVILEGES FOR ROLE themis_migrator IN SCHEMA kernel REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;
 ALTER DEFAULT PRIVILEGES FOR ROLE themis_migrator IN SCHEMA reporting REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;

@@ -1,6 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Themis.Kernel.Posting: the posting service (R-LED-07): inventory ledger, general ledger core, posting profile, costing (R-INV-05). -->
+  <!--
+    Themis.Kernel.Posting: the posting service (R-LED-07): inventory ledger, general ledger core, posting profile,
+    costing (R-INV-05). Milestone 1 step 6 holds the account role catalogue's rule check (R-PP-04, R-PP-06), the
+    posting profile resolver (R-PP-01, R-PP-02, D-19, D-49) and the milestone 1 general ledger fixture as data
+    (Themis.Kernel.Persistence writes it through the definitions in Themis.Kernel.Contracts, ARCH-08). No public
+    types (ARCH-07).
+  -->
 
   <ItemGroup>
     <ProjectReference Include="../Themis.Kernel.Primitives/Themis.Kernel.Primitives.csproj" />
@@ -8,7 +14,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="Themis.Host" />
+    <InternalsVisibleTo Include="Themis.Migrator" />
     <InternalsVisibleTo Include="Themis.Architecture.Tests" />
     <InternalsVisibleTo Include="Themis.Kernel.Tests" />
     <InternalsVisibleTo Include="Themis.Integration.Tests" />

@@ -9,6 +9,7 @@ using Themis.Kernel.Organisation;
 using Themis.Kernel.Persistence;
 using Themis.Kernel.Pipeline;
 using Themis.Kernel.Pipeline.Http;
+using Themis.Kernel.Posting;
 
 namespace Themis.Host;
 
@@ -42,6 +43,7 @@ public sealed class Program
         builder.Services.AddKernelIdentity(builder.Configuration, builder.Environment.EnvironmentName);
         builder.Services.AddKernelOrganisation();
         builder.Services.AddKernelMasterData();
+        builder.Services.AddKernelPosting();
         builder.Services.AddKernelOpenApi();
         builder.Services.AddProblemDetails();
 

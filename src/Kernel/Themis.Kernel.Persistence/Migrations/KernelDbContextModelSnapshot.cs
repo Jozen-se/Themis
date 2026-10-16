@@ -1686,6 +1686,206 @@ namespace Themis.Kernel.Persistence.Migrations
                     b.ToTable("outbox_event", "kernel");
                 });
 
+            modelBuilder.Entity("Themis.Kernel.Persistence.Entities.Posting.Account", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AccountNumber")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("account_number");
+
+                    b.Property<string>("AccountType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("account_type");
+
+                    b.Property<Guid>("ChartId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("chart_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Extension")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("extension")
+                        .HasDefaultValueSql("'{}'::jsonb");
+
+                    b.Property<bool>("IsControl")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_control");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.Property<long>("Version")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_account");
+
+                    b.HasAlternateKey("Id", "IsControl")
+                        .HasName("ak_account_id_is_control");
+
+                    b.HasIndex("ChartId", "AccountNumber")
+                        .IsUnique()
+                        .HasDatabaseName("ux_account_chart_number");
+
+                    b.ToTable("account", "kernel", t =>
+                        {
+                            t.HasCheckConstraint("ck_account_account_type", "account_type IN ('Asset', 'Liability', 'Equity', 'Revenue', 'Expense')");
+
+                            t.HasCheckConstraint("ck_account_status", "status IN ('Active', 'Blocked', 'Inactive')");
+                        });
+                });
+
+            modelBuilder.Entity("Themis.Kernel.Persistence.Entities.Posting.PostingProfileRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("account_id");
+
+                    b.Property<string>("AccountRole")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("account_role");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<bool>("ExpectsControl")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("boolean")
+                        .HasColumnName("expects_control")
+                        .HasComputedColumnSql("account_role IN ('INVENTORY', 'RECEIVABLES', 'OUTPUT_VAT')", true);
+
+                    b.Property<string>("Extension")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("extension")
+                        .HasDefaultValueSql("'{}'::jsonb");
+
+                    b.Property<string>("ItemPostingGroup")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("item_posting_group");
+
+                    b.Property<string>("PartyPostingGroup")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("party_posting_group");
+
+                    b.Property<string>("ReasonCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("reason_code");
+
+                    b.Property<string>("ShipToScope")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("ship_to_scope");
+
+                    b.Property<Guid?>("TaxCodeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tax_code_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.Property<DateOnly>("ValidFrom")
+                        .HasColumnType("date")
+                        .HasColumnName("valid_from");
+
+                    b.Property<DateOnly?>("ValidTo")
+                        .HasColumnType("date")
+                        .HasColumnName("valid_to");
+
+                    b.Property<long>("Version")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_posting_profile_rule");
+
+                    b.HasIndex("ItemPostingGroup");
+
+                    b.HasIndex("AccountId", "ExpectsControl");
+
+                    b.HasIndex("CompanyId", "AccountRole")
+                        .HasDatabaseName("ix_posting_profile_rule_company_role");
+
+                    b.ToTable("posting_profile_rule", "kernel", t =>
+                        {
+                            t.HasCheckConstraint("ck_posting_profile_rule_account_role", "account_role IN ('INVENTORY', 'COGS', 'REVENUE', 'RECEIVABLES', 'OUTPUT_VAT', 'BANK', 'PAYMENT_DIFFERENCE', 'REALISED_FX', 'ROUNDING', 'INVENTORY_ADJUSTMENT', 'VAT_SETTLEMENT', 'OPENING_BALANCE')");
+
+                            t.HasCheckConstraint("ck_posting_profile_rule_keys_by_role", "(account_role = 'INVENTORY' AND party_posting_group IS NULL AND ship_to_scope IS NULL AND tax_code_id IS NULL AND reason_code IS NULL) OR (account_role = 'COGS' AND party_posting_group IS NULL AND tax_code_id IS NULL AND reason_code IS NULL) OR (account_role = 'REVENUE' AND party_posting_group IS NULL AND reason_code IS NULL) OR (account_role = 'RECEIVABLES' AND item_posting_group IS NULL AND ship_to_scope IS NULL AND tax_code_id IS NULL AND reason_code IS NULL) OR (account_role = 'OUTPUT_VAT' AND item_posting_group IS NULL AND party_posting_group IS NULL AND ship_to_scope IS NULL AND reason_code IS NULL) OR (account_role = 'BANK' AND item_posting_group IS NULL AND party_posting_group IS NULL AND ship_to_scope IS NULL AND tax_code_id IS NULL AND reason_code IS NULL) OR (account_role = 'PAYMENT_DIFFERENCE' AND item_posting_group IS NULL AND party_posting_group IS NULL AND ship_to_scope IS NULL AND tax_code_id IS NULL AND reason_code IS NULL) OR (account_role = 'REALISED_FX' AND item_posting_group IS NULL AND party_posting_group IS NULL AND ship_to_scope IS NULL AND tax_code_id IS NULL AND reason_code IS NULL) OR (account_role = 'ROUNDING' AND item_posting_group IS NULL AND party_posting_group IS NULL AND ship_to_scope IS NULL AND tax_code_id IS NULL AND reason_code IS NULL) OR (account_role = 'INVENTORY_ADJUSTMENT' AND party_posting_group IS NULL AND ship_to_scope IS NULL AND tax_code_id IS NULL) OR (account_role = 'VAT_SETTLEMENT' AND item_posting_group IS NULL AND party_posting_group IS NULL AND ship_to_scope IS NULL AND tax_code_id IS NULL AND reason_code IS NULL) OR (account_role = 'OPENING_BALANCE' AND item_posting_group IS NULL AND party_posting_group IS NULL AND ship_to_scope IS NULL AND tax_code_id IS NULL AND reason_code IS NULL)");
+
+                            t.HasCheckConstraint("ck_posting_profile_rule_party_posting_group", "party_posting_group IS NULL OR party_posting_group IN ('Domestic', 'EU', 'NonEU')");
+
+                            t.HasCheckConstraint("ck_posting_profile_rule_reason_code", "reason_code IS NULL OR reason_code IN ('OpeningBalance', 'CountDifference', 'Scrap', 'Other')");
+
+                            t.HasCheckConstraint("ck_posting_profile_rule_ship_to_scope", "ship_to_scope IS NULL OR ship_to_scope IN ('Domestic', 'EU', 'NonEU')");
+
+                            t.HasCheckConstraint("ck_posting_profile_rule_validity", "valid_to IS NULL OR valid_to > valid_from");
+                        });
+                });
+
             modelBuilder.Entity("Themis.Kernel.Persistence.Entities.AuditEvent", b =>
                 {
                     b.HasOne("Themis.Kernel.Persistence.Entities.Identity.UserAccount", null)
@@ -1870,6 +2070,41 @@ namespace Themis.Kernel.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_warehouse_site_company");
+                });
+
+            modelBuilder.Entity("Themis.Kernel.Persistence.Entities.Posting.Account", b =>
+                {
+                    b.HasOne("Themis.Kernel.Persistence.Entities.Organisation.ChartOfAccounts", null)
+                        .WithMany()
+                        .HasForeignKey("ChartId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_account_chart");
+                });
+
+            modelBuilder.Entity("Themis.Kernel.Persistence.Entities.Posting.PostingProfileRule", b =>
+                {
+                    b.HasOne("Themis.Kernel.Persistence.Entities.Organisation.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_posting_profile_rule_company");
+
+                    b.HasOne("Themis.Kernel.Persistence.Entities.MasterData.ItemPostingGroup", null)
+                        .WithMany()
+                        .HasForeignKey("ItemPostingGroup")
+                        .HasPrincipalKey("Code")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_posting_profile_rule_item_posting_group");
+
+                    b.HasOne("Themis.Kernel.Persistence.Entities.Posting.Account", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId", "ExpectsControl")
+                        .HasPrincipalKey("Id", "IsControl")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_posting_profile_rule_account_control");
                 });
 #pragma warning restore 612, 618
         }
