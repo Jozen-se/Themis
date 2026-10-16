@@ -8,8 +8,8 @@ namespace Themis.Integration.Tests.MasterData;
 /// <summary>
 /// ITEM.CREATE and the item reads end to end through the pipeline (step 5 brief, acceptance 3 to 6): the clerk
 /// creates items in SE01, a duplicate item number is R-MD-05 (422), an unknown reference is a 400 with its own code
-/// and no ruleId stored as the key's result, one audit and one outbox event per created row (D-44, R-AUD-01), a
-/// user without ITEM.CREATE gets 403 (R-SEC-01), and the reads take their scope from the route, 403 before 404 (D-47).
+/// and no ruleId stored as the key's result, one audit and one outbox event per created row (D-44, R-AUD-01), the
+/// preparer without ITEM.CREATE gets 403 (R-SEC-01), and the reads take their scope from the route, 403 before 404 (D-47).
 /// </summary>
 [Collection(PostgresTestGroup.Name)]
 [Trait("Category", "Integration")]
@@ -110,11 +110,11 @@ public sealed class ItemCommandTests : IAsyncLifetime
         Assert.Equal(Milestone1OrganisationFixture.WarehouseId, reply.Json["company"]!["defaultWarehouseId"]!.GetValue<Guid>());
         Assert.Equal(1, reply.Json["company"]!["version"]!.GetValue<long>());
 
-        // D-37: decimals are strings at the storage scale of a quantity (numeric(20,6)), integers numbers.
+        // D-37: decimals are strings, quantities at the unit's decimals (H87: 0), the net weight without trailing zeros; integers numbers.
         Assert.Equal(JsonValueKind.String, reply.Json["netWeightKg"]!.GetValueKind());
-        Assert.Equal("0.125000", reply.Json["netWeightKg"]!.GetValue<string>());
-        Assert.Equal("10.000000", reply.Json["salesMultiple"]!.GetValue<string>());
-        Assert.Equal("100.000000", reply.Json["minOrderQty"]!.GetValue<string>());
+        Assert.Equal("0.125", reply.Json["netWeightKg"]!.GetValue<string>());
+        Assert.Equal("10", reply.Json["salesMultiple"]!.GetValue<string>());
+        Assert.Equal("100", reply.Json["minOrderQty"]!.GetValue<string>());
         Assert.Equal(JsonValueKind.Number, reply.Json["version"]!.GetValueKind());
 
         Assert.Equal(1L, await ItemsCreatedAsync());
@@ -131,7 +131,8 @@ public sealed class ItemCommandTests : IAsyncLifetime
         Assert.Equal("item-1", await _host.ScalarAsync($"SELECT DISTINCT idempotency_key {audit}", Ct));
         Assert.Equal("corr-item-1", await _host.ScalarAsync($"SELECT DISTINCT correlation_id {audit}", Ct));
         Assert.Equal("TEST-001", await _host.ScalarAsync($"SELECT changes->'itemNumber'->>'after' {audit} AND entity_type = 'Item'", Ct));
-        Assert.Equal("0.125000", await _host.ScalarAsync($"SELECT changes->'netWeightKg'->>'after' {audit} AND entity_type = 'Item'", Ct));
+        Assert.Equal("0.125", await _host.ScalarAsync($"SELECT changes->'netWeightKg'->>'after' {audit} AND entity_type = 'Item'", Ct));
+        Assert.Equal("10", await _host.ScalarAsync($"SELECT changes->'salesMultiple'->>'after' {audit} AND entity_type = 'Item'", Ct));
         Assert.Equal("TRADE_GOODS", await _host.ScalarAsync($"SELECT changes->'itemPostingGroup'->>'after' {audit} AND entity_type = 'ItemCompany'", Ct));
         Assert.Equal(id.ToString(), await _host.ScalarAsync($"SELECT changes->'itemId'->>'after' {audit} AND entity_type = 'ItemCompany'", Ct));
         Assert.Null(await _host.ScalarAsync($"SELECT changes->'itemNumber'->>'before' {audit} AND entity_type = 'Item'", Ct));
@@ -140,7 +141,7 @@ public sealed class ItemCommandTests : IAsyncLifetime
         Assert.Equal(id, await _host.ScalarAsync("SELECT aggregate_id FROM kernel.outbox_event WHERE event_type = 'ITEM_CREATED'", Ct));
         Assert.Equal(rowId, await _host.ScalarAsync("SELECT aggregate_id FROM kernel.outbox_event WHERE event_type = 'ITEM_COMPANY_CREATED'", Ct));
         Assert.Equal("TEST-001", await _host.ScalarAsync("SELECT payload->>'itemNumber' FROM kernel.outbox_event WHERE event_type = 'ITEM_CREATED'", Ct));
-        Assert.Equal("0.125000", await _host.ScalarAsync("SELECT payload->>'netWeightKg' FROM kernel.outbox_event WHERE event_type = 'ITEM_CREATED'", Ct));
+        Assert.Equal("0.125", await _host.ScalarAsync("SELECT payload->>'netWeightKg' FROM kernel.outbox_event WHERE event_type = 'ITEM_CREATED'", Ct));
         Assert.Equal(id.ToString(), await _host.ScalarAsync("SELECT payload->>'itemId' FROM kernel.outbox_event WHERE event_type = 'ITEM_COMPANY_CREATED'", Ct));
         Assert.Equal(rowId.ToString(), await _host.ScalarAsync("SELECT payload->'row'->>'id' FROM kernel.outbox_event WHERE event_type = 'ITEM_COMPANY_CREATED'", Ct));
         Assert.Equal(1L, await _host.ScalarAsync("SELECT count(DISTINCT schema_version) FROM kernel.outbox_event", Ct));
@@ -213,14 +214,16 @@ public sealed class ItemCommandTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task A_quantity_in_a_fractional_unit_keeps_its_decimals_up_to_the_units_and_reads_back_the_same()
+    public async Task D_37_a_quantity_is_returned_at_the_units_decimals_and_reads_back_the_same()
     {
-        CommandReply reply = await _host.PostAsync(Items, Item("TEST-KGM", unit: "KGM", salesMultiple: "0.250", minOrderQty: "2.5"), "item-kgm", cancellationToken: Ct);
+        CommandReply reply = await _host.PostAsync(Items, Item("TEST-KGM", unit: "KGM", salesMultiple: "0.25", minOrderQty: "2.5000"), "item-kgm", cancellationToken: Ct);
         CommandReply read = await _host.GetAsync($"/v1/kernel/companies/{Company}/items/{reply.Json!["id"]!.GetValue<Guid>()}", cancellationToken: Ct);
 
+        // KGM has 3 decimals: quantities read and return at that scale however they were entered (D-37, R-INV-02).
         Assert.Equal(200, reply.Status);
-        Assert.Equal("0.250000", reply.Json["salesMultiple"]!.GetValue<string>());
-        Assert.Equal("2.500000", reply.Json["minOrderQty"]!.GetValue<string>());
+        Assert.Equal("0.250", reply.Json["salesMultiple"]!.GetValue<string>());
+        Assert.Equal("2.500", reply.Json["minOrderQty"]!.GetValue<string>());
+        Assert.Equal("0.125", reply.Json["netWeightKg"]!.GetValue<string>());
         Assert.Equal(reply.Body, read.Body);
     }
 
@@ -253,9 +256,10 @@ public sealed class ItemCommandTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task R_SEC_01_a_user_without_ITEM_CREATE_gets_403_and_a_company_without_an_assignment_is_out_of_scope()
+    public async Task R_SEC_01_the_preparer_without_ITEM_CREATE_gets_403_and_a_company_without_an_assignment_is_out_of_scope()
     {
-        CommandReply forbidden = await _host.PostAsync(Items, Item("TEST-403"), "item-403", subject: _users!.PosterOnlySubject, cancellationToken: Ct);
+        // Step 5 brief, acceptance 6: the preparer prepares adjustments and reads items, but does not create them.
+        CommandReply forbidden = await _host.PostAsync(Items, Item("TEST-403"), "item-403", subject: TestUsers.PreparerSubject, cancellationToken: Ct);
         CommandReply outOfScope = await _host.PostAsync(Items, new { companyId = _data!.OtherCompany, itemNumber = "TEST-SE02", description = "Other", itemType = "Stocked", baseUnit = "H87", lotTracking = "None", itemPostingGroup = "TRADE_GOODS", taxClass = "Standard", costingMethod = "MovingAverage" }, "item-se02", cancellationToken: Ct);
 
         Assert.Equal(403, forbidden.Status);
