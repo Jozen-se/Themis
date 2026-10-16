@@ -6,7 +6,7 @@ name: themis
 
 services:
   postgres:
-    image: postgres:17
+    image: postgres:18
     environment:
       POSTGRES_DB: themis
       POSTGRES_USER: postgres

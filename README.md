@@ -20,7 +20,7 @@ how to run the stack and the tests.
 | Component | Version | Where pinned |
 |---|---|---|
 | .NET SDK | 10.0.112, roll forward to the latest patch of the 10.0.1xx band | `global.json` |
-| PostgreSQL | 17 (image `postgres:17`) | `compose.yaml`, `tests/Themis.Integration.Tests` |
+| PostgreSQL | 18 (image `postgres:18`) | `compose.yaml`, `tests/Themis.Integration.Tests` |
 | Keycloak | 26.8 (image `quay.io/keycloak/keycloak:26.8`) | `compose.yaml` |
 | Npgsql | 10.0.3 | `Directory.Packages.props` |
 | Entity Framework Core and Npgsql.EntityFrameworkCore.PostgreSQL | 10.0.12 / 10.0.3 (migrations of the kernel data context, applied by `Themis.Migrator` only) | `Directory.Packages.props`, `.config/dotnet-tools.json` (dotnet-ef 10.0.12) |
