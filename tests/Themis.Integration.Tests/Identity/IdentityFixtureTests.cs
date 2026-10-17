@@ -43,10 +43,11 @@ public sealed class IdentityFixtureTests
         Assert.Equal(Milestone1IdentityFixture.ClerkSubject, await ScalarAsync(connection, "SELECT external_subject FROM kernel.user_account WHERE id = @id", ("id", Milestone1IdentityFixture.ClerkId)));
         Assert.Equal(Milestone1IdentityFixture.PreparerSubject, await ScalarAsync(connection, "SELECT external_subject FROM kernel.user_account WHERE id = @id", ("id", Milestone1IdentityFixture.PreparerId)));
 
-        Assert.Equal(3L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.role"));
-        Assert.Equal(9L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.role_permission"));
-        Assert.Equal(4L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.role_assignment"));
-        Assert.Equal(4L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.role_assignment WHERE company_id = @company AND site_id IS NULL AND valid_to IS NULL", ("company", Milestone1OrganisationFixture.CompanyId)));
+        // The integration tests' fixture bootstrap adds the test-only FIXTURE_TESTER role for the fixture module's touch command (FixtureSchema); the seeded rows are counted without it.
+        Assert.Equal(3L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.role WHERE id <> @fixture", ("fixture", FixtureSchema.TouchRoleId)));
+        Assert.Equal(9L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.role_permission WHERE role_id <> @fixture", ("fixture", FixtureSchema.TouchRoleId)));
+        Assert.Equal(4L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.role_assignment WHERE role_id <> @fixture", ("fixture", FixtureSchema.TouchRoleId)));
+        Assert.Equal(4L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.role_assignment WHERE company_id = @company AND site_id IS NULL AND valid_to IS NULL AND role_id <> @fixture", ("company", Milestone1OrganisationFixture.CompanyId), ("fixture", FixtureSchema.TouchRoleId)));
         Assert.Equal(new DateOnly(2026, 1, 1), await ScalarAsync(connection, "SELECT min(valid_from) FROM kernel.role_assignment"));
         Assert.Equal(WellKnownUsers.System.Value, await ScalarAsync(connection, "SELECT DISTINCT assigned_by FROM kernel.role_assignment"));
 
@@ -64,7 +65,7 @@ public sealed class IdentityFixtureTests
     {
         await using NpgsqlConnection connection = await PostgresFixture.OpenAsync(_db.SuperuserConnectionString, Ct);
         List<(string Code, string Risk)> rows = [];
-        await using (NpgsqlCommand command = new("SELECT code, risk_level FROM kernel.permission ORDER BY code", connection))
+        await using (NpgsqlCommand command = new("SELECT code, risk_level FROM kernel.permission WHERE code <> 'FIXTURE.TOUCH' ORDER BY code", connection))
         await using (NpgsqlDataReader reader = await command.ExecuteReaderAsync(Ct))
         {
             while (await reader.ReadAsync(Ct))
@@ -112,7 +113,7 @@ public sealed class IdentityFixtureTests
 
         Assert.Equal(18L, await ScalarAsync(connection, $"SELECT count(*) {fixtureAudit}"));
         Assert.Equal(3L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.user_account"));
-        Assert.Equal((long)PermissionCatalog.Definition.Permissions.Count, await ScalarAsync(connection, "SELECT count(*) FROM kernel.permission"));
+        Assert.Equal((long)PermissionCatalog.Definition.Permissions.Count, await ScalarAsync(connection, "SELECT count(*) FROM kernel.permission WHERE code <> 'FIXTURE.TOUCH'"));
     }
 
     [Fact]

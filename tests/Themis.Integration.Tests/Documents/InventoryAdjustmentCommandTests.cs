@@ -253,6 +253,71 @@ public sealed class InventoryAdjustmentCommandTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_line_without_a_warehouse_takes_the_headers_current_warehouse_on_every_write_and_the_stored_value_is_what_the_line_keeps()
+    {
+        // Owner's decision on step 7, point 2: the header's default is resolved on every write.
+        Guid second = _data!.SecondWarehouse;
+        CommandReply created = await _host.PostAsync(Adjustments, Draft(warehouse: Warehouse, lines: [Line(1), Line(2, _wire, "1.5", warehouse: second)]), "ia-wh-create", cancellationToken: Ct);
+        Guid id = created.Json!["id"]!.GetValue<Guid>();
+        Guid line1 = created.Json["lines"]![0]!["id"]!.GetValue<Guid>();
+
+        Assert.Equal(200, created.Status);
+        Assert.Equal(Warehouse, created.Json["lines"]![0]!["warehouseId"]!.GetValue<Guid>());
+        Assert.Equal(second, created.Json["lines"]![1]!["warehouseId"]!.GetValue<Guid>());
+
+        // The header moves to the second warehouse: line 1 (sent without a warehouse) follows it, line 2 keeps its own.
+        CommandReply moved = await _host.PostAsync($"{Adjustments}/{id}/update", Update(warehouse: second, lines: [Line(1), Line(2, _wire, "1.5", warehouse: Warehouse)]), "ia-wh-1", ifMatch: created.ETag, correlationId: "corr-wh-1", cancellationToken: Ct);
+
+        Assert.Equal(200, moved.Status);
+        Assert.Equal(second, moved.Json!["warehouseId"]!.GetValue<Guid>());
+        Assert.Equal(second, moved.Json["lines"]![0]!["warehouseId"]!.GetValue<Guid>());
+        Assert.Equal(Warehouse, moved.Json["lines"]![1]!["warehouseId"]!.GetValue<Guid>());
+        // The stored line value is what POST will read (step 8).
+        Assert.Equal(second, await _host.ScalarAsync("SELECT warehouse_id FROM kernel.document_line WHERE id = @id", Ct, ("id", line1)));
+        Assert.Equal(("" + Warehouse, "" + second), ((string?)await AuditAsync("changes->'warehouseId'->>'before'", "INVENTORY_ADJUSTMENT.UPDATE", line1, "DocumentLine", "AND correlation_id = 'corr-wh-1'"), (string?)await AuditAsync("changes->'warehouseId'->>'after'", "INVENTORY_ADJUSTMENT.UPDATE", line1, "DocumentLine", "AND correlation_id = 'corr-wh-1'")));
+
+        // A header without a warehouse: a line that names none is refused, one that names its own passes.
+        CommandReply noHeader = await _host.PostAsync($"{Adjustments}/{id}/update", Update(lines: [Line(1), Line(2, _wire, "1.5", warehouse: Warehouse)]), "ia-wh-2", ifMatch: moved.ETag, cancellationToken: Ct);
+        CommandReply explicitOnly = await _host.PostAsync($"{Adjustments}/{id}/update", Update(lines: [Line(1, warehouse: Warehouse), Line(2, _wire, "1.5", warehouse: Warehouse)]), "ia-wh-3", ifMatch: moved.ETag, cancellationToken: Ct);
+
+        Assert.Equal(400, noHeader.Status);
+        Assert.Equal("line_warehouse_required", noHeader.Code);
+        Assert.Equal("1", noHeader.Json!["errors"]![0]!["details"]!["lineNumber"]!.GetValue<string>());
+        Assert.Equal(200, explicitOnly.Status);
+        Assert.Null(explicitOnly.Json!["warehouseId"]);
+        Assert.Equal(Warehouse, await _host.ScalarAsync("SELECT warehouse_id FROM kernel.document_line WHERE id = @id", Ct, ("id", line1)));
+    }
+
+    [Fact]
+    public async Task An_UPDATE_that_repeats_the_stored_draft_advances_the_version_with_one_document_audit_event_and_one_event_holding_only_the_version()
+    {
+        // Owner's decision on step 7, point 4.
+        object[] lines = [Line(1, quantity: "10", enteredUnitCost: "2.50"), Line(2, _wire, "1.500", stockStatus: "Blocked")];
+        CommandReply created = await _host.PostAsync(Adjustments, Draft(warehouse: Warehouse, externalReference: "Same", lines: lines), "ia-same-create", cancellationToken: Ct);
+        Guid id = created.Json!["id"]!.GetValue<Guid>();
+
+        CommandReply repeated = await _host.PostAsync($"{Adjustments}/{id}/update", Update(warehouse: Warehouse, externalReference: "Same", lines: [Line(1, quantity: "10.0", enteredUnitCost: "2.5"), Line(2, _wire, "1.5", stockStatus: "Blocked")]), "ia-same-1", ifMatch: created.ETag, correlationId: "corr-same-1", cancellationToken: Ct);
+
+        Assert.Equal(200, repeated.Status);
+        Assert.Equal("\"2\"", repeated.ETag);
+        Assert.Equal(2, repeated.Json!["version"]!.GetValue<long>());
+        Assert.Equal(created.Json["lines"]!.ToJsonString(), repeated.Json["lines"]!.ToJsonString());
+        // One audit event, for the document row, whose changed fields hold only the version; no line or extension event.
+        Assert.Equal(1L, await _host.ScalarAsync("SELECT count(*) FROM kernel.audit_event WHERE correlation_id = 'corr-same-1'", Ct));
+        Assert.Equal("Document", await _host.ScalarAsync("SELECT entity_type FROM kernel.audit_event WHERE correlation_id = 'corr-same-1'", Ct));
+        Assert.Equal("version", await _host.ScalarAsync("SELECT string_agg(key, ',') FROM kernel.audit_event, jsonb_object_keys(changes) key WHERE correlation_id = 'corr-same-1'", Ct));
+        Assert.Equal(("1", "2"), ((string?)await AuditAsync("changes->'version'->>'before'", "INVENTORY_ADJUSTMENT.UPDATE", id, "Document"), (string?)await AuditAsync("changes->'version'->>'after'", "INVENTORY_ADJUSTMENT.UPDATE", id, "Document")));
+        Assert.Equal(1L, await _host.ScalarAsync("SELECT DISTINCT version FROM kernel.document_line WHERE document_id = @id", Ct, ("id", id)));
+        // One INVENTORY_ADJUSTMENT_UPDATED event whose changed fields hold only the version and no lines.
+        const string outbox = "FROM kernel.outbox_event WHERE correlation_id = 'corr-same-1'";
+        Assert.Equal(1L, await _host.ScalarAsync($"SELECT count(*) {outbox}", Ct));
+        Assert.Equal("INVENTORY_ADJUSTMENT_UPDATED", await _host.ScalarAsync($"SELECT event_type {outbox}", Ct));
+        Assert.Equal("version", await _host.ScalarAsync($"SELECT string_agg(key, ',') FROM kernel.outbox_event, jsonb_object_keys(payload->'changes') key WHERE correlation_id = 'corr-same-1'", Ct));
+        Assert.Equal(0, await _host.ScalarAsync($"SELECT jsonb_array_length(payload->'lines') {outbox}", Ct));
+        Assert.Equal(2, await _host.ScalarAsync($"SELECT (payload->>'version')::int {outbox}", Ct));
+    }
+
+    [Fact]
     public async Task R_API_02_UPDATE_and_DISCARD_need_the_current_version_from_If_Match_and_a_stale_or_missing_one_is_not_stored()
     {
         CommandReply created = await CreateAsync("ia-ver-create", Line(1));
