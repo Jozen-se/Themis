@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Foundation Design* (https://claude.ai/artifact/B7yhaqHmFJqQCAo23KSDXq), revision 146, taken 2026-10-17.
+> **Snapshot** of the live document *Themis Foundation Design* (https://claude.ai/artifact/B7yhaqHmFJqQCAo23KSDXq), revision 148, taken 2026-10-17.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite rule IDs
 > without leaving the repository. Where this copy and the live document differ, the live document wins.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -335,7 +335,7 @@ The biggest risk is a kernel model that turns out wrong after code depends on it
 
 ## Decision log
 
-Forty-five decisions are made and four are open (D-10, D-20, D-36, D-48); none of the open ones blocks the walking skeleton.
+Forty-six decisions are made and four are open (D-10, D-20, D-36, D-48); none of the open ones blocks the walking skeleton.
 
 | ID | Decision | Status | Note |
 |---|---|---|---|
@@ -388,6 +388,7 @@ Forty-five decisions are made and four are open (D-10, D-20, D-36, D-48); none o
 | D-47 | R-SEC-01 amended: queries are authorised like commands, against a TYPE.READ permission and scope; a site-limited assignment never satisfies a command or query without a site; a command or query that cannot name its scope is rejected (installation-wide ones declare installation scope) | [Decided] | Your decision, 2026-10-09, while settling the milestone 1 step 4 brief with the coder |
 | D-48 | Placement of replenishment planning for distribution (reorder point, order quantity, safety stock, forecast-driven requisitions) on the roadmap: a new phase or an extension of Phase 3. Any placement changes the phase list set by D-30 | [Open] | Raised 2026-10-12 from the Capability Coverage Map (gap G-02). Decide when the Phase 1 scope is set; D-30 stands unchanged until then |
 | D-49 | Posting profile rules hardened: R-PP-06 added (a rule sets only the mapping keys of its account role); R-PP-02 amended (a line whose matching rule's account is not Active is also rejected, and resolution never falls back to a less specific rule) | [Decided] | Your decision, 2026-10-13, while settling the milestone 1 step 6 brief with the coder. Enforced by database constraints generated from the account role catalogue (R-PP-04, R-PP-06) and by the resolver (R-PP-02) |
+| D-50 | Event envelope (review RR-15): every outbox event carries its id, type and schema version (D-44), aggregate type and id, company (empty only for installation-scope aggregates), occurrence time, command name and correlation id. The idempotency key and the user never travel with events. Ordering, claiming, retries, dead letters and retention are specified before integrations | [Decided] | Your decision, 2026-10-17, while settling the milestone 1 step 7 brief with the coder. Built in step 7. Development and test databases may be recreated for the step 7 envelope migration, since none holds data worth keeping before milestone 1 is done |
 
 ## Next steps
 

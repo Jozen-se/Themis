@@ -19,6 +19,7 @@ Reference only (not sources of truth; the documents above win on any conflict):
 - Themis Review Remediation Register: https://claude.ai/code/artifact/91610c8f-7465-46a7-9f48-0bf2c5171ede (snapshot: docs/design/themis-review-remediation-register.md; findings RR-xx and the owner's decision on each; accepted items are already in the documents above)
 - Themis Architecture Recommendations: https://claude.ai/artifact/Lo9h7fGS2L4hbw7RsFDvDz (background input; the foundation wins where they differ)
 - Themis Capability Coverage Map: https://claude.ai/code/artifact/fb7a2e56-0e18-44ef-980b-846a9be72acd (capability checklist with gaps G-xx; nothing in it is in scope until a D-xx entry puts it there)
+- Themis Atlas: https://claude.ai/artifact/5Doff8FWHhWHKrnQtSeu7W (visual project map and system map for orientation; it decides nothing, and build progress itself lives in the README)
 
 ## Ground rules
 - Cite rule IDs: in a comment where a rule is enforced, and in the test name that proves it.

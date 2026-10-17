@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/artifact/5NwCL8oDM8UmE8tg8Abicz), revision 164, taken 2026-10-13.
+> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/artifact/5NwCL8oDM8UmE8tg8Abicz), revision 174, taken 2026-10-17.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite rule IDs
 > without leaving the repository. Where this copy and the live document differ, the live document wins.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -400,8 +400,9 @@ Every business document shares one header, one line and one link model; fields t
 | CUSTOMER_RETURN | On create | No | Yes | Yes | Customer |
 | VAT_SETTLEMENT | On post | Yes | No | Yes | None |
 | OPENING_OPEN_ITEMS | On post | Yes | No | Yes | Customer, per line |
+| JOURNAL_ENTRY | Numbering only | Yes | No | No | None |
 
-Manual journals are gapless because they are accounting vouchers. Journal entries themselves are also numbered gapless per fiscal year (see Ledger entities).
+Manual journals are gapless because they are accounting vouchers. JOURNAL_ENTRY is a numbering-only row, so journal entry series can name the registry: it has no documents, transitions, commands or events, and the state machine engine and every registry check skip rows flagged numbering only. Journal entries themselves are also numbered gapless per fiscal year (see Ledger entities).
 
 **Event names (D-44).** Every state change writes one outbox event, so a command writes one event for each document or master data row whose state it changes. The event is named TYPE plus the command in past tense, schema version 1: ITEM_CREATED, INVENTORY_ADJUSTMENT_CREATED, INVENTORY_ADJUSTMENT_DISCARDED. Where the state machine tables below give a business name for a transition (for example GOODS_ISSUED for DELIVERY.CONFIRM_SHIPMENT, or INVENTORY_ADJUSTED for INVENTORY_ADJUSTMENT.POST), the registry records it per document type, command and resulting state (so SALES_ORDER.RELEASE can yield SALES_ORDER_RELEASED or SALES_ORDER_CREDIT_BLOCKED), and code reads it from there. Master data commands always use the generated name. Business payloads are specified only for events that integrations consume; every other payload carries the id and the changed fields.
 
@@ -412,11 +413,11 @@ Manual journals are gapless because they are accounting vouchers. Journal entrie
 | `company_id`, `document_type` | → Company, Code | Y |  |
 | `prefix` | text | N | For example INV-. |
 | `scope` | Enum: Continuous, PerFiscalYear | Y |  |
-| `fiscal_year_id` | → FiscalYear | N | Required when scope = PerFiscalYear. |
+| `fiscal_year_id` | → FiscalYear | N | Required exactly when scope = PerFiscalYear; a fiscal year of the series' company. One series per company, document type and fiscal year. |
 | `next_number`, `padding` | integer | Y |  |
-| `gapless` | boolean | Y | Copied from the document type; cannot be switched off where the type requires it. |
+| `gapless` | boolean | Y | Copied from the document type; cannot be switched off where the type requires it. JOURNAL_ENTRY series are always gapless and PerFiscalYear. Padding is a minimum width, not a limit: after IA-999999 comes IA-1000000; a company wanting fixed-width numbers sets a larger padding. |
 
-A gapless number is taken inside the posting transaction under a row lock on the series. If the transaction fails, the number returns with it, so no gap appears (R-DOC-07). Other series may use a database sequence, where gaps are allowed. Journal entries number from a series with document type JOURNAL_ENTRY, scope PerFiscalYear, gapless.
+A gapless number is taken inside the posting transaction under a row lock on the series. If the transaction fails, the number returns with it, so no gap appears (R-DOC-07). In v1 every series, gapless or not, takes its numbers from its locked series row; the gapless flag decides that the number is taken as the last step before commit and what I-09 checks. A command locks all the series it uses in one statement, in primary key order (Lock order). Journal entries number from a series with document type JOURNAL_ENTRY, scope PerFiscalYear, gapless.
 
 **Document** (header, all types)
 
@@ -424,7 +425,7 @@ A gapless number is taken inside the posting transaction under a row lock on the
 |---|---|---|---|
 | `company_id`, `document_type` | → Company, Code | Y |  |
 | `document_number` | text | D | Assigned at the type's assignment point; unique per company and type. |
-| `draft_reference` | text | D | Temporary reference shown before numbering (R-DOC-04). |
+| `draft_reference` | text | D | Temporary reference shown before numbering (R-DOC-04). In v1 it is the document id as text, stored at CREATE and never changed. |
 | `status` | Enum, per type | Y | Changes only through the type's state machine (R-DOC-01). |
 | `party_role_id` | → PartyRole | N | Required where the type names a party role. |
 | `document_date` | Date | Y |  |
@@ -459,7 +460,7 @@ A gapless number is taken inside the posting transaction under a row lock on the
 |---|---|---|---|
 | `document_id`, `line_number` | → Document, integer | Y |  |
 | `line_type` | Enum: Item, Charge, Account, Allocation, Text | Y | Charge for surcharges and freight; Account for manual journal lines; Allocation for payment allocations. |
-| `item_id` | → Item | N | Required for Item and Charge lines; a Charge line references a Service item such as FREIGHT. |
+| `item_id` | → Item | N | Required for Item and Charge lines; a Charge line references a Service item such as FREIGHT. The item must be set up in the document's company: (item_id, company_id) references its ItemCompany row (D-43). |
 | `description` | Name | Y | Snapshot of the item description. |
 | `customer_item_number` | text | D | Snapshot from CustomerItemReference. |
 | `quantity`, `unit_code` | Quantity, text | N | Required for Item lines; unit must be an ItemUnit or the base unit. |
@@ -485,7 +486,7 @@ A gapless number is taken inside the posting transaction under a row lock on the
 | Attribute | Type | Req | Rule |
 |---|---|---|---|
 | `from_line_id`, `to_line_id` | → DocumentLine | Y |  |
-| `link_type` | Enum: Fulfils, Bills, Corrects, Returns | Y | Order to delivery, delivery to invoice, invoice to credit note, delivery to return. |
+| `link_type` | Enum: Fulfils, Bills, Corrects, Returns | Y | Order to delivery, delivery to invoice, invoice to credit note, delivery to return. A link stores company_id, and both of its lines belong to that company (Company scope convention). Trade between group companies uses a document in each company, designed in the Phase 1 specification (Capability Coverage Map G-01). |
 | `quantity_base` | Quantity | Y | Greater than 0. Sum per source line within quantity plus tolerance (R-DOC-03). |
 | `amount` | Money | N | For price-only credit notes, which credit an amount without quantity. |
 
@@ -668,6 +669,8 @@ One permission exists per command, plus one TYPE.READ permission per resource ty
 | OutboxEvent | `event_type`, `schema_version` | Code, integer | Y | For example GOODS_ISSUED, version 1. |
 | OutboxEvent | `aggregate_id`, `payload` | UUID, JSON | Y | Written in the same transaction as the change. |
 | OutboxEvent | `occurred_at`, `published_at`, `attempts` | Timestamp, Timestamp, integer | Y, N, Y |  |
+| OutboxEvent | `aggregate_type`, `command_name`, `correlation_id` | Code, Code, text | Y | The event envelope (D-50): the aggregate's type, the command that wrote the event and the request's correlation id. The idempotency key and the user never travel in the envelope; payloads carry no personal data beyond ids. |
+| OutboxEvent | `company_id` | → Company | N | Empty only for installation-scope aggregates such as ITEM_CREATED (D-50). |
 
 **Example conflict pairs for v1:** CUSTOMER.SET_CREDIT_LIMIT with SALES_ORDER.APPROVE_CREDIT; ACCOUNT.MAINTAIN with MANUAL_JOURNAL.POST; FISCAL_PERIOD.REOPEN with MANUAL_JOURNAL.POST.
 
@@ -723,7 +726,7 @@ Three kernel documents let Phase 0 put stock in, take it out and block it before
 
 **Shared rules for every document type**
 
-- CREATE gives status Draft and a `draft_reference`. UPDATE is allowed only in Draft and only on the current `version` (R-DOC-02, R-API-02).
+- CREATE gives status Draft and a `draft_reference`. UPDATE is allowed only in Draft and only on the current `version` (R-DOC-02, R-API-02). An UPDATE carries the whole draft. Lines are matched by line number, which must be positive and unique in the request: a new number inserts a line, an existing one updates it, a line left out becomes Cancelled, and a cancelled number given again reopens that line with the new values. Nothing is deleted, and POST ignores Cancelled lines.
 - DISCARD moves a Draft to Discarded for types numbered on post. Types numbered on create (sales order, delivery, return) use CANCEL instead, so every issued number stays accounted for. Nothing is deleted (R-DOC-06).
 - POST and every later transition write the status change, ledger effects, audit event and outbox event in one transaction (R-LED-05).
 - REVERSE never edits the original. It creates opposite entries dated on a reversal posting date that must be in an open period (R-LED-01, R-LED-04).
@@ -739,7 +742,7 @@ Three kernel documents let Phase 0 put stock in, take it out and block it before
 
 | From | Command | To | Guards | Effects |
 |---|---|---|---|---|
-| Draft | POST | Posted | Items Stocked, and Active in the document's company (ItemCompany, D-43); lot given for lot-tracked items; outbound lines covered by stock in the line's stock status, and Available stock is not reserved (R-INV-03); entered_unit_cost given on inbound lines when the item has no average cost yet; reason code given; period open | InventoryEntries (AdjustmentIn, AdjustmentOut) costed by the moving average algorithm; JournalEntry per posting events E-01 and E-02; caches updated; event INVENTORY_ADJUSTED |
+| Draft | POST | Posted | Items Stocked, and Active in the document's company (ItemCompany, D-43); lot given for lot-tracked items; outbound lines covered by stock in the line's stock status, and Available stock is not reserved (R-INV-03); entered_unit_cost given on inbound lines when the item has no average cost yet; reason code given; at least one Open line; period open | InventoryEntries (AdjustmentIn, AdjustmentOut) costed by the moving average algorithm; JournalEntry per posting events E-01 and E-02; caches updated; event INVENTORY_ADJUSTED |
 | Posted | REVERSE | Reversed | The reversal must not make stock negative | Outbound lines come back in at their original cost. Inbound lines go out as outbound movements costed by the algorithm (step 3, including R-INV-07), so stock value can never turn negative. A reversing JournalEntry posts the resulting amounts to the original accounts (R-PP-03) |
 
 **STOCK_STATUS_CHANGE** (each line: item, lot, warehouse, from status, to status, quantity)
@@ -1036,3 +1039,4 @@ This spec adds 17 rules and 9 decisions. Both are mirrored into the foundation d
 - Should receiving a return offer to create the credit note in the same step?
 - VAT treatment of payment differences above a few kronor, if the tolerance is ever raised.
 - Year-end result transfer and opening balances for a new fiscal year (needed before the first year closes).
+- Party numbers: Party.party_number comes from an installation-level number series, but a NumberSeries belongs to one company. Options: a NumberSeries with an empty company for installation-level series; a plain installation-level sequence, since party numbers need no gapless guarantee; or per-company party numbers, which contradicts unique per installation and D-28. Decide before PARTY.CREATE is built.
