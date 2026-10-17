@@ -33,6 +33,10 @@ internal sealed record TableGrant(
     public static TableGrant AppendOnly(string schema, string table, string role) =>
         new(schema, table, role, new HashSet<TablePrivilege> { TablePrivilege.Select, TablePrivilege.Insert });
 
+    /// <summary>System catalogues written by the migrator only, such as the document type registry (D-40): SELECT.</summary>
+    public static TableGrant ReadOnly(string schema, string table, string role) =>
+        new(schema, table, role, new HashSet<TablePrivilege> { TablePrivilege.Select });
+
     /// <summary>Master data, documents, caches and settings: SELECT, INSERT and UPDATE; never DELETE (R-MD-03, R-DOC-06).</summary>
     public static TableGrant Mutable(string schema, string table, string role) =>
         new(schema, table, role, new HashSet<TablePrivilege> { TablePrivilege.Select, TablePrivilege.Insert, TablePrivilege.Update });

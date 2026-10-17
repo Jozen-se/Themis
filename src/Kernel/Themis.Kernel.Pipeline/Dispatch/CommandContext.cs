@@ -51,8 +51,12 @@ internal sealed class CommandContext : ICommandContext, IAuditWriter, IOutboxWri
     public void Record(string entityType, Guid entityId, IReadOnlyDictionary<string, FieldChange> changes) =>
         _audit.Add(new AuditEntry(entityType, entityId, changes));
 
-    public void Publish(string eventType, int schemaVersion, Guid aggregateId, object payload) =>
-        _outbox.Add(new OutboxEntry(eventType, schemaVersion, aggregateId, JsonSerializer.Serialize(payload, payload.GetType(), ThemisJson.Options)));
+    public void Publish(string eventType, int schemaVersion, string aggregateType, Guid aggregateId, Guid? companyId, object payload)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        // D-50: the publisher's part of the envelope; the store adds the time, command name and correlation id.
+        _outbox.Add(new OutboxEntry(eventType, schemaVersion, aggregateType, aggregateId, companyId, JsonSerializer.Serialize(payload, payload.GetType(), ThemisJson.Options)));
+    }
 
     /// <summary>Discards what a rolled-back handler buffered.</summary>
     public void Discard()

@@ -91,8 +91,7 @@ internal static class MasterDataModel
             entity.Property(e => e.DefaultWarehouseId).HasColumnName("default_warehouse_id");
             entity.Property(e => e.DefaultSalesUnit).HasColumnName("default_sales_unit").HasMaxLength(CodeLength);
             entity.Property(e => e.DefaultPurchaseUnit).HasColumnName("default_purchase_unit").HasMaxLength(CodeLength);
-            // R-MD-05: one row per item and company.
-            entity.HasIndex(e => new { e.ItemId, e.CompanyId }).IsUnique().HasDatabaseName("ux_item_company_item_company");
+            // R-MD-05: one row per item and company; since step 7 an alternate key, the target of document_line's item reference (DocumentModel).
             entity.HasOne<Item>().WithMany().HasForeignKey(e => e.ItemId).HasConstraintName("fk_item_company_item").OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<Company>().WithMany().HasForeignKey(e => e.CompanyId).HasConstraintName("fk_item_company_company").OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<ItemPostingGroup>().WithMany().HasForeignKey(e => e.ItemPostingGroup).HasPrincipalKey(g => g.Code).HasConstraintName("fk_item_company_item_posting_group").OnDelete(DeleteBehavior.Restrict);

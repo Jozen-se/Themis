@@ -32,7 +32,8 @@ namespace Themis.Kernel.Pipeline.Dispatch;
 /// disappear while the transaction stays open to store the rejection as the key's result (R-API-03). Not stored:
 /// authorisation and validation outcomes, the 409 duplicate, a missing If-Match (428) and a stale version (412),
 /// so a retry with the fresh version runs afresh (R-API-02; owner's conditions on pull request 5).</item>
-/// <item>On success the buffered audit events and outbox rows are written as themis_kernel (R-AUD-01, D-44).</item>
+/// <item>On success the buffered audit events and outbox rows are written as themis_kernel (R-AUD-01, D-44); the
+/// pipeline fills the envelope's command name and correlation id (D-50).</item>
 /// <item>Only SQLSTATE 40001 and 40P01 restart the whole pipeline, authorisation included, at most twice, each retry
 /// counted (D-41). Any other exception rolls everything back and stores nothing.</item>
 /// </list>
@@ -223,7 +224,7 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
         {
             await unitOfWork.ReleaseSavepointAsync(BusinessSavepoint, cancellationToken);
             await _auditStore.AddAsync(unitOfWork, context, metadata.Name, context.AuditEntries, cancellationToken);
-            await _outboxStore.AddAsync(unitOfWork, now, context.OutboxEntries, cancellationToken);
+            await _outboxStore.AddAsync(unitOfWork, context, metadata.Name, context.OutboxEntries, cancellationToken);
             // R-API-02: every success returns the record's new version, rendered as the ETag header.
             response = new CommandResponse(StatusCodes.Status200OK, CommandResponse.JsonContentType, JsonSerializer.Serialize(result.Value, ThemisJson.Options), Replayed: false, (result.Value as IVersionedResult)?.Version);
         }

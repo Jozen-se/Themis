@@ -13,9 +13,12 @@ public interface IAuditWriter
 
 /// <summary>
 /// Collects outbox events during a command; the pipeline writes them in the same transaction (D-44): one per
-/// document or master data row whose state the command changes, schema version 1 unless stated otherwise.
+/// document or master data row whose state the command changes, schema version 1 unless stated otherwise. The
+/// publisher supplies the envelope's aggregate type and company (D-50): the company is empty only for an
+/// installation-scope aggregate such as an item; the pipeline adds the occurrence time, the command name and the
+/// correlation id. The idempotency key and the user never travel with an event.
 /// </summary>
 public interface IOutboxWriter
 {
-    void Publish(string eventType, int schemaVersion, Guid aggregateId, object payload);
+    void Publish(string eventType, int schemaVersion, string aggregateType, Guid aggregateId, Guid? companyId, object payload);
 }

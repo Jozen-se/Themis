@@ -26,11 +26,14 @@ public interface IAuditStore
     Task AddAsync(IKernelUnitOfWork unitOfWork, ICommandContext context, string commandName, IReadOnlyList<AuditEntry> entries, CancellationToken cancellationToken);
 }
 
-/// <summary>One outbox event to write in the command's transaction (D-44).</summary>
-public sealed record OutboxEntry(string EventType, int SchemaVersion, Guid AggregateId, string PayloadJson);
+/// <summary>One outbox event to write in the command's transaction (D-44), with the publisher's part of the envelope (D-50).</summary>
+public sealed record OutboxEntry(string EventType, int SchemaVersion, string AggregateType, Guid AggregateId, Guid? CompanyId, string PayloadJson);
 
-/// <summary>Writes outbox events on the command's unit of work, as themis_kernel. Kernel use only.</summary>
+/// <summary>
+/// Writes outbox events on the command's unit of work, as themis_kernel, completing the envelope with the
+/// occurrence time, the command name and the correlation id of the context (D-50). Kernel use only.
+/// </summary>
 public interface IOutboxStore
 {
-    Task AddAsync(IKernelUnitOfWork unitOfWork, DateTimeOffset occurredAt, IReadOnlyList<OutboxEntry> entries, CancellationToken cancellationToken);
+    Task AddAsync(IKernelUnitOfWork unitOfWork, ICommandContext context, string commandName, IReadOnlyList<OutboxEntry> entries, CancellationToken cancellationToken);
 }

@@ -103,10 +103,11 @@ internal sealed class CreateItemHandler : ICommandHandler<CreateItem, ItemView>
         await ItemStore.InsertItemCompanyAsync(unitOfWork, item.Id, companyRow, context.Now, context.Principal.UserId, cancellationToken);
 
         // R-AUD-01 and D-44: one audit event and one outbox event per created row; the type in the name is the row's.
+        // D-50: the item is an installation-scope aggregate (no company in its envelope); the company row carries its company.
         context.Audit.Record(ItemEntity, item.Id, ItemAudit.ItemChanges(item));
         context.Audit.Record(ItemCompanyEntity, companyRow.Id, ItemAudit.ItemCompanyChanges(item.Id, companyRow));
-        context.Outbox.Publish(EventNames.Generated(ItemType, "CREATE"), EventNames.DefaultSchemaVersion, item.Id, item);
-        context.Outbox.Publish(EventNames.Generated(ItemCompanyType, "CREATE"), EventNames.DefaultSchemaVersion, companyRow.Id, new ItemCompanyCreated(item.Id, companyRow));
+        context.Outbox.Publish(EventNames.Generated(ItemType, "CREATE"), EventNames.DefaultSchemaVersion, ItemType, item.Id, companyId: null, item);
+        context.Outbox.Publish(EventNames.Generated(ItemCompanyType, "CREATE"), EventNames.DefaultSchemaVersion, ItemCompanyType, companyRow.Id, companyRow.CompanyId, new ItemCompanyCreated(item.Id, companyRow));
         return item;
     }
 

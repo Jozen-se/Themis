@@ -12,9 +12,11 @@ public static class FixtureContracts
     public const string EntityType = "FixtureCounter";
 
     /// <summary>
-    /// The permissions the fixture commands stand in for until the real commands exist (step 4 brief, acceptance 3):
-    /// creating a counter takes ITEM.CREATE (step 5), touching it INVENTORY_ADJUSTMENT.UPDATE and posting it
-    /// INVENTORY_ADJUSTMENT.POST (step 7). The counter carries the company and optional site the scope comes from.
+    /// The permissions the fixture commands run under (step 4 brief, acceptance 3). Posting a counter stands in for
+    /// INVENTORY_ADJUSTMENT.POST until step 8 builds the command. Creating and touching a counter share ITEM.CREATE
+    /// and INVENTORY_ADJUSTMENT.UPDATE with the real commands of steps 5 and 7: the fixture no longer stands in for
+    /// them, but its failure injection keeps proving the pipeline's write path under the themis_fixture role (step 7
+    /// brief). The counter carries the company and optional site the scope comes from.
     /// </summary>
     public const string CreatePermission = "ITEM.CREATE";
     public const string TouchPermission = "INVENTORY_ADJUSTMENT.UPDATE";
@@ -61,7 +63,7 @@ public sealed record CreateCounter(Guid CompanyId, long InitialValue, decimal Sa
 [Command(FixtureContracts.TouchPermission)]
 public sealed record TouchCounter(Guid Id, long ExpectedVersion, long Increment, FixtureFailure Failure = FixtureFailure.None) : ICommand<CounterSnapshot>, IVersionedCommand;
 
-/// <summary>Marks a counter posted; stands in for INVENTORY_ADJUSTMENT.POST until step 7 (step 4 brief). Scope from the row.</summary>
+/// <summary>Marks a counter posted; stands in for INVENTORY_ADJUSTMENT.POST until step 8 (step 4 brief). Scope from the row.</summary>
 [Command(FixtureContracts.PostPermission)]
 public sealed record PostCounter(Guid Id, long ExpectedVersion) : ICommand<CounterSnapshot>, IVersionedCommand;
 

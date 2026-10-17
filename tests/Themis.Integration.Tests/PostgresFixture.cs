@@ -49,9 +49,15 @@ public sealed class PostgresFixture : IAsyncLifetime
     /// <summary>Exit code of the migrator run that prepared the database; 0 when the migrations applied.</summary>
     public int MigratorExitCode { get; private set; } = -1;
 
-    /// <summary>Removes every row the pipeline tests wrote, so each test class starts from empty tables; the seeded rows stay.</summary>
+    /// <summary>
+    /// Removes every row the pipeline tests wrote, so each test class starts from empty tables; the seeded rows stay,
+    /// and the seeded number series are wound back to their first number (version 1) since numbering tests advance them.
+    /// </summary>
     public async Task TruncateAsync(CancellationToken cancellationToken) =>
-        await ExecuteAsMigratorAsync("TRUNCATE kernel.idempotency_record, kernel.outbox_event, kernel.item_company, kernel.item, fixture.counter; DELETE FROM kernel.audit_event WHERE command_name NOT LIKE 'SYSTEM.%'", cancellationToken);
+        await ExecuteAsMigratorAsync(
+            "TRUNCATE kernel.idempotency_record, kernel.outbox_event, kernel.document_line, kernel.inventory_adjustment, kernel.document, kernel.item_company, kernel.item, fixture.counter; " +
+            "DELETE FROM kernel.audit_event WHERE command_name NOT LIKE 'SYSTEM.%'; " +
+            "UPDATE kernel.number_series SET next_number = 1, version = 1", cancellationToken);
 
     /// <summary>A second, empty database on the same server for a test that needs the migrator's work from scratch; the caller drops it.</summary>
     public async Task<string> CreateEmptyDatabaseAsync(CancellationToken cancellationToken)

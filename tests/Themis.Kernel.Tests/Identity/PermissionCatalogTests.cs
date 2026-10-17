@@ -17,8 +17,13 @@ public sealed class PermissionCatalogTests
 {
     private static IEnumerable<Type> ProductionRequestTypes()
     {
-        // The host references every kernel capability; loading it brings the production assemblies in.
-        _ = typeof(Themis.Host.Program);
+        // The host references every kernel capability; loading its references brings the production assemblies in,
+        // whichever test class ran first.
+        foreach (AssemblyName reference in typeof(Themis.Host.Program).Assembly.GetReferencedAssemblies().Where(name => name.Name is { } n && n.StartsWith("Themis.", StringComparison.Ordinal)))
+        {
+            Assembly.Load(reference);
+        }
+
         return AppDomain.CurrentDomain.GetAssemblies()
             .Where(assembly => assembly.GetName().Name is { } name && name.StartsWith("Themis.", StringComparison.Ordinal) && !name.Contains("Tests", StringComparison.Ordinal) && !name.Contains("FixtureModule", StringComparison.Ordinal))
             .SelectMany(assembly => assembly.GetTypes())

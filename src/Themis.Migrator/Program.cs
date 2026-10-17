@@ -1,8 +1,10 @@
 using Npgsql;
+using Themis.Kernel.Contracts.Documents;
 using Themis.Kernel.Contracts.Identity;
 using Themis.Kernel.Contracts.Organisation;
 using Themis.Kernel.Contracts.Posting;
 using Themis.Kernel.Contracts.Security;
+using Themis.Kernel.Documents;
 using Themis.Kernel.Identity;
 using Themis.Kernel.MasterData;
 using Themis.Kernel.Organisation;
@@ -14,13 +16,15 @@ using Themis.Kernel.Primitives;
 namespace Themis.Migrator;
 
 /// <summary>
-/// Applies the kernel migrations as themis_migrator, seeds the system-defined permission catalogue and, on request,
-/// a named fixture. Connection string: argument <c>--connection</c> or the environment variable
-/// <c>THEMIS_MIGRATOR_CONNECTION</c>. Fixture: argument <c>--fixture milestone-1</c> or the environment variable
-/// <c>THEMIS_MIGRATOR_FIXTURE</c>; the milestone 1 organisation and identity fixtures (brief, steps 3 and 4) are
-/// seeded idempotently after the migrations. Exit codes: 0 up to date, 1 usage error, 2 connected as the wrong
-/// role, 3 database unreachable, 4 the fixture violates segregation of duties (R-SEC-02), 5 the fixture violates the
-/// posting profile rules (R-PP-04, R-PP-06, or an account outside the company's chart or not Active).
+/// Applies the kernel migrations as themis_migrator, seeds the system catalogues (permissions, the document type
+/// registry) and, on request, a named fixture. Connection string: argument <c>--connection</c> or the environment
+/// variable <c>THEMIS_MIGRATOR_CONNECTION</c>. Fixture: argument <c>--fixture milestone-1</c> or the environment
+/// variable <c>THEMIS_MIGRATOR_FIXTURE</c>; the milestone 1 fixtures (brief, steps 3 to 7) are seeded idempotently
+/// after the migrations. Exit codes: 0 up to date, 1 usage error, 2 connected as the wrong role, 3 database
+/// unreachable, 4 the fixture violates segregation of duties (R-SEC-02), 5 the fixture violates the posting profile
+/// rules (R-PP-04, R-PP-06, or an account outside the company's chart or not Active), 6 the database holds outbox
+/// rows written before the event envelope of D-50 and must be recreated before the step 7 migration, 7 the
+/// document type catalogue in code breaks a registry rule.
 /// </summary>
 public static class Program
 {
@@ -74,6 +78,14 @@ public static class Program
             }
             else
             {
+                // D-50: the envelope migration adds NOT NULL columns to kernel.outbox_event that existing rows cannot carry; the
+                // migration itself stops too, but this check gives the owner the message before anything is applied.
+                if (pending.Any(name => name.EndsWith(EnvelopeMigration, StringComparison.Ordinal)) && await OutboxHoldsRowsAsync(connection))
+                {
+                    Console.Error.WriteLine("kernel.outbox_event holds rows written before the D-50 event envelope. Recreate the database before running Themis.Migrator (step 7 brief); development and test databases hold nothing worth keeping before milestone 1 is done.");
+                    return 6;
+                }
+
                 Console.WriteLine($"Applying {pending.Count} kernel migration(s): {string.Join(", ", pending)}.");
                 IReadOnlyList<string> applied = await KernelMigrations.ApplyAsync(connectionString, CancellationToken.None);
                 Console.WriteLine($"Applied {applied.Count} migration(s) as {RequiredRole}.");
@@ -84,6 +96,16 @@ public static class Program
             // The permission catalogue is system data (Phase 0 Specification, Security entities): seeded on every run.
             int catalogued = await IdentitySeeder.ApplyCatalogueAsync(connectionString, PermissionCatalog.Definition, now, WellKnownUsers.System, CancellationToken.None);
             Console.WriteLine($"Permission catalogue: {catalogued} row(s) inserted or updated, the rest already present.");
+
+            // D-40: the document type registry is system data too, written from the catalogue in code on every run.
+            Result<int> registry = await DocumentTypeSeeder.ApplyCatalogueAsync(connectionString, DocumentTypes.All, now, WellKnownUsers.System, CancellationToken.None);
+            if (registry.IsFailure)
+            {
+                Console.Error.WriteLine($"Document type registry refused: {string.Join(" ", registry.Errors.Select(error => error.Message))}");
+                return 7;
+            }
+
+            Console.WriteLine($"Document type registry: {registry.Value} row(s) inserted or updated, the rest already present.");
 
             if (!string.IsNullOrWhiteSpace(fixture))
             {
@@ -119,6 +141,10 @@ public static class Program
                 }
 
                 Console.WriteLine($"Fixture '{fixture}' (general ledger): {ledgerRows.Value} row(s) inserted, the rest already present.");
+
+                // Step 7: number series are company configuration, fixture-seeded (IA- continuous, JE2026- per fiscal year, gapless).
+                int seriesRows = await NumberSeriesFixtureSeeder.ApplyAsync(connectionString, Milestone1NumberSeriesFixture.For(organisation.Company.Id, organisation.FiscalYear.Id), now, WellKnownUsers.System, CancellationToken.None);
+                Console.WriteLine($"Fixture '{fixture}' (number series): {seriesRows} row(s) inserted, the rest already present.");
             }
 
             return 0;
@@ -128,6 +154,22 @@ public static class Program
             Console.Error.WriteLine($"PostgreSQL is not reachable: {exception.Message}");
             return 3;
         }
+    }
+
+    /// <summary>The name of the step 7 migration that adds the D-50 envelope columns.</summary>
+    private const string EnvelopeMigration = "_DocumentFrameworkTables";
+
+    private static async Task<bool> OutboxHoldsRowsAsync(NpgsqlConnection connection)
+    {
+        // A fresh database has no outbox table yet; the existence check runs first, since PostgreSQL parses a subquery before a CASE guards it.
+        await using NpgsqlCommand exists = new("SELECT to_regclass('kernel.outbox_event') IS NOT NULL", connection);
+        if (await exists.ExecuteScalarAsync() is not true)
+        {
+            return false;
+        }
+
+        await using NpgsqlCommand rows = new("SELECT EXISTS (SELECT 1 FROM kernel.outbox_event)", connection);
+        return await rows.ExecuteScalarAsync() is true;
     }
 
     private static string? ReadOption(string[] args, string option, string environmentVariable)
