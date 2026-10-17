@@ -1,0 +1,73 @@
+# Repairs the NuGet lock files on Dependabot pull requests (D-38, D-42).
+#
+# Dependabot updates Directory.Packages.props and the lock files of the projects that reference a package directly,
+# but not the lock files of projects that only receive it transitively or through a project reference. Those keep the
+# old version under "CentralTransitive", so the locked restore in CI fails with NU1004 on almost every grouped update.
+#
+# This workflow runs on Dependabot's own pushes, regenerates every lock file with the restore tooling, and commits the
+# result to the Dependabot branch when something changed. A push made with GITHUB_TOKEN starts no workflow, so the
+# last step dispatches the CI workflow on the new head; its check runs attach to that commit and satisfy the ruleset.
+# The GITHUB_TOKEN is the only credential; no secret is stored anywhere.
+name: Dependabot lock files
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: dependabot-lock-files-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
+
+jobs:
+  regenerate:
+    name: Regenerate lock files
+    if: github.actor == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the pull request branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Set up .NET (version from global.json)
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Regenerate every lock file
+        run: dotnet restore Themis.sln --force-evaluate
+
+      - name: Prove the result restores in locked mode
+        run: dotnet restore Themis.sln --locked-mode
+
+      - name: Commit and push the lock files when they changed
+        id: commit
+        run: |
+          if git diff --quiet -- '**/packages.lock.json'; then
+            echo "Lock files already consistent; nothing to commit."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- '**/packages.lock.json'
+          git commit -m "deps: regenerate the NuGet lock files after Dependabot's update" \
+            -m "Lock files of projects that receive the updated packages transitively, regenerated with dotnet restore --force-evaluate by the Dependabot lock files workflow (D-38)."
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Run CI on the new head
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "${{ github.event.pull_request.head.ref }}"

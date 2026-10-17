@@ -33,7 +33,9 @@ how to run the stack and the tests.
 | nuget-license (licence scan, D-38) | 4.0.18 | `.config/dotnet-tools.json` |
 
 Every package version is held in `Directory.Packages.props` and the committed `packages.lock.json` files; CI
-restores in locked mode.
+restores in locked mode. Dependabot updates the central file and the directly affected lock files only, so the
+workflow `.github/workflows/dependabot-lock-files.yml` regenerates the rest on its pull requests and runs CI again
+on the result.
 
 ## Toolchain notes
 
