@@ -57,8 +57,10 @@ public sealed class MoneyAndQuantityTests
         Result<Quantity> result = Quantity.Create(1.5m, Pcs, unitDecimals: 0);
 
         Assert.True(result.IsFailure);
-        Assert.Equal("quantity_precision", result.Primary!.Code);
+        Assert.Equal(Quantity.PrecisionCode, result.Primary!.Code);
+        Assert.Equal("quantity_precision", result.Primary.Code);
         Assert.Equal("R-INV-02", result.Primary.RuleId);
+        Assert.Equal(ErrorKind.RuleViolation, result.Primary.Kind);
     }
 
     [Fact]

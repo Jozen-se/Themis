@@ -28,7 +28,7 @@
 --   on kernel.idempotency_record; UPDATE on kernel.outbox_event covers the delivery columns published_at and attempts
 --   only. Business numbers come from number series rows, not sequences (R-DOC-07). No REFERENCES grants are needed:
 --   themis_migrator owns both sides of every foreign key.
---   The one default kept, pending the owner's confirmation: functions created by migrations are not executable by
+--   The one default kept (confirmed by the owner 2026-10-17, Build Brief, grant hygiene): functions created by migrations are not executable by
 --   PUBLIC.
 --
 -- Adding a module <name> (Phase 1 and later): create role themis_<name> NOLOGIN, schema <name> owned by
@@ -87,6 +87,6 @@ GRANT USAGE ON SCHEMA reporting TO themis_reporting;
 -- fails loudly when it is missing.
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 
--- Functions created by the migrations are not executable by PUBLIC (pending the owner's confirmation).
+-- Functions created by the migrations are not executable by PUBLIC (Build Brief, grant hygiene; confirmed by the owner 2026-10-17).
 ALTER DEFAULT PRIVILEGES FOR ROLE themis_migrator IN SCHEMA kernel REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;
 ALTER DEFAULT PRIVILEGES FOR ROLE themis_migrator IN SCHEMA reporting REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;
