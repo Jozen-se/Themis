@@ -113,10 +113,10 @@ compares every table privilege in `kernel`, `reporting` and `fixture` with the d
 
 The command pipeline tests start an in-memory host (`tests/Themis.Integration.Tests/Pipeline`) wired like
 `Themis.Host`, with the fixture module's three commands on `/v1/fixture/counters`, the kernel's own commands and
-queries (the company read, `ITEM.CREATE` and the item reads) and the real identity capability
-behind the test token issuer: the tests mint bearer tokens for the fixture's users (see Identity below). Until the
-real commands exist, the fixture commands stand in for them and take their permissions: create takes `ITEM.CREATE`,
-touch `INVENTORY_ADJUSTMENT.UPDATE` and post `INVENTORY_ADJUSTMENT.POST` (step 4 brief). A counter belongs to a
+queries (the company read, `ITEM.CREATE` and the item reads, the inventory adjustment drafts) and the real identity
+capability behind the test token issuer: the tests mint bearer tokens for the fixture's users (see Identity below).
+Create shares `ITEM.CREATE` with the real command, post stands in for `INVENTORY_ADJUSTMENT.POST` until step 8
+(step 4 brief), and touch runs under the test-only permission `FIXTURE.TOUCH` (see Documents below). A counter belongs to a
 company and optionally a site, which is where its scope comes from. The fixture commands take a `failure` member
 that injects a rejection, an exception, a serialization failure on the first attempt or a write to a kernel table
 after the business write, so the tests prove what the pipeline leaves behind in each case.
@@ -354,7 +354,13 @@ continuous, prefix `IA-`, padding 6, not gapless (`IA-000001` first), and JOURNA
 
 The fixture module's touch command no longer stands in for INVENTORY_ADJUSTMENT.UPDATE: the optimistic concurrency
 and ETag tests run against the real command, while the touch command keeps the failure injection under the
-`themis_fixture` role with the shared permission. The post command stands in for INVENTORY_ADJUSTMENT.POST until step 8.
+`themis_fixture` role on the test-only permission `FIXTURE.TOUCH`, which the integration tests' fixture bootstrap
+(`FixtureSchema`) seeds with the role `FIXTURE_TESTER` and the clerk's assignment, outside the production catalogue
+(owner's decision on step 7). The post command stands in for INVENTORY_ADJUSTMENT.POST until step 8. Two decisions
+on the step 7 drafts are tested explicitly: a line sent without a warehouse takes the header's warehouse as it is on
+that write, and the stored line value is what posting reads; an UPDATE that repeats the stored draft still advances
+the version, with one audit event for the document row and one `INVENTORY_ADJUSTMENT_UPDATED` event whose changed
+fields hold only the version.
 
 ## Linting, formatting and the licence scan
 

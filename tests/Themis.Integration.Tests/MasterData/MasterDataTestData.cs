@@ -7,8 +7,8 @@ namespace Themis.Integration.Tests.MasterData;
 /// <summary>
 /// Rows a test adds beside the milestone 1 fixture, written as themis_migrator and removed again when the test
 /// ends: a second company with its own site and warehouse (for the other-company warehouse check and the
-/// company-scope reads), and an item that has no row in SE01. Test scaffolding only; nothing here goes through the
-/// seeder, the pipeline or the audit trail.
+/// company-scope reads), a second warehouse of SE01, and an item that has no row in SE01. Test scaffolding only;
+/// nothing here goes through the seeder, the pipeline or the audit trail.
 /// </summary>
 internal sealed class MasterDataTestData : IAsyncDisposable
 {
@@ -25,6 +25,9 @@ internal sealed class MasterDataTestData : IAsyncDisposable
     public Guid OtherSite { get; } = Guid.NewGuid();
 
     public Guid OtherWarehouse { get; } = Guid.NewGuid();
+
+    /// <summary>A second warehouse of SE01 on its main site, so a test can move a document's header default between two warehouses of one company.</summary>
+    public Guid SecondWarehouse { get; } = Guid.NewGuid();
 
     /// <summary>An installation-wide item with no ItemCompany row anywhere.</summary>
     public Guid OrphanItem { get; } = Guid.NewGuid();
@@ -47,6 +50,8 @@ internal sealed class MasterDataTestData : IAsyncDisposable
         data._cleanup.Insert(0, $"DELETE FROM kernel.site WHERE id = '{data.OtherSite}'");
         await data.RunAsync($"INSERT INTO kernel.warehouse (id, site_id, company_id, code, name, is_default, status, created_at, created_by, updated_at, updated_by) VALUES ('{data.OtherWarehouse}', '{data.OtherSite}', '{data.OtherCompany}', 'MAIN', 'Other warehouse', true, 'Active', {audit})", cancellationToken);
         data._cleanup.Insert(0, $"DELETE FROM kernel.warehouse WHERE id = '{data.OtherWarehouse}'");
+        await data.RunAsync($"INSERT INTO kernel.warehouse (id, site_id, company_id, code, name, is_default, status, created_at, created_by, updated_at, updated_by) VALUES ('{data.SecondWarehouse}', '{Milestone1OrganisationFixture.SiteId}', '{Milestone1OrganisationFixture.CompanyId}', 'SECOND', 'Second warehouse', false, 'Active', {audit})", cancellationToken);
+        data._cleanup.Insert(0, $"DELETE FROM kernel.warehouse WHERE id = '{data.SecondWarehouse}'");
 
         await data.RunAsync($"INSERT INTO kernel.item (id, item_number, description, item_type, base_unit, lot_tracking, created_at, created_by, updated_at, updated_by) VALUES ('{data.OrphanItem}', '{OrphanItemNumber}', 'Item without a company row', 'Stocked', 'H87', 'None', {audit})", cancellationToken);
         data._cleanup.Insert(0, $"DELETE FROM kernel.item WHERE id = '{data.OrphanItem}'");

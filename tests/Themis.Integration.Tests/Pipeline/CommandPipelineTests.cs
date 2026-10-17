@@ -20,7 +20,7 @@ namespace Themis.Integration.Tests.Pipeline;
 /// the stored rejection, the whole-command retry and the role boundary (brief, milestone 1 checklist). The
 /// optimistic concurrency and ETag tests of the versioned commands moved to the real INVENTORY_ADJUSTMENT.UPDATE in
 /// step 7 (InventoryAdjustmentCommandTests); the fixture's touch command keeps the failure injection under the
-/// themis_fixture role.
+/// themis_fixture role on the test-only permission FIXTURE.TOUCH (owner's decision on step 7, point 3).
 /// </summary>
 [Collection(PostgresTestGroup.Name)]
 [Trait("Category", "Integration")]
@@ -60,7 +60,7 @@ public sealed class CommandPipelineTests : IAsyncLifetime
         Guid id = reply.Json["id"]!.GetValue<Guid>();
 
         Assert.Equal(1L, await _host.CountAsync("fixture.counter", Ct));
-        Assert.Equal(1L, await _host.ScalarAsync("SELECT count(*) FROM kernel.audit_event WHERE command_name IN ('ITEM.CREATE', 'INVENTORY_ADJUSTMENT.UPDATE', 'INVENTORY_ADJUSTMENT.POST')", Ct));
+        Assert.Equal(1L, await _host.ScalarAsync("SELECT count(*) FROM kernel.audit_event WHERE command_name IN ('ITEM.CREATE', 'FIXTURE.TOUCH', 'INVENTORY_ADJUSTMENT.POST')", Ct));
         Assert.Equal(1L, await _host.CountAsync("kernel.outbox_event", Ct));
         Assert.Equal(1L, await _host.CountAsync("kernel.idempotency_record", Ct));
 
@@ -116,7 +116,7 @@ public sealed class CommandPipelineTests : IAsyncLifetime
         Assert.Equal(first.Body, second.Body);
         Assert.Equal(1L, await _host.CountAsync("fixture.counter", Ct));
         Assert.Equal(1L, await _host.CountAsync("kernel.outbox_event", Ct));
-        Assert.Equal(1L, await _host.ScalarAsync("SELECT count(*) FROM kernel.audit_event WHERE command_name IN ('ITEM.CREATE', 'INVENTORY_ADJUSTMENT.UPDATE', 'INVENTORY_ADJUSTMENT.POST')", Ct));
+        Assert.Equal(1L, await _host.ScalarAsync("SELECT count(*) FROM kernel.audit_event WHERE command_name IN ('ITEM.CREATE', 'FIXTURE.TOUCH', 'INVENTORY_ADJUSTMENT.POST')", Ct));
     }
 
     [Fact]
@@ -289,7 +289,7 @@ public sealed class CommandPipelineTests : IAsyncLifetime
         Assert.True(replayed.Replayed);
         Assert.Equal(1L, await _host.ScalarAsync("SELECT version FROM fixture.counter WHERE id = @id", Ct, ("id", id)));
         Assert.Equal(1L, await _host.ScalarAsync("SELECT count(*) FROM kernel.idempotency_record WHERE key = 'reject-1'", Ct));
-        Assert.Equal(0L, await _host.ScalarAsync("SELECT count(*) FROM kernel.audit_event WHERE command_name = 'INVENTORY_ADJUSTMENT.UPDATE'", Ct));
+        Assert.Equal(0L, await _host.ScalarAsync("SELECT count(*) FROM kernel.audit_event WHERE command_name = 'FIXTURE.TOUCH'", Ct));
         Assert.Equal(0L, await _host.ScalarAsync("SELECT count(*) FROM kernel.outbox_event WHERE event_type = 'FIXTURE_COUNTER_TOUCHED'", Ct));
     }
 
@@ -324,7 +324,7 @@ public sealed class CommandPipelineTests : IAsyncLifetime
         Assert.Equal(2, reply.Json!["version"]!.GetValue<long>());
         Assert.Equal(12L, await _host.ScalarAsync("SELECT value FROM fixture.counter WHERE id = @id", Ct, ("id", id)));
         Assert.Equal(1L, await _host.ScalarAsync("SELECT count(*) FROM kernel.outbox_event WHERE event_type = 'FIXTURE_COUNTER_TOUCHED'", Ct));
-        Assert.Equal(1L, await _host.ScalarAsync("SELECT count(*) FROM kernel.audit_event WHERE command_name = 'INVENTORY_ADJUSTMENT.UPDATE'", Ct));
+        Assert.Equal(1L, await _host.ScalarAsync("SELECT count(*) FROM kernel.audit_event WHERE command_name = 'FIXTURE.TOUCH'", Ct));
         Assert.Equal(1L, _host.Retries - retriesBefore);
         Assert.Contains(_host.Logs.Lines, line => line.Level == LogLevel.Warning && line.Message.Contains("40001", StringComparison.Ordinal));
     }
@@ -358,7 +358,7 @@ public sealed class CommandPipelineTests : IAsyncLifetime
         await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 1, failure = "RejectAfterWrite" }, "log-1", ifMatch: "\"1\"", correlationId: "corr-log-1", cancellationToken: Ct);
 
         LogLine rejected = Assert.Single(_host.Logs.Lines, line => line.Message.Contains("rejected with rejected_after_write", StringComparison.Ordinal));
-        Assert.Equal("INVENTORY_ADJUSTMENT.UPDATE", rejected.Scopes["CommandName"]);
+        Assert.Equal("FIXTURE.TOUCH", rejected.Scopes["CommandName"]);
         Assert.Equal("corr-log-1", rejected.Scopes["CorrelationId"]);
         Assert.Equal(TestUsers.Clerk.ToString(), rejected.Scopes["UserId"]);
     }

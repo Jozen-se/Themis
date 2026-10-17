@@ -13,14 +13,19 @@ public static class FixtureContracts
 
     /// <summary>
     /// The permissions the fixture commands run under (step 4 brief, acceptance 3). Posting a counter stands in for
-    /// INVENTORY_ADJUSTMENT.POST until step 8 builds the command. Creating and touching a counter share ITEM.CREATE
-    /// and INVENTORY_ADJUSTMENT.UPDATE with the real commands of steps 5 and 7: the fixture no longer stands in for
-    /// them, but its failure injection keeps proving the pipeline's write path under the themis_fixture role (step 7
-    /// brief). The counter carries the company and optional site the scope comes from.
+    /// INVENTORY_ADJUSTMENT.POST until step 8 builds the command; creating one shares ITEM.CREATE with the real
+    /// command of step 5. Touching a counter runs under the test-only permission FIXTURE.TOUCH (owner's decision on
+    /// step 7, point 3): the failure injection keeps proving the pipeline's write path under the themis_fixture role
+    /// without any real permission's tests depending on test-only code. The integration tests' fixture bootstrap
+    /// seeds the permission, the role <see cref="TouchRoleCode"/> and the clerk's assignment; no production catalogue
+    /// knows them. The counter carries the company and optional site the scope comes from.
     /// </summary>
     public const string CreatePermission = "ITEM.CREATE";
-    public const string TouchPermission = "INVENTORY_ADJUSTMENT.UPDATE";
+    public const string TouchPermission = "FIXTURE.TOUCH";
     public const string PostPermission = "INVENTORY_ADJUSTMENT.POST";
+
+    /// <summary>The test-only role that carries <see cref="TouchPermission"/>, assigned to the clerk by the integration tests.</summary>
+    public const string TouchRoleCode = "FIXTURE_TESTER";
 
     /// <summary>The routes the composition root maps through the kernel pipeline (brief, API conventions).</summary>
     public static IReadOnlyList<ICommandRoute> Routes { get; } =
