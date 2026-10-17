@@ -11,10 +11,11 @@ namespace Themis.Kernel.MasterData;
 
 /// <summary>
 /// ITEM.CREATE (step 5 brief): the installation-wide Item and its ItemCompany row in one command (D-43). The item
-/// number is stored uppercase and a duplicate is rejected with R-MD-05 (422). An unknown base unit, item posting
-/// group or warehouse, or a warehouse of another company, is a 400 with a field-specific code and no ruleId, found
-/// inside the transaction and therefore stored as the key's result (Build Brief, Errors). One audit event and one
-/// outbox event per created row, the type in the event name being the row's type (D-44, R-AUD-01).
+/// number is stored uppercase and a duplicate is rejected with R-MD-05 (422), and a sales multiple or minimum order
+/// quantity finer than the base unit allows with R-INV-02 (422, code quantity_precision). An unknown base unit, item
+/// posting group or warehouse, or a warehouse of another company, is a 400 with a field-specific code and no ruleId.
+/// All of them are found inside the transaction and therefore stored as the key's result (Build Brief, Errors). One
+/// audit event and one outbox event per created row, the type in the event name being the row's type (D-44, R-AUD-01).
 /// </summary>
 internal sealed class CreateItemHandler : ICommandHandler<CreateItem, ItemView>
 {
@@ -41,15 +42,16 @@ internal sealed class CreateItemHandler : ICommandHandler<CreateItem, ItemView>
             return Error.Validation("base_unit_unknown", $"Unit {command.BaseUnit} is not a unit of measure.");
         }
 
-        // Quantities in the base unit carry at most the unit's decimals (UnitOfMeasure.decimals).
-        if (command.SalesMultiple is { } multiple && DecimalRounding.Scale(multiple) > unitDecimals && DecimalRounding.Round(multiple, unitDecimals.Value) != multiple)
+        // R-INV-02: quantities in the base unit carry at most the unit's decimals (UnitOfMeasure.decimals); a finer value is a
+        // rule violation (422) with the quantity precision code, the field named in the details (Build Brief, Errors).
+        if (QuantityPrecisionError(command.SalesMultiple, "salesMultiple", "Sales multiple", command.BaseUnit, unitDecimals.Value) is { } multipleError)
         {
-            return Error.Validation("sales_multiple_precision", $"Sales multiple {multiple} has more decimals than unit {command.BaseUnit} allows ({unitDecimals}).");
+            return multipleError;
         }
 
-        if (command.MinOrderQty is { } minimum && DecimalRounding.Scale(minimum) > unitDecimals && DecimalRounding.Round(minimum, unitDecimals.Value) != minimum)
+        if (QuantityPrecisionError(command.MinOrderQty, "minOrderQty", "Minimum order quantity", command.BaseUnit, unitDecimals.Value) is { } minimumError)
         {
-            return Error.Validation("min_order_qty_precision", $"Minimum order quantity {minimum} has more decimals than unit {command.BaseUnit} allows ({unitDecimals}).");
+            return minimumError;
         }
 
         if (!await ItemStore.ItemPostingGroupExistsAsync(unitOfWork, command.ItemPostingGroup, cancellationToken))
@@ -110,6 +112,15 @@ internal sealed class CreateItemHandler : ICommandHandler<CreateItem, ItemView>
 
     /// <summary>The storage scale of a quantity column, numeric(20,6) (Specification, Data types); the validator refuses anything finer.</summary>
     public const int QuantityScale = 6;
+
+    /// <summary>
+    /// The R-INV-02 rejection of a quantity finer than the base unit allows, or null when it fits: the same rule, code and
+    /// check as <see cref="Quantity.Create"/>, with the field named in the message and the details (Build Brief, Errors).
+    /// </summary>
+    private static Error? QuantityPrecisionError(decimal? value, string field, string label, UnitCode unit, int unitDecimals) =>
+        value is { } quantity && !Quantity.FitsUnit(quantity, unitDecimals)
+            ? Error.Rule("R-INV-02", Quantity.PrecisionCode, $"{label} {quantity} has more decimals than unit {unit} allows ({unitDecimals}).", new Dictionary<string, string> { ["field"] = field })
+            : null;
 
     /// <summary>The ITEM_COMPANY_CREATED payload: the id and fields of the row, with the item it belongs to.</summary>
     internal sealed record ItemCompanyCreated(Guid ItemId, ItemCompanyView Row);

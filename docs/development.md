@@ -214,11 +214,13 @@ holds SELECT, INSERT and UPDATE on the five tables and never DELETE (R-MD-03).
 An item is installation-wide and its company row holds what differs per company (D-43). `ITEM.CREATE`
 (`POST /v1/kernel/items`) creates both in one command for the company in the body, which is also the command's scope
 (R-SEC-01). The item number is stored uppercase and is unique per installation; a duplicate is 422 with ruleId
-`R-MD-05` and code `item_number_duplicate`. An unknown base unit, item posting group or default warehouse, a warehouse
-of another company, or a sales multiple or minimum order quantity finer than the unit's decimals, is a 400 with its
-own code (`base_unit_unknown`, `item_posting_group_unknown`, `default_warehouse_unknown`,
-`default_warehouse_other_company`, `sales_multiple_precision`, `min_order_qty_precision`) and no ruleId; found inside
-the transaction, it is stored as the key's result, so a replay returns the same 400 (Build Brief, Errors). Shape
+`R-MD-05` and code `item_number_duplicate`; a sales multiple or minimum order quantity finer than the base unit's
+decimals is 422 with ruleId `R-INV-02` and code `quantity_precision`, the field named in the error's details, the
+same rejection `Quantity.Create` gives everywhere (Build Brief, Errors: a value that breaks a rule tied to master
+data is a 422 with that rule). An unknown base unit, item posting group or default warehouse, or a warehouse of
+another company, is a 400 with its own code (`base_unit_unknown`, `item_posting_group_unknown`,
+`default_warehouse_unknown`, `default_warehouse_other_company`) and no ruleId. Found inside the transaction, all of
+these are stored as the key's result, so a replay returns the same status (Build Brief, Errors). Shape
 errors (`description_required`, `net_weight_kg_negative`, `net_weight_kg_precision` and the like) are refused before
 the transaction and are not stored, so a corrected retry with the same key runs. An unknown enum value such as a
 costing method other than `MovingAverage` is refused at binding. The command writes one audit event and one outbox
