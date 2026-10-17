@@ -183,18 +183,14 @@ public sealed class ItemCommandTests : IAsyncLifetime
     [InlineData("group", "item_posting_group_unknown")]
     [InlineData("warehouse-unknown", "default_warehouse_unknown")]
     [InlineData("warehouse-other", "default_warehouse_other_company")]
-    [InlineData("multiple", "sales_multiple_precision")]
-    [InlineData("minimum", "min_order_qty_precision")]
-    public async Task An_unknown_reference_or_a_quantity_finer_than_the_unit_is_400_with_its_own_code_no_ruleId_and_is_stored_as_the_key_result(string which, string code)
+    public async Task An_unknown_reference_is_400_with_its_own_code_no_ruleId_and_is_stored_as_the_key_result(string which, string code)
     {
         object body = which switch
         {
             "unit" => Item("TEST-400", unit: "XXX"),
             "group" => Item("TEST-400", group: "NOPE"),
             "warehouse-unknown" => Item("TEST-400", warehouse: Guid.NewGuid()),
-            "warehouse-other" => Item("TEST-400", warehouse: _data!.OtherWarehouse),
-            "multiple" => Item("TEST-400", salesMultiple: "1.5"),
-            _ => Item("TEST-400", minOrderQty: "0.25"),
+            _ => Item("TEST-400", warehouse: _data!.OtherWarehouse),
         };
         string key = "item-400-" + which;
 
@@ -210,6 +206,32 @@ public sealed class ItemCommandTests : IAsyncLifetime
         Assert.Equal(400, replay.Status);
         Assert.True(replay.Replayed);
         Assert.Equal(code, replay.Code);
+        Assert.Equal(1L, await _host.ScalarAsync("SELECT count(*) FROM kernel.idempotency_record WHERE key = @key", Ct, ("key", key)));
+    }
+
+    [Theory]
+    [InlineData("multiple", "salesMultiple")]
+    [InlineData("minimum", "minOrderQty")]
+    public async Task R_INV_02_a_sales_multiple_or_minimum_order_quantity_finer_than_the_unit_is_422_with_code_quantity_precision_and_is_stored_as_the_key_result(string which, string field)
+    {
+        // H87 (pieces) has 0 decimals (Build Brief, Errors: a value that breaks a rule tied to master data is a 422 with that rule).
+        object body = which == "multiple" ? Item("TEST-422", salesMultiple: "1.5") : Item("TEST-422", minOrderQty: "0.25");
+        string key = "item-422-" + which;
+
+        CommandReply reply = await _host.PostAsync(Items, body, key, cancellationToken: Ct);
+        CommandReply replay = await _host.PostAsync(Items, body, key, cancellationToken: Ct);
+
+        Assert.Equal(422, reply.Status);
+        Assert.Equal("application/problem+json", reply.MediaType);
+        Assert.Equal("quantity_precision", reply.Code);
+        Assert.Equal("R-INV-02", reply.RuleId);
+        Assert.Equal(field, reply.Json!["errors"]![0]!["details"]!["field"]!.GetValue<string>());
+        Assert.Equal(0L, await ItemsCreatedAsync());
+        Assert.Equal(0L, await _host.CountAsync("kernel.outbox_event", Ct));
+        Assert.Equal(422, replay.Status);
+        Assert.True(replay.Replayed);
+        Assert.Equal("quantity_precision", replay.Code);
+        Assert.Equal("R-INV-02", replay.RuleId);
         Assert.Equal(1L, await _host.ScalarAsync("SELECT count(*) FROM kernel.idempotency_record WHERE key = @key", Ct, ("key", key)));
     }
 

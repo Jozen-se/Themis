@@ -23,14 +23,24 @@ public readonly record struct Quantity : IComparable<Quantity>
 
     public bool IsNegative => Value < 0m;
 
-    /// <summary>Checks the entered value against the unit's decimals (UnitOfMeasure.decimals, R-INV-02).</summary>
+    /// <summary>The error code of a quantity finer than its unit allows (R-INV-02); every such rejection carries it.</summary>
+    public const string PrecisionCode = "quantity_precision";
+
+    /// <summary>
+    /// Checks the entered value against the unit's decimals (UnitOfMeasure.decimals). A finer value breaks R-INV-02, a rule
+    /// tied to master data, so it is a rule violation (422) with that rule and <see cref="PrecisionCode"/> (Build Brief, Errors).
+    /// </summary>
     public static Result<Quantity> Create(decimal value, UnitCode unit, int unitDecimals)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(unitDecimals);
-        return DecimalRounding.Scale(value) > unitDecimals && DecimalRounding.Round(value, unitDecimals) != value
-            ? Error.Validation("quantity_precision", $"Quantity {value} has more decimals than unit {unit} allows ({unitDecimals}).", "R-INV-02")
-            : new Quantity(value, unit);
+        return FitsUnit(value, unitDecimals)
+            ? new Quantity(value, unit)
+            : Error.Rule("R-INV-02", PrecisionCode, $"Quantity {value} has more decimals than unit {unit} allows ({unitDecimals}).");
     }
+
+    /// <summary>True when the value carries at most the unit's decimals (R-INV-02).</summary>
+    public static bool FitsUnit(decimal value, int unitDecimals) =>
+        DecimalRounding.Scale(value) <= unitDecimals || DecimalRounding.Round(value, unitDecimals) == value;
 
     public static Quantity Zero(UnitCode unit) => new(0m, unit);
 
