@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Foundation Design* (https://claude.ai/artifact/B7yhaqHmFJqQCAo23KSDXq), revision 144, taken 2026-10-13.
+> **Snapshot** of the live document *Themis Foundation Design* (https://claude.ai/artifact/B7yhaqHmFJqQCAo23KSDXq), revision 146, taken 2026-10-17.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite rule IDs
 > without leaving the repository. Where this copy and the live document differ, the live document wins.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -25,7 +25,7 @@ Version 1 is Phases 0 to 2: the kernel with master data and inventory, then purc
 
 **Gate between phases:** a phase is done when its ledger invariant tests and end-to-end scenario tests pass, and its rules in this doc are marked Decided.
 
-**Build order inside Phase 0 (D-27, proposed):** a walking skeleton first, meaning Items, an inventory adjustment, its general ledger posting, one invariant test and one event, running end to end with CI. The rest of Phase 0 follows only once that runs. This keeps the kernel from growing before anything works.
+**Build order inside Phase 0 (D-27):** a walking skeleton first, meaning Items, an inventory adjustment, its general ledger posting, one invariant test and one event, running end to end with CI. The rest of Phase 0 follows only once that runs. This keeps the kernel from growing before anything works.
 
 **Not in v1:** payroll and HR, CRM and marketing, web shop, EDI, fixed assets, consolidation, foreign-exchange revaluation, country-specific statutory reporting beyond basic VAT. Currency is modelled from day one (R-MON-01) so that later multi-currency work does not need a data model change.
 
@@ -365,7 +365,7 @@ Forty-five decisions are made and four are open (D-10, D-20, D-36, D-48); none o
 | D-24 | Stock and ledger consistency: one transaction (option A), through one kernel posting service behind a published interface; no inline cross-module subscribers in v1 | [Decided] | Your decision, 2026-10-08, with the architect's agreement. R-LED-07. Gaps are caught at master data time (D-32) |
 | D-25 | Observability baseline from the first commit | [Decided] | Confirmed 2026-10-09 |
 | D-26 | Enforced module boundaries: architecture tests in CI, one database schema and role per module | [Decided] | Confirmed 2026-10-09. Document tables owned by the kernel (D-39); role mechanism in D-41 |
-| D-27 | Walking skeleton before the rest of Phase 0 | [Decided] | Confirmed 2026-10-09. Milestone 1 in the build brief |
+| D-27 | Walking skeleton before the rest of Phase 0 | [Decided] | Confirmed 2026-10-09. Milestone 1 in the build brief; build progress in the repository README |
 | D-28 | No tenant identifier: one installation per company group, with several companies inside | [Decided] | Your decision, 2026-10-08 |
 | D-29 | Agile by design (P-11): invariants are fixed; everything else ships as a best-practice default that can be configured | [Decided] | Your decision, 2026-10-08. Classification under Core rulesets |
 | D-30 | Build order: kernel with master data and inventory, then Purchasing and Sales together, then finance through a first financial close, then Warehousing, then Quality, Transportation and Manufacturing | [Decided] | Your decision, 2026-10-08. The general ledger core stays in Phase 0. Version 1 is Phases 0 to 2 |
