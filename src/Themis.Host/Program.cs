@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Scalar.AspNetCore;
 using Themis.Host.Observability;
+using Themis.Kernel.Contracts.Documents;
 using Themis.Kernel.Contracts.MasterData;
 using Themis.Kernel.Contracts.Organisation;
+using Themis.Kernel.Documents;
 using Themis.Kernel.Identity;
 using Themis.Kernel.MasterData;
 using Themis.Kernel.Organisation;
@@ -44,6 +46,7 @@ public sealed class Program
         builder.Services.AddKernelOrganisation();
         builder.Services.AddKernelMasterData();
         builder.Services.AddKernelPosting();
+        builder.Services.AddKernelDocuments();
         builder.Services.AddKernelOpenApi();
         builder.Services.AddProblemDetails();
 
@@ -62,6 +65,8 @@ public sealed class Program
         app.MapCommandRoutes(MasterDataRoutes.Commands);
         app.MapQuery<GetItem, ItemView>(MasterDataRoutes.Item);
         app.MapQuery<GetItemByNumber, ItemView>(MasterDataRoutes.ItemByNumber);
+        app.MapCommandRoutes(DocumentRoutes.Commands);
+        app.MapQuery<GetInventoryAdjustment, InventoryAdjustmentView>(DocumentRoutes.InventoryAdjustment);
 
         if (app.Environment.IsDevelopment())
         {

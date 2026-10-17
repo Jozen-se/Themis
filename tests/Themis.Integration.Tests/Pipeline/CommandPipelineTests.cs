@@ -16,8 +16,11 @@ namespace Themis.Integration.Tests.Pipeline;
 
 /// <summary>
 /// The command pipeline end to end on the fixture module's commands: one transaction with two role switches,
-/// idempotency with replay, concurrent duplicate and reuse, optimistic concurrency, audit and outbox rows, the
-/// stored rejection, the whole-command retry and the role boundary (brief, milestone 1 checklist).
+/// idempotency with replay, concurrent duplicate and reuse, audit and outbox rows with the event envelope (D-50),
+/// the stored rejection, the whole-command retry and the role boundary (brief, milestone 1 checklist). The
+/// optimistic concurrency and ETag tests of the versioned commands moved to the real INVENTORY_ADJUSTMENT.UPDATE in
+/// step 7 (InventoryAdjustmentCommandTests); the fixture's touch command keeps the failure injection under the
+/// themis_fixture role.
 /// </summary>
 [Collection(PostgresTestGroup.Name)]
 [Trait("Category", "Integration")]
@@ -77,6 +80,12 @@ public sealed class CommandPipelineTests : IAsyncLifetime
         Assert.Equal(id, await _host.ScalarAsync("SELECT aggregate_id FROM kernel.outbox_event", Ct));
         Assert.Null(await _host.ScalarAsync("SELECT published_at FROM kernel.outbox_event", Ct));
         Assert.Equal("12.50", await _host.ScalarAsync("SELECT payload->>'sample' FROM kernel.outbox_event", Ct));
+        // D-50: the envelope: aggregate type and company from the publisher, command name and correlation id from the pipeline; never the key or the user.
+        Assert.Equal("FIXTURE_COUNTER", await _host.ScalarAsync("SELECT aggregate_type FROM kernel.outbox_event", Ct));
+        Assert.Equal(Company, await _host.ScalarAsync("SELECT company_id FROM kernel.outbox_event", Ct));
+        Assert.Equal("ITEM.CREATE", await _host.ScalarAsync("SELECT command_name FROM kernel.outbox_event", Ct));
+        Assert.Equal("corr-create-1", await _host.ScalarAsync("SELECT correlation_id FROM kernel.outbox_event", Ct));
+        Assert.Equal(0L, await _host.ScalarAsync("SELECT count(*) FROM information_schema.columns WHERE table_schema = 'kernel' AND table_name = 'outbox_event' AND column_name IN ('idempotency_key', 'user_id')", Ct));
     }
 
     [Fact]
@@ -108,22 +117,6 @@ public sealed class CommandPipelineTests : IAsyncLifetime
         Assert.Equal(1L, await _host.CountAsync("fixture.counter", Ct));
         Assert.Equal(1L, await _host.CountAsync("kernel.outbox_event", Ct));
         Assert.Equal(1L, await _host.ScalarAsync("SELECT count(*) FROM kernel.audit_event WHERE command_name IN ('ITEM.CREATE', 'INVENTORY_ADJUSTMENT.UPDATE', 'INVENTORY_ADJUSTMENT.POST')", Ct));
-    }
-
-    [Fact]
-    public async Task R_API_01_idempotency_keys_are_scoped_per_user()
-    {
-        // Both users hold INVENTORY_ADJUSTMENT.UPDATE (touch); only the clerk holds ITEM.CREATE since step 5.
-        CommandReply created = await _host.PostAsync(Counters, new { companyId = Company, initialValue = 1, sample = "1" }, "shared-key-create", cancellationToken: Ct);
-        Guid id = created.Json!["id"]!.GetValue<Guid>();
-        CommandReply clerk = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 1 }, "shared-key", ifMatch: "\"1\"", subject: TestUsers.ClerkSubject, cancellationToken: Ct);
-        CommandReply preparer = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 1 }, "shared-key", ifMatch: "\"2\"", subject: TestUsers.PreparerSubject, cancellationToken: Ct);
-
-        Assert.Equal(200, clerk.Status);
-        Assert.Equal(200, preparer.Status);
-        Assert.False(preparer.Replayed);
-        Assert.Equal(3, preparer.Json!["value"]!.GetValue<long>());
-        Assert.Equal(2L, await _host.ScalarAsync("SELECT count(*) FROM kernel.idempotency_record WHERE key = 'shared-key'", Ct));
     }
 
     [Fact]
@@ -225,94 +218,6 @@ public sealed class CommandPipelineTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task R_API_02_touch_needs_the_current_version_from_If_Match()
-    {
-        Guid id = await CreateAsync("touch-create");
-
-        CommandReply touched = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 3 }, "touch-1", ifMatch: "\"1\"", cancellationToken: Ct);
-        CommandReply stale = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 3 }, "touch-2", ifMatch: "\"1\"", cancellationToken: Ct);
-        CommandReply missing = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 3 }, "touch-3", ifMatch: null, cancellationToken: Ct);
-        CommandReply weak = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 1 }, "touch-4", ifMatch: "W/\"2\"", cancellationToken: Ct);
-
-        Assert.Equal(200, touched.Status);
-        Assert.Equal(8, touched.Json!["value"]!.GetValue<long>());
-        Assert.Equal(2, touched.Json["version"]!.GetValue<long>());
-        Assert.Equal(412, stale.Status);
-        Assert.Equal("version_stale", stale.Code);
-        Assert.Equal("R-API-02", stale.RuleId);
-        Assert.Equal(428, missing.Status);
-        Assert.Equal("if_match_required", missing.Code);
-        Assert.Equal("R-API-02", missing.RuleId);
-        Assert.Equal(200, weak.Status);
-        Assert.Equal(3, weak.Json!["version"]!.GetValue<long>());
-        Assert.Equal("FIXTURE_COUNTER_TOUCHED", await _host.ScalarAsync("SELECT event_type FROM kernel.outbox_event WHERE aggregate_id = @id ORDER BY occurred_at, id OFFSET 1 LIMIT 1", Ct, ("id", id)));
-        Assert.Equal("5", await _host.ScalarAsync("SELECT changes->'value'->>'before' FROM kernel.audit_event WHERE command_name = 'INVENTORY_ADJUSTMENT.UPDATE' ORDER BY id LIMIT 1", Ct));
-    }
-
-    [Fact]
-    public async Task R_API_02_a_stale_version_is_not_stored_so_the_retry_with_the_fresh_version_runs()
-    {
-        Guid id = await CreateAsync("stale-create");
-
-        CommandReply stale = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 2 }, "stale-1", ifMatch: "\"7\"", cancellationToken: Ct);
-        Assert.Equal(412, stale.Status);
-        Assert.Equal(0L, await _host.ScalarAsync("SELECT count(*) FROM kernel.idempotency_record WHERE key = 'stale-1'", Ct));
-
-        CommandReply fresh = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 2 }, "stale-1", ifMatch: "\"1\"", cancellationToken: Ct);
-        Assert.Equal(200, fresh.Status);
-        Assert.False(fresh.Replayed);
-        Assert.Equal(2, fresh.Json!["version"]!.GetValue<long>());
-        Assert.Equal(1L, await _host.ScalarAsync("SELECT count(*) FROM kernel.idempotency_record WHERE key = 'stale-1'", Ct));
-    }
-
-    [Fact]
-    public async Task R_API_02_a_missing_If_Match_is_not_stored_either()
-    {
-        Guid id = await CreateAsync("missing-if-match-create");
-
-        CommandReply missing = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 2 }, "missing-if-match-1", ifMatch: null, cancellationToken: Ct);
-        CommandReply retry = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 2 }, "missing-if-match-1", ifMatch: "\"1\"", cancellationToken: Ct);
-
-        Assert.Equal(428, missing.Status);
-        Assert.Equal(200, retry.Status);
-        Assert.False(retry.Replayed);
-    }
-
-    [Fact]
-    public async Task R_API_04_the_fingerprint_includes_If_Match_so_a_stored_result_is_not_replayed_for_another_version()
-    {
-        Guid id = await CreateAsync("fingerprint-create");
-
-        CommandReply first = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 2 }, "fingerprint-1", ifMatch: "\"1\"", cancellationToken: Ct);
-        CommandReply replay = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 2 }, "fingerprint-1", ifMatch: "\"1\"", cancellationToken: Ct);
-        CommandReply otherVersion = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 2 }, "fingerprint-1", ifMatch: "\"2\"", cancellationToken: Ct);
-
-        Assert.Equal(200, first.Status);
-        Assert.True(replay.Replayed);
-        Assert.Equal(422, otherVersion.Status);
-        Assert.Equal("idempotency_key_reused", otherVersion.Code);
-        Assert.Equal("R-API-04", otherVersion.RuleId);
-        Assert.Equal(2L, await _host.ScalarAsync("SELECT version FROM fixture.counter WHERE id = @id", Ct, ("id", id)));
-    }
-
-    [Fact]
-    public async Task R_API_02_every_success_returns_the_new_version_as_ETag_and_a_replay_returns_the_stored_one()
-    {
-        CommandReply created = await _host.PostAsync(Counters, new { companyId = Company, initialValue = 1, sample = "1" }, "etag-create", cancellationToken: Ct);
-        Guid id = created.Json!["id"]!.GetValue<Guid>();
-        CommandReply touched = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 1 }, "etag-touch", ifMatch: created.ETag, cancellationToken: Ct);
-        CommandReply replayed = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 1 }, "etag-touch", ifMatch: created.ETag, cancellationToken: Ct);
-        CommandReply rejected = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 0 }, "etag-reject", ifMatch: touched.ETag, cancellationToken: Ct);
-
-        Assert.Equal("\"1\"", created.ETag);
-        Assert.Equal("\"2\"", touched.ETag);
-        Assert.True(replayed.Replayed);
-        Assert.Equal("\"2\"", replayed.ETag);
-        Assert.Equal(422, rejected.Status);
-        Assert.Null(rejected.ETag);
-    }
-
-    [Fact]
     public async Task D_25_the_pipeline_creates_a_correlation_id_when_a_caller_outside_HTTP_supplies_none()
     {
         await using AsyncServiceScope scope = _host.Services.CreateAsyncScope();
@@ -367,26 +272,6 @@ public sealed class CommandPipelineTests : IAsyncLifetime
         JsonNode companyGet = root["paths"]!["/v1/kernel/companies/{id}"]!["get"]!;
         Assert.Contains(companyGet["parameters"]!.AsArray(), p => p!["name"]!.GetValue<string>() == "id" && p["in"]!.GetValue<string>() == "path" && p["required"]!.GetValue<bool>());
         Assert.Contains(parameters, p => p!["name"]!.GetValue<string>() == "id" && p["in"]!.GetValue<string>() == "path");
-    }
-
-    [Fact]
-    public async Task R_API_02_the_body_cannot_override_the_version_or_the_route_id()
-    {
-        Guid id = await CreateAsync("override-create");
-
-        CommandReply reply = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 1, expectedVersion = 99, id = Guid.NewGuid() }, "override-1", ifMatch: "\"1\"", cancellationToken: Ct);
-
-        Assert.Equal(200, reply.Status);
-        Assert.Equal(id, reply.Json!["id"]!.GetValue<Guid>());
-    }
-
-    [Fact]
-    public async Task A_touch_of_a_missing_counter_is_404()
-    {
-        CommandReply reply = await _host.PostAsync($"{Counters}/{Guid.NewGuid()}/touch", new { increment = 1 }, "missing-1", ifMatch: "\"1\"", cancellationToken: Ct);
-
-        Assert.Equal(404, reply.Status);
-        Assert.Equal("counter_not_found", reply.Code);
     }
 
     [Fact]

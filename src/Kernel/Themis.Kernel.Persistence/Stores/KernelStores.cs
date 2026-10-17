@@ -80,10 +80,14 @@ internal sealed class KernelAuditStore : IAuditStore
     }
 }
 
-/// <summary>Outbox events on the command's unit of work, in the same transaction as the change (D-44).</summary>
+/// <summary>
+/// Outbox events on the command's unit of work, in the same transaction as the change (D-44), each with the full
+/// envelope (D-50): the publisher's aggregate type, aggregate id and company, and the command's occurrence time,
+/// name and correlation id. The idempotency key and the user are not written.
+/// </summary>
 internal sealed class KernelOutboxStore : IOutboxStore
 {
-    public async Task AddAsync(IKernelUnitOfWork unitOfWork, DateTimeOffset occurredAt, IReadOnlyList<OutboxEntry> entries, CancellationToken cancellationToken)
+    public async Task AddAsync(IKernelUnitOfWork unitOfWork, ICommandContext commandContext, string commandName, IReadOnlyList<OutboxEntry> entries, CancellationToken cancellationToken)
     {
         if (entries.Count == 0)
         {
@@ -98,9 +102,13 @@ internal sealed class KernelOutboxStore : IOutboxStore
                 Id = EntityId.New(),
                 EventType = entry.EventType,
                 SchemaVersion = entry.SchemaVersion,
+                AggregateType = entry.AggregateType,
                 AggregateId = entry.AggregateId,
+                CompanyId = entry.CompanyId,
+                CommandName = commandName,
+                CorrelationId = commandContext.CorrelationId.Value,
                 Payload = entry.PayloadJson,
-                OccurredAt = occurredAt,
+                OccurredAt = commandContext.Now,
             });
         }
 

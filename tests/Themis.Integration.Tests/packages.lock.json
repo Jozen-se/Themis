@@ -340,6 +340,13 @@
           "Themis.Kernel.Primitives": "[1.0.0, )"
         }
       },
+      "themis.kernel.documents": {
+        "type": "Project",
+        "dependencies": {
+          "Themis.Kernel.Contracts": "[1.0.0, )",
+          "Themis.Kernel.Primitives": "[1.0.0, )"
+        }
+      },
       "themis.kernel.identity": {
         "type": "Project",
         "dependencies": {
@@ -395,6 +402,7 @@
         "type": "Project",
         "dependencies": {
           "Npgsql": "[10.0.3, )",
+          "Themis.Kernel.Documents": "[1.0.0, )",
           "Themis.Kernel.Identity": "[1.0.0, )",
           "Themis.Kernel.MasterData": "[1.0.0, )",
           "Themis.Kernel.Organisation": "[1.0.0, )",

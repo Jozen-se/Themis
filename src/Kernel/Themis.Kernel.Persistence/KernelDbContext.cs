@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Themis.Kernel.Persistence.Entities;
+using Themis.Kernel.Persistence.Entities.Documents;
 using Themis.Kernel.Persistence.Entities.Identity;
 using Themis.Kernel.Persistence.Entities.MasterData;
 using Themis.Kernel.Persistence.Entities.Organisation;
@@ -70,6 +71,18 @@ internal sealed class KernelDbContext : DbContext
 
     public DbSet<PostingProfileRule> PostingProfileRules => Set<PostingProfileRule>();
 
+    public DbSet<DocumentType> DocumentTypes => Set<DocumentType>();
+
+    public DbSet<DocumentTransition> DocumentTransitions => Set<DocumentTransition>();
+
+    public DbSet<Document> Documents => Set<Document>();
+
+    public DbSet<DocumentLine> DocumentLines => Set<DocumentLine>();
+
+    public DbSet<InventoryAdjustment> InventoryAdjustments => Set<InventoryAdjustment>();
+
+    public DbSet<NumberSeries> NumberSeries => Set<NumberSeries>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);
@@ -77,6 +90,7 @@ internal sealed class KernelDbContext : DbContext
         IdentityModel.Configure(modelBuilder);
         MasterDataModel.Configure(modelBuilder);
         GeneralLedgerModel.Configure(modelBuilder);
+        DocumentModel.Configure(modelBuilder);
 
         modelBuilder.Entity<IdempotencyRecord>(entity =>
         {
@@ -114,8 +128,14 @@ internal sealed class KernelDbContext : DbContext
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.EventType).HasColumnName("event_type").HasMaxLength(81);
             entity.Property(e => e.SchemaVersion).HasColumnName("schema_version");
+            entity.Property(e => e.AggregateType).HasColumnName("aggregate_type").HasMaxLength(40);
             entity.Property(e => e.AggregateId).HasColumnName("aggregate_id");
+            entity.Property(e => e.CompanyId).HasColumnName("company_id");
+            entity.Property(e => e.CommandName).HasColumnName("command_name").HasMaxLength(81);
+            entity.Property(e => e.CorrelationId).HasColumnName("correlation_id").HasMaxLength(128);
             entity.Property(e => e.Payload).HasColumnName("payload").HasColumnType("jsonb");
+            // D-50: the company is empty only for installation-scope aggregates; a company named must exist.
+            entity.HasOne<Company>().WithMany().HasForeignKey(e => e.CompanyId).HasConstraintName("fk_outbox_event_company").OnDelete(DeleteBehavior.Restrict);
             entity.Property(e => e.OccurredAt).HasColumnName("occurred_at");
             entity.Property(e => e.PublishedAt).HasColumnName("published_at");
             entity.Property(e => e.Attempts).HasColumnName("attempts").HasDefaultValue(0);

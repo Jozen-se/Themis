@@ -145,6 +145,13 @@ public sealed class ItemCommandTests : IAsyncLifetime
         Assert.Equal(id.ToString(), await _host.ScalarAsync("SELECT payload->>'itemId' FROM kernel.outbox_event WHERE event_type = 'ITEM_COMPANY_CREATED'", Ct));
         Assert.Equal(rowId.ToString(), await _host.ScalarAsync("SELECT payload->'row'->>'id' FROM kernel.outbox_event WHERE event_type = 'ITEM_COMPANY_CREATED'", Ct));
         Assert.Equal(1L, await _host.ScalarAsync("SELECT count(DISTINCT schema_version) FROM kernel.outbox_event", Ct));
+        // D-50: the item is an installation-scope aggregate (no company); its company row carries the company; the pipeline fills the command and correlation.
+        Assert.Equal("ITEM", await _host.ScalarAsync("SELECT aggregate_type FROM kernel.outbox_event WHERE event_type = 'ITEM_CREATED'", Ct));
+        Assert.Null(await _host.ScalarAsync("SELECT company_id FROM kernel.outbox_event WHERE event_type = 'ITEM_CREATED'", Ct));
+        Assert.Equal("ITEM_COMPANY", await _host.ScalarAsync("SELECT aggregate_type FROM kernel.outbox_event WHERE event_type = 'ITEM_COMPANY_CREATED'", Ct));
+        Assert.Equal(Company, await _host.ScalarAsync("SELECT company_id FROM kernel.outbox_event WHERE event_type = 'ITEM_COMPANY_CREATED'", Ct));
+        Assert.Equal("ITEM.CREATE", await _host.ScalarAsync("SELECT DISTINCT command_name FROM kernel.outbox_event", Ct));
+        Assert.Equal("corr-item-1", await _host.ScalarAsync("SELECT DISTINCT correlation_id FROM kernel.outbox_event", Ct));
 
         // R-API-01: the replay returns the stored result and writes nothing.
         Assert.Equal(200, replay.Status);

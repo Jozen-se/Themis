@@ -58,7 +58,11 @@ and assignments, see Identity below) is seeded with it by `IdentitySeeder`, afte
 (R-SEC-02); a fixture that fails the check makes the migrator exit with code 4. The master data fixture of step 5
 (the item posting group `TRADE_GOODS`, see Master data below) is seeded after it by `MasterDataFixtureSeeder`, and the
 general ledger fixture of step 6 (two accounts and two posting profile rules, see General ledger below) after that by
-`GeneralLedgerFixtureSeeder`, behind the posting profile rule check; a fixture that fails it exits with code 5.
+`GeneralLedgerFixtureSeeder`, behind the posting profile rule check; a fixture that fails it exits with code 5. The
+number series fixture of step 7 (two series, see Documents below) follows by `NumberSeriesFixtureSeeder`. On every run,
+fixture or not, the migrator also writes the document type registry from the catalogue in code (`DocumentTypeSeeder`,
+exit code 7 if the catalogue breaks a registry rule), and it refuses with exit code 6 to apply the step 7 migration on
+a database whose outbox already holds rows (D-50, see Documents below).
 
 The organisation reads (`IOrganisationReader` in Contracts, implemented in `Themis.Kernel.Organisation`) give the
 company, the warehouse with its site and company, the business date of a UTC instant in the company's time zone
@@ -269,6 +273,88 @@ then party posting group or ship-to scope, then tax code, then reason code (R-PP
 rejection with R-PP-02 naming the role, the keys and the date; a winner whose account is not Active is R-PP-02 as
 well, and resolution never falls back to a less specific rule (D-49). The result carries the account, the role and
 the rule id for the journal line's explainability. Step 8 calls it; nothing posts in step 6.
+
+## Documents
+
+Step 7 brings the document framework into the kernel (D-39, D-40): the registry tables `document_type` and
+`document_transition`, the shared tables `document` and `document_line`, the INVENTORY_ADJUSTMENT extension
+`inventory_adjustment` (one row per document, keyed by the document id, holding `reason_code`) and `number_series`.
+`document_link` and `attachment` wait for Phase 1. The registry is a catalogue in code (`DocumentTypes` in
+`Themis.Kernel.Contracts`) that `Themis.Migrator` writes to the two tables on every run under `SYSTEM.SEED_CATALOGUE`,
+inserting what is missing and aligning what differs, never removing: INVENTORY_ADJUSTMENT (number on post, not
+gapless, posts inventory and the general ledger) with the transitions CREATE, UPDATE, DISCARD and POST and their event
+names (`INVENTORY_ADJUSTMENT_CREATED`, `_UPDATED`, `_DISCARDED`, and the business name `INVENTORY_ADJUSTED` for POST,
+D-44), and JOURNAL_ENTRY as a numbering-only row so that journal entry series can name it. A numbering-only row posts
+nothing, names no party role and has no transitions; the catalogue check and the database check
+`ck_document_type_numbering_only` both refuse otherwise, and the migrator exits with 7 if the catalogue breaks a
+registry rule. The kernel role only reads the registry; it holds SELECT, INSERT and UPDATE on the other tables and
+never DELETE (R-DOC-06, R-MD-03).
+
+The state machine engine (`DocumentStateMachine`, `Themis.Kernel.Documents`) allows a command only if
+`document_transition` lists it for the document's type and current status, else 422 with ruleId `R-DOC-01` and code
+`transition_not_allowed`; UPDATE checks first that the document is a Draft, else 422 `R-DOC-02` `document_not_draft`.
+Guards and effects per type stay in the type's handlers. Company scope is enforced by composite foreign keys: the
+header's and each line's warehouse `(warehouse_id, company_id)` to the warehouse, the line's `(document_id, company_id)`
+to its document, and the line's `(item_id, company_id)` to the item's ItemCompany row (D-43), for which the step 5
+unique index on `item_company` became the alternate key `ak_item_company_item_company`.
+
+The commands (permissions `INVENTORY_ADJUSTMENT.CREATE`, `UPDATE`, `DISCARD`; the preparer and the clerk hold them):
+
+- `POST /v1/kernel/inventory-adjustments` creates a Draft for the company in the body (the scope, R-SEC-01): document
+  date, optional reason code, header warehouse, external reference and posting date, and lines. The currency is the
+  company's base currency, set by the system; `draft_reference` is the document id as text, set once (R-DOC-04). A
+  draft may be incomplete: the POST guards (reason code, at least one Open line, items Stocked and Active, stock
+  coverage, period open) run at posting in step 8.
+- `POST /v1/kernel/inventory-adjustments/{id}/update` with `If-Match` carries the whole draft (R-DOC-02, R-API-02).
+  Lines are matched by line number: a new number inserts, an existing one updates when its content differs, a line
+  left out becomes Cancelled, a cancelled number given again reopens it with the new values; nothing is deleted. The
+  document version advances on every UPDATE; a line's version advances when the line changes.
+- `POST /v1/kernel/inventory-adjustments/{id}/discard` with `If-Match` moves a Draft to Discarded; the row and its
+  lines stay (R-DOC-06). A second DISCARD finds no transition (R-DOC-01).
+- `GET /v1/kernel/companies/{companyId}/inventory-adjustments/{id}` (`INVENTORY_ADJUSTMENT.READ`, D-47) returns the
+  header, the reason code and the non-Cancelled lines; the ETag is the version. The scope is the company in the route,
+  checked before anything is loaded: another company is 403 `out_of_scope`, a missing draft 404
+  `inventory_adjustment_not_found`.
+
+A line names an item set up in the company (D-43), a signed quantity in the item's base unit (positive adds stock,
+negative removes it), the warehouse (the header's when left out), the stock status (Available, Blocked) and an optional
+entered unit cost. Shape errors are 400 before the transaction and not stored: `line_number_not_positive`,
+`line_number_duplicate`, `line_item_required`, `line_quantity_zero`, `line_entered_unit_cost_negative`,
+`line_entered_unit_cost_precision`, `external_reference_too_long`, `company_required`. Unknown references and rows of
+another company are 400s found inside the transaction and stored as the key's result (Build Brief, Errors):
+`warehouse_unknown`, `warehouse_other_company`, `line_item_unknown` (no ItemCompany row in the company),
+`line_warehouse_unknown`, `line_warehouse_other_company`, `line_warehouse_required`; every line error names the line in
+`details.lineNumber`. A quantity finer than the base unit's decimals is 422 `R-INV-02` `quantity_precision`, as for
+items. Lots, units other than the base unit, costs and the POST command are out of step 7. Every command writes one
+audit event per changed row (the document, each inserted, changed, cancelled or reopened line, the extension when the
+reason code changes; R-AUD-01) and one outbox event per document, named by the registry, whose payload carries the id,
+the changed fields and the line changes (D-44).
+
+The outbox carries the event envelope of D-50 since this step: `aggregate_type`, `aggregate_id`, `company_id` (empty
+only for installation-scope aggregates such as `ITEM_CREATED`), `occurred_at`, `command_name` and `correlation_id`,
+never the idempotency key or the user. Publishers name the aggregate type and company (`IOutboxWriter.Publish`); the
+pipeline fills the command name and correlation id. The three NOT NULL columns have no default, so the step 7
+migration first checks that `kernel.outbox_event` is empty and stops otherwise; `Themis.Migrator` checks the same
+before applying anything and exits with 6 and a message telling the owner to recreate the database. Development and
+test databases hold nothing worth keeping before milestone 1 is done (D-50), and CI starts empty.
+
+Numbering (`INumberSeriesService`, implemented in `Themis.Kernel.Documents`; R-DOC-07, R-LED-08): every series, gapless
+or not, takes its numbers from its locked `number_series` row, never from a database sequence. A command asks for every
+number it needs in one call; the service locks the series rows in one `SELECT ... ORDER BY id FOR UPDATE`, primary key
+order, as the last lock class of the lock order, formats each number as the prefix plus the sequence padded to at least
+`padding` digits (after `IA-999999` comes `IA-1000000`) and advances the rows. A failed transaction returns its numbers
+with the rollback. A series the company does not have is refused with `number_series_missing`; which rule a posting
+date in a fiscal year without a JOURNAL_ENTRY series breaks is open until step 8. The database enforces the
+Specification's rules: `fiscal_year_id` exactly when the scope is PerFiscalYear and of the series' company, one series
+per company, type and fiscal year (`NULLS NOT DISTINCT`), gapless where the type requires it (the stored
+`type_requires_gapless` is tied to the registry by a composite foreign key), JOURNAL_ENTRY series always gapless and
+PerFiscalYear. `--fixture milestone-1` seeds two series for SE01 under `SYSTEM.SEED_FIXTURE`: INVENTORY_ADJUSTMENT
+continuous, prefix `IA-`, padding 6, not gapless (`IA-000001` first), and JOURNAL_ENTRY per fiscal year 2026, prefix
+`JE2026-`, padding 6, gapless (`JE2026-000001` first). Step 8 is the first caller; step 7 proves the service with tests.
+
+The fixture module's touch command no longer stands in for INVENTORY_ADJUSTMENT.UPDATE: the optimistic concurrency
+and ETag tests run against the real command, while the touch command keeps the failure injection under the
+`themis_fixture` role with the shared permission. The post command stands in for INVENTORY_ADJUSTMENT.POST until step 8.
 
 ## Linting, formatting and the licence scan
 

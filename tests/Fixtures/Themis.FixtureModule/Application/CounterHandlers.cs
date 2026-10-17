@@ -38,7 +38,7 @@ internal sealed class CreateCounterHandler : ICommandHandler<CreateCounter, Coun
         }
 
         context.Audit.Record(FixtureContracts.EntityType, counter.Id, CounterAudit.Changes(null, counter));
-        context.Outbox.Publish(EventNames.Generated(FixtureContracts.TypeCode, "CREATE"), EventNames.DefaultSchemaVersion, counter.Id, Snapshot(counter));
+        context.Outbox.Publish(EventNames.Generated(FixtureContracts.TypeCode, "CREATE"), EventNames.DefaultSchemaVersion, FixtureContracts.TypeCode, counter.Id, counter.CompanyId, Snapshot(counter));
         return Snapshot(counter);
     }
 
@@ -79,7 +79,7 @@ internal sealed class TouchCounterHandler : ICommandHandler<TouchCounter, Counte
         }
 
         context.Audit.Record(FixtureContracts.EntityType, touched.Value.Id, CounterAudit.Changes(current, touched.Value));
-        context.Outbox.Publish(EventNames.Generated(FixtureContracts.TypeCode, "TOUCH"), EventNames.DefaultSchemaVersion, touched.Value.Id, CreateCounterHandler.Snapshot(touched.Value));
+        context.Outbox.Publish(EventNames.Generated(FixtureContracts.TypeCode, "TOUCH"), EventNames.DefaultSchemaVersion, FixtureContracts.TypeCode, touched.Value.Id, touched.Value.CompanyId, CreateCounterHandler.Snapshot(touched.Value));
         return CreateCounterHandler.Snapshot(touched.Value);
     }
 }
@@ -110,7 +110,7 @@ internal sealed class PostCounterHandler : ICommandHandler<PostCounter, CounterS
 
         await _store.UpdateAsync(context.UnitOfWork, posted.Value, cancellationToken);
         context.Audit.Record(FixtureContracts.EntityType, posted.Value.Id, CounterAudit.Changes(current, posted.Value));
-        context.Outbox.Publish(EventNames.Generated(FixtureContracts.TypeCode, "POST"), EventNames.DefaultSchemaVersion, posted.Value.Id, CreateCounterHandler.Snapshot(posted.Value));
+        context.Outbox.Publish(EventNames.Generated(FixtureContracts.TypeCode, "POST"), EventNames.DefaultSchemaVersion, FixtureContracts.TypeCode, posted.Value.Id, posted.Value.CompanyId, CreateCounterHandler.Snapshot(posted.Value));
         return CreateCounterHandler.Snapshot(posted.Value);
     }
 }

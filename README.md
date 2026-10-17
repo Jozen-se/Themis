@@ -5,7 +5,7 @@ kernel with organisation, parties, items, documents and immutable ledgers, then 
 through a first financial close. C# on .NET 10, PostgreSQL, a modular monolith with enforced module boundaries.
 Apache-2.0.
 
-Status: milestone 1 step 1, the repository and pipeline. No business code yet; the walking skeleton (D-27) follows.
+Status: milestone 1 step 7, the document framework: inventory adjustment drafts, the state machine engine, numbering and the event envelope; the posting service (step 8) follows (D-27).
 
 ## Documents
 

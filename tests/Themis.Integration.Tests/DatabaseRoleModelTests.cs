@@ -81,7 +81,8 @@ public sealed class DatabaseRoleModelTests : IAsyncLifetime
         await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(TestContext.Current.CancellationToken);
 
         await ExecuteAsync(connection, "SET LOCAL ROLE themis_kernel");
-        await ExecuteAsync(connection, "INSERT INTO kernel.outbox_event (id, event_type, schema_version, aggregate_id, payload, occurred_at) VALUES (gen_random_uuid(), 'PROBE_WRITTEN', 1, gen_random_uuid(), '{}', now())");
+        // D-50: the envelope columns are NOT NULL; the probe fills them as the pipeline would.
+        await ExecuteAsync(connection, "INSERT INTO kernel.outbox_event (id, event_type, schema_version, aggregate_type, aggregate_id, command_name, correlation_id, payload, occurred_at) VALUES (gen_random_uuid(), 'PROBE_WRITTEN', 1, 'PROBE', gen_random_uuid(), 'PROBE.WRITE', 'probe', '{}', now())");
         await ExecuteAsync(connection, "UPDATE kernel.outbox_event SET published_at = now(), attempts = attempts + 1");
         await AssertRefusedAsync(connection, "UPDATE kernel.outbox_event SET payload = '{\"tampered\": true}'", insideTransaction: true);
         await AssertRefusedAsync(connection, "DELETE FROM kernel.outbox_event", insideTransaction: true);

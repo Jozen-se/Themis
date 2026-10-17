@@ -38,12 +38,15 @@ public sealed class PrivilegeMatrixTests
     }
 
     [Fact]
-    public void The_declared_matrix_covers_the_pipeline_organisation_identity_and_master_data_tables_of_the_first_four_migrations()
+    public void The_declared_matrix_covers_the_tables_of_the_six_migrations_and_the_kernel_role_never_deletes_a_document()
     {
         Assert.Equal(
-            ["account", "audit_event", "chart_of_accounts", "company", "currency", "fiscal_period", "fiscal_year", "idempotency_record", "installation", "item", "item_company", "item_posting_group", "outbox_event", "party", "permission", "posting_profile_rule", "role", "role_assignment", "role_permission", "site", "sod_conflict", "unit_of_measure", "user_account", "warehouse"],
+            ["account", "audit_event", "chart_of_accounts", "company", "currency", "document", "document_line", "document_transition", "document_type", "fiscal_period", "fiscal_year", "idempotency_record", "installation", "inventory_adjustment", "item", "item_company", "item_posting_group", "number_series", "outbox_event", "party", "permission", "posting_profile_rule", "role", "role_assignment", "role_permission", "site", "sod_conflict", "unit_of_measure", "user_account", "warehouse"],
             KernelPrivilegeMatrix.Declared.Select(grant => grant.Table).Order(StringComparer.Ordinal));
         Assert.All(KernelPrivilegeMatrix.Declared, grant => Assert.Equal("themis_kernel", grant.Role));
+        // I-14 and R-DOC-06: the document tables are never deleted from; the registry is read-only for the kernel role (D-40).
+        Assert.All(KernelPrivilegeMatrix.Declared.Where(grant => KernelPrivilegeMatrix.DocumentTables.Contains(grant.Table)), grant => Assert.DoesNotContain(TablePrivilege.Delete, grant.Privileges));
+        Assert.All(KernelPrivilegeMatrix.Declared.Where(grant => grant.Table is "document_type" or "document_transition"), grant => Assert.Equal([TablePrivilege.Select], grant.Privileges.Order()));
     }
 
     [Fact]

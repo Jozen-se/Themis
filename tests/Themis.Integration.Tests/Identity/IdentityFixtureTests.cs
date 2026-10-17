@@ -1,4 +1,5 @@
 using Npgsql;
+using Themis.Kernel.Contracts.Documents;
 using Themis.Kernel.Contracts.Identity;
 using Themis.Kernel.Contracts.Security;
 using Themis.Kernel.Identity;
@@ -100,7 +101,9 @@ public sealed class IdentityFixtureTests
         // 2 users, 3 roles, 9 role permissions, 4 assignments.
         Assert.Equal(2L + 3L + 9L + 4L, await ScalarAsync(connection, $"SELECT count(*) {fixtureAudit}"));
         Assert.Equal(18L, await ScalarAsync(connection, $"SELECT count(DISTINCT entity_id) {fixtureAudit}"));
-        Assert.Equal((long)(PermissionCatalog.Definition.Permissions.Count + PermissionCatalog.Definition.Conflicts.Count), await ScalarAsync(connection, $"SELECT count(*) {catalogueAudit}"));
+        // SYSTEM.SEED_CATALOGUE also covers the document type registry since step 7 (D-40): one event per type and per transition.
+        long registryRows = DocumentTypes.All.Count + DocumentTypes.All.Sum(type => type.Transitions.Count);
+        Assert.Equal(PermissionCatalog.Definition.Permissions.Count + PermissionCatalog.Definition.Conflicts.Count + registryRows, await ScalarAsync(connection, $"SELECT count(*) {catalogueAudit}"));
         Assert.Equal(WellKnownUsers.System.Value, await ScalarAsync(connection, $"SELECT DISTINCT user_id {fixtureAudit}"));
         Assert.Equal(1L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.audit_event WHERE command_name = 'SYSTEM.MIGRATE' AND entity_type = 'User'"));
         Assert.Equal(Milestone1IdentityFixture.ClerkSubject, await ScalarAsync(connection, $"SELECT changes->'externalSubject'->>'after' {fixtureAudit} AND entity_id = @id", ("id", Milestone1IdentityFixture.ClerkId)));

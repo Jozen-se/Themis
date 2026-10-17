@@ -49,6 +49,15 @@ internal static class KernelPrivilegeMatrix
         // General ledger core (milestone 1 step 6): accounts and posting profile rules; never DELETE (R-MD-03).
         TableGrant.Mutable(Kernel, "account", KernelRole),
         TableGrant.Mutable(Kernel, "posting_profile_rule", KernelRole),
+
+        // Document framework (milestone 1 step 7): the registry is system-owned and written by the migrator only, so
+        // the kernel role reads it (D-40); documents, lines, extensions and series are never deleted (R-DOC-06, R-MD-03).
+        TableGrant.ReadOnly(Kernel, "document_type", KernelRole),
+        TableGrant.ReadOnly(Kernel, "document_transition", KernelRole),
+        TableGrant.Mutable(Kernel, "document", KernelRole),
+        TableGrant.Mutable(Kernel, "document_line", KernelRole),
+        TableGrant.Mutable(Kernel, "inventory_adjustment", KernelRole),
+        TableGrant.Mutable(Kernel, "number_series", KernelRole),
     ];
 
     /// <summary>The tables the organisation migration creates, in dependency order.</summary>
@@ -65,6 +74,10 @@ internal static class KernelPrivilegeMatrix
 
     /// <summary>The tables the general ledger migration creates, in dependency order.</summary>
     public static IReadOnlyList<string> GeneralLedgerTables { get; } = ["account", "posting_profile_rule"];
+
+    /// <summary>The tables the document framework migration creates, in dependency order.</summary>
+    public static IReadOnlyList<string> DocumentTables { get; } =
+        ["document_type", "document_transition", "document", "document_line", "inventory_adjustment", "number_series"];
 
     /// <summary>The grant statements a migration emits for the tables it creates.</summary>
     public static IEnumerable<string> GrantsFor(params string[] tables) =>

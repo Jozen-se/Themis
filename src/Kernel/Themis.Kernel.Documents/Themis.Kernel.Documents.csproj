@@ -1,6 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Themis.Kernel.Documents: the document framework (D-39, D-40): shared tables, state machine engine, numbering (R-DOC-07). -->
+  <!--
+    Themis.Kernel.Documents: the document framework (D-39, D-40): the state machine engine over the registry tables,
+    the inventory adjustment draft commands and read of milestone 1 step 7, numbering from locked series rows
+    (R-DOC-07, R-LED-08) and the milestone 1 number series fixture as data (Themis.Kernel.Persistence writes it
+    through the definitions in Themis.Kernel.Contracts, ARCH-08). No public types (ARCH-07).
+  -->
 
   <ItemGroup>
     <ProjectReference Include="../Themis.Kernel.Primitives/Themis.Kernel.Primitives.csproj" />
@@ -8,7 +13,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="Themis.Host" />
+    <InternalsVisibleTo Include="Themis.Migrator" />
     <InternalsVisibleTo Include="Themis.Architecture.Tests" />
     <InternalsVisibleTo Include="Themis.Kernel.Tests" />
     <InternalsVisibleTo Include="Themis.Integration.Tests" />

@@ -10,8 +10,10 @@ using Microsoft.Extensions.Logging;
 using Npgsql;
 using Themis.FixtureModule;
 using Themis.FixtureModule.Contracts;
+using Themis.Kernel.Contracts.Documents;
 using Themis.Kernel.Contracts.MasterData;
 using Themis.Kernel.Contracts.Organisation;
+using Themis.Kernel.Documents;
 using Themis.Kernel.Identity;
 using Themis.Kernel.MasterData;
 using Themis.Kernel.Organisation;
@@ -75,6 +77,7 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         builder.Services.AddKernelOrganisation();
         builder.Services.AddKernelMasterData();
         builder.Services.AddKernelPosting();
+        builder.Services.AddKernelDocuments();
         builder.Services.AddKernelOpenApi();
         builder.Services.AddProblemDetails();
 
@@ -87,6 +90,8 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         app.MapCommandRoutes(MasterDataRoutes.Commands);
         app.MapQuery<GetItem, ItemView>(MasterDataRoutes.Item);
         app.MapQuery<GetItemByNumber, ItemView>(MasterDataRoutes.ItemByNumber);
+        app.MapCommandRoutes(DocumentRoutes.Commands);
+        app.MapQuery<GetInventoryAdjustment, InventoryAdjustmentView>(DocumentRoutes.InventoryAdjustment);
         app.MapOpenApi();
         await app.StartAsync();
 
