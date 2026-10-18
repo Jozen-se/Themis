@@ -36,6 +36,7 @@ Reference only (not sources of truth; the documents above win on any conflict):
 - Configurable defaults live in settings tables, never in code (P-11).
 - New dependencies must pass the licence scan; no copyleft (D-38).
 - Never change a rule or decision in code. Write "Proposed change to R-xx" in the pull request for the owner.
+- Every commit carries a Signed-off-by line matching its author (DCO, D-36). Commits you make are authored and signed off as Jozen <a07sebjo@gmail.com>, which the owner certifies; never as an AI identity.
 - No model identifiers in anything pushed. Commits and pull requests carry the session link as traceability.
 
 ## Commands
