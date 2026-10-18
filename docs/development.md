@@ -76,8 +76,9 @@ Migrations live in `src/Kernel/Themis.Kernel.Persistence/Migrations` and are gen
 dotnet ef migrations add <Name> --project src/Kernel/Themis.Kernel.Persistence --startup-project src/Kernel/Themis.Kernel.Persistence --output-dir Migrations
 ```
 
-Make the generated classes `internal sealed` (ARCH-07), declare the new tables in `KernelPrivilegeMatrix` and end
-`Up()` with the loop over `KernelPrivilegeMatrix.GrantsFor(...)`, as the first migration does. The privilege matrix
+Make the generated classes `internal sealed` (ARCH-07), declare the new tables or views in `KernelPrivilegeMatrix` and end
+`Up()` with the loop over `KernelPrivilegeMatrix.GrantsFor(...)`, as the first migration does (a view-only migration
+such as step 10's carries raw SQL and no model change). The privilege matrix
 test (I-14) fails on any grant the matrix does not declare, and the migrations history table carries no grants at all.
 
 The host never applies migrations. Its configuration comes from `appsettings.json`, `appsettings.Development.json`
@@ -484,6 +485,38 @@ oldest first, run two passes concurrently with the first held after its claim, f
 that a rolled-back command leaves no event; the host tests prove the loop and the option validation. Not in step 9:
 external delivery, a broker or webhooks, the D-50 delivery terms, a counter of retried events, LISTEN/NOTIFY wake-up,
 the reporting view (step 10) and property-based runs (step 11).
+
+## Reporting
+
+Step 10 brings the first reporting view, `reporting.stock_by_warehouse` (step 10 brief; D-54, I-15), created by a
+migration, owned by `themis_migrator` and running with its owner's rights (Build Brief, Database roles), with SELECT
+granted to `themis_reporting` and nothing else: it is the first privilege matrix entry for that role, and the role
+still holds no privilege on any `kernel` table (I-14). A BI tool logged in as `themis_reporting` reads current stock
+quantity and value per company, item and warehouse from it.
+
+One row per company, item and warehouse with stock on hand, summed over stock statuses and lots (`lot_id` is always
+empty in milestone 1); rows with `on_hand_total` 0 are left out. The columns, which BI tools bind to: `company_id`,
+`company_code`, `item_id`, `item_number`, `item_description`, `warehouse_id`, `warehouse_code`, `unit_code` (the item's
+base unit), `on_hand_total`, `on_hand_available` (the Available stock status), `on_hand_blocked`, `reserved` (0 in
+milestone 1; Available minus reservations will be a separate column), `stock_value`, `currency_code` (the company's
+base currency) and `item_average_cost` (the item's company-level average, the same on every warehouse row). Money and
+quantities are `numeric` (R-MON-01). A test compares the columns and types with a declared list, so any change to the
+view is a visible test change.
+
+The view reads the caches only, `stock_balance` for quantities and `item_cost_state` for value, written in the posting
+transaction and kept equal to the inventory entries by I-03 and I-04; it never reads journal lines or inventory
+entries, and the tests compare it with them. Value per warehouse is the allocation of D-54: the item's
+`inventory_value` times the warehouse's `on_hand_total` over the item's `quantity_base`, each share rounded down to
+the company currency's minor unit, the rounding difference to the warehouse with the largest `on_hand_total`, then
+the lowest `warehouse_id`, so the warehouse values sum to `inventory_value` exactly and none is negative (I-15). It is
+one query with window functions, the zero filter in `HAVING` and `NULLIF(quantity_base, 0)` in the division. The
+definition is the versioned KPI `docs/kpi/stock-value.md` (version 1, owner the role Finance owner); the view's
+comment names it. The version lives in the document, not in the view name: a change of meaning gets a new view name
+and version 2, added columns do not.
+
+Operations note: until row-level security is added (Build Brief, Database roles), the view returns every company of
+the installation, so the `themis_reporting` credentials are installation-wide and are handed out accordingly. Not in
+step 10: the star schema, other KPI definitions, values at a past date, row-level security, a read replica.
 
 ## Linting, formatting and the licence scan
 

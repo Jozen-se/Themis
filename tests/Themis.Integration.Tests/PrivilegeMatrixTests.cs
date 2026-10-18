@@ -38,12 +38,16 @@ public sealed class PrivilegeMatrixTests
     }
 
     [Fact]
-    public void The_declared_matrix_covers_the_tables_of_the_seven_migrations_and_the_kernel_role_never_deletes_a_document_or_changes_a_ledger_entry()
+    public void The_declared_matrix_covers_the_tables_and_views_of_the_eight_migrations_and_the_kernel_role_never_deletes_a_document_or_changes_a_ledger_entry()
     {
         Assert.Equal(
-            ["account", "audit_event", "chart_of_accounts", "company", "currency", "document", "document_line", "document_transition", "document_type", "fiscal_period", "fiscal_year", "idempotency_record", "installation", "inventory_adjustment", "inventory_entry", "item", "item_company", "item_cost_state", "item_posting_group", "journal_entry", "journal_line", "number_series", "outbox_event", "party", "permission", "posting_profile_rule", "role", "role_assignment", "role_permission", "site", "sod_conflict", "stock_balance", "unit_of_measure", "user_account", "warehouse"],
+            ["account", "audit_event", "chart_of_accounts", "company", "currency", "document", "document_line", "document_transition", "document_type", "fiscal_period", "fiscal_year", "idempotency_record", "installation", "inventory_adjustment", "inventory_entry", "item", "item_company", "item_cost_state", "item_posting_group", "journal_entry", "journal_line", "number_series", "outbox_event", "party", "permission", "posting_profile_rule", "role", "role_assignment", "role_permission", "site", "sod_conflict", "stock_balance", "stock_by_warehouse", "unit_of_measure", "user_account", "warehouse"],
             KernelPrivilegeMatrix.Declared.Select(grant => grant.Table).Order(StringComparer.Ordinal));
-        Assert.All(KernelPrivilegeMatrix.Declared, grant => Assert.Equal("themis_kernel", grant.Role));
+        // Step 10 (D-54): the reporting view is the one entry for themis_reporting, SELECT only; everything else belongs to the kernel role.
+        Assert.All(KernelPrivilegeMatrix.Declared.Where(grant => grant.Schema == "kernel"), grant => Assert.Equal("themis_kernel", grant.Role));
+        TableGrant reporting = Assert.Single(KernelPrivilegeMatrix.Declared, grant => grant.Schema == "reporting");
+        Assert.Equal(("stock_by_warehouse", "themis_reporting"), (reporting.Table, reporting.Role));
+        Assert.Equal([TablePrivilege.Select], reporting.Privileges.Order());
         // I-14 and R-DOC-06: the document tables are never deleted from; the registry is read-only for the kernel role (D-40).
         Assert.All(KernelPrivilegeMatrix.Declared.Where(grant => KernelPrivilegeMatrix.DocumentTables.Contains(grant.Table)), grant => Assert.DoesNotContain(TablePrivilege.Delete, grant.Privileges));
         Assert.All(KernelPrivilegeMatrix.Declared.Where(grant => grant.Table is "document_type" or "document_transition"), grant => Assert.Equal([TablePrivilege.Select], grant.Privileges.Order()));

@@ -13,6 +13,8 @@ internal static class KernelPrivilegeMatrix
 {
     private const string Kernel = "kernel";
     private const string KernelRole = "themis_kernel";
+    private const string Reporting = "reporting";
+    private const string ReportingRole = "themis_reporting";
 
     public static IReadOnlyList<TableGrant> Declared { get; } =
     [
@@ -66,6 +68,9 @@ internal static class KernelPrivilegeMatrix
         TableGrant.AppendOnly(Kernel, "inventory_entry", KernelRole),
         TableGrant.Mutable(Kernel, "item_cost_state", KernelRole),
         TableGrant.Mutable(Kernel, "stock_balance", KernelRole),
+
+        // Reporting (milestone 1 step 10): the view runs with its owner's rights; the BI role reads it and nothing else (D-54, I-14).
+        TableGrant.ReadOnly(Reporting, "stock_by_warehouse", ReportingRole),
     ];
 
     /// <summary>The tables the organisation migration creates, in dependency order.</summary>
@@ -86,6 +91,9 @@ internal static class KernelPrivilegeMatrix
     /// <summary>The tables the document framework migration creates, in dependency order.</summary>
     public static IReadOnlyList<string> DocumentTables { get; } =
         ["document_type", "document_transition", "document", "document_line", "inventory_adjustment", "number_series"];
+
+    /// <summary>The views the reporting migration creates.</summary>
+    public static IReadOnlyList<string> ReportingViews { get; } = ["stock_by_warehouse"];
 
     /// <summary>The tables the posting migration creates, in dependency order.</summary>
     public static IReadOnlyList<string> LedgerTables { get; } = ["journal_entry", "journal_line", "inventory_entry", "item_cost_state", "stock_balance"];
