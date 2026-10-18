@@ -67,5 +67,20 @@ public sealed class HostSmokeTests : IDisposable
         Assert.NotEqual("bad id with spaces", Assert.Single(response.Headers.GetValues("X-Correlation-Id")));
     }
 
+    [Theory]
+    [InlineData("BatchSize", "0")]
+    [InlineData("PollInterval", "00:00:00")]
+    [InlineData("PollInterval", "-00:00:01")]
+    public void Invalid_relay_options_stop_the_host_at_start_also_with_the_relay_disabled(string option, string value)
+    {
+        // Step 9 brief: Outbox:Relay:* are validated at every host start, enabled or not.
+        using WebApplicationFactory<Program> factory = new WebApplicationFactory<Program>()
+            .WithWebHostBuilder(builder => builder.UseEnvironment("Testing").UseSetting("Outbox:Relay:Enabled", "false").UseSetting($"Outbox:Relay:{option}", value));
+
+        Exception failure = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
+
+        Assert.Contains($"Outbox:Relay:{option}", failure.ToString(), StringComparison.Ordinal);
+    }
+
     public void Dispose() => _factory.Dispose();
 }

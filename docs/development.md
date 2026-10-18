@@ -121,8 +121,10 @@ Documents below); the post stand-in of step 4 retired in step 8, whose permissio
 `INVENTORY_ADJUSTMENT.POST`. A counter belongs to a company and optionally a site, which is where its scope comes from.
 The fixture commands take a `failure` member that injects a rejection, an exception, a serialization failure on the
 first attempt or a write to a kernel table after the business write, so the tests prove what the pipeline leaves
-behind in each case. The fixture module also implements the posting service's hook (`IPostingHook`, see Posting
-below): `PostingFailureSwitch` names the failure the hook raises after the ledger writes of a posting.
+behind in each case. The test implementations of the kernel's seams (the posting hook's `PostingFailureSwitch` and
+`TestPostingHook`, the relay's `TestOutboxRelaySeam`) live in `tests/Themis.Integration.Tests/Pipeline/TestSeams.cs`
+and are registered before the kernel's registrations, which keep them; the register of every test-only part is
+`docs/development/test-seams.md` (Build Brief, Test seams).
 
 The Keycloak smoke test starts a Keycloak container with the realm export and signs in as the clerk. Without a
 container runtime it is skipped; set `THEMIS_TEST_KEYCLOAK` to the base URL of a running Keycloak with the realm
@@ -426,9 +428,10 @@ business name of POST, D-44) with the envelope of D-50, whose payload carries th
 document (`status`, `documentNumber`, `postedAt`, `postedBy`, `version`) and per line `unitCost` and `costAmount`
 with the change `Posted`.
 
-The posting service's hook (`IPostingHook` in Contracts, called after the ledger writes and before the document
-update) exists for the failure-injection tests of the Build Brief; `Themis.Host` registers the production hook, which
-does nothing, and the integration tests register the fixture module's. The 13 reference calculations of the Build
+The posting service's hook (`IPostingHook`, internal to `Themis.Kernel.Posting` since step 9, called after the ledger
+writes and before the document update) exists for the failure-injection tests of the Build Brief; `AddKernelPosting`
+registers the production hook, which does nothing, and the integration tests register theirs first (see
+`docs/development/test-seams.md`). The 13 reference calculations of the Build
 Brief run as unit tests of the algorithm (`MovingAverageCostTests`) and end to end through the pipeline
 (`InventoryAdjustmentPostingTests`), which also prove the guards, the transaction boundary, idempotency and versions,
 the lock order under concurrency (two adjustments on the same items in opposite line order, and two on new items racing
@@ -436,6 +439,51 @@ the cache inserts), the audit and outbox convention, the role model on the new t
 I-02, I-03, I-04, I-06, I-08 and I-09 after every posting. Not in step 8: REVERSE, lots, reservations, units other
 than the base unit, multi-currency and ROUNDING lines, the outbox relay, the reporting view, property-based runs and
 the fiscal year commands.
+
+## Outbox relay
+
+Step 9 brings the outbox relay (D-53; Build Brief, step 9): every committed outbox event is picked up, logged and
+marked published. Nothing leaves the system yet; delivery is at least once, and the delivery terms for integrations
+(ordering per aggregate, claiming with a lease, retries and back-off, dead letters, retention) stay open under D-50
+and D-53, so consumers must be idempotent.
+
+The pass (`OutboxRelayPass`, `Themis.Kernel.Messaging`) is one short transaction on its own connection through the
+unit of work as `themis_kernel` (R-DB-01). It is not a command: no permission, Idempotency-Key, If-Match, audit event
+or outbox event of its own (D-53). It records the age of the oldest unpublished event, claims the unpublished events
+with `SELECT ... ORDER BY occurred_at, id LIMIT batch FOR UPDATE SKIP LOCKED` (the partial index on `occurred_at`
+where `published_at IS NULL` serves it), so two passes never hold the same event at the same time, logs each event,
+sets `published_at` to the pass's UTC time from the injected `TimeProvider` (R-TIME-01) and `attempts` to
+`attempts + 1`, the only two columns the kernel role may update, and commits. `attempts` therefore counts committed
+passes and is 1 for every published event in step 9; a pass that fails rolls back its updates with it and the next pass
+handles the events again, so a crash loop shows in the age of the oldest waiting event, not in `attempts` (counting
+each try needs a committed claim with a lease column, which comes with the D-50 terms). The relay never uses the
+command pipeline's whole-command retry (D-41 is about commands). Published rows stay; `themis_kernel` has no DELETE on
+`outbox_event`, and retention becomes a migrator or operator task when the D-50 terms are settled.
+
+The background loop (`OutboxRelayHostedService`, `Themis.Host`) runs the pass: after a full batch the next pass runs
+at once; after a partial or empty batch, or a failed pass, it waits `PollInterval`. Cancellation ends the loop between
+passes; a pass in flight rolls back. The host registers the loop only when a connection string is configured. Its
+options are host configuration, not settings-table defaults (Build Brief, Settings; P-11 covers what a company
+adjusts): `Outbox:Relay:Enabled` (default true), `Outbox:Relay:PollInterval` (default `00:00:01`) and
+`Outbox:Relay:BatchSize` (default 100), validated at every host start, enabled or not; an interval or batch size at or
+below zero stops the host with the offending key in the message. The integration tests run with the relay disabled and
+call the pass directly, so no test waits on the timer.
+
+Log and telemetry (D-25; Build Brief, Observability): one Information line per published event from
+`Themis.Kernel.Messaging.OutboxRelayPass` with the D-50 envelope (event id, type, schema version, aggregate type and
+id, company, command name, correlation id, `occurred_at`) and the `attempts` being committed, never the payload and no
+user; the event's command name and correlation id are also log scopes, so the line sits next to the command's own
+lines in a filter. Lines about a pass itself (start, failure, stop) carry neither. Two instruments on the meter
+`Themis.Kernel.Messaging`, exported like the pipeline's: the counter `themis.outbox.published`, incremented after the
+commit, and the gauge `themis.outbox.oldest_pending_age` in whole seconds (0 when none), recorded at the start of every
+pass before claiming, so a failing pass still updates it. The age gauge is what shows a stuck relay.
+
+The pass has a test seam between the claim and the commit (`IOutboxRelaySeam`, see `docs/development/test-seams.md`).
+The relay tests (`OutboxRelayTests`) post an adjustment and run one pass, publish every event type of the milestone
+oldest first, run two passes concurrently with the first held after its claim, fail a pass after its claim, and show
+that a rolled-back command leaves no event; the host tests prove the loop and the option validation. Not in step 9:
+external delivery, a broker or webhooks, the D-50 delivery terms, a counter of retried events, LISTEN/NOTIFY wake-up,
+the reporting view (step 10) and property-based runs (step 11).
 
 ## Linting, formatting and the licence scan
 

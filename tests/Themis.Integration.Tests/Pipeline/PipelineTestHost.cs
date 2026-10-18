@@ -16,6 +16,7 @@ using Themis.Kernel.Contracts.Organisation;
 using Themis.Kernel.Documents;
 using Themis.Kernel.Identity;
 using Themis.Kernel.MasterData;
+using Themis.Kernel.Messaging;
 using Themis.Kernel.Organisation;
 using Themis.Kernel.Persistence;
 using Themis.Kernel.Pipeline;
@@ -57,6 +58,16 @@ internal sealed class PipelineTestHost : IAsyncDisposable
 
     public long Retries { get; private set; }
 
+    /// <summary>Outbox events the relay published through this host (counter themis.outbox.published).</summary>
+    public long Published { get; private set; }
+
+    /// <summary>The last recorded age of the oldest unpublished event in seconds; null until a pass ran.</summary>
+    public long? OldestPendingAge { get; private set; }
+
+    public TestOutboxRelaySeam RelaySeam => Services.GetRequiredService<TestOutboxRelaySeam>();
+
+    public OutboxRelayPass Relay => Services.GetRequiredService<OutboxRelayPass>();
+
     public static async Task<PipelineTestHost> StartAsync(PostgresFixture db)
     {
         CapturingLoggerProvider logs = new();
@@ -69,15 +80,23 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         builder.Configuration["Identity:Audience"] = TestTokens.Audience;
         builder.Configuration["Identity:TestIssuer:Issuer"] = TestTokens.Issuer;
         builder.Configuration["Identity:TestIssuer:SigningKey"] = TestTokens.SigningKeyBase64;
+        // Step 9: the tests call the relay's pass directly and never wait on the timer.
+        builder.Configuration["Outbox:Relay:Enabled"] = "false";
 
         builder.Services.AddKernelPersistence(db.ConnectionStringFor("themis_app"));
         builder.Services.AddKernelPipeline();
         builder.Services.AddKernelIdentity(builder.Configuration, builder.Environment.EnvironmentName);
         builder.Services.AddFixtureModule();
+        // The test seams, registered before the kernel's registrations, which keep them (Build Brief, Test seams).
+        builder.Services.AddSingleton<PostingFailureSwitch>();
+        builder.Services.AddSingleton<IPostingHook, TestPostingHook>();
+        builder.Services.AddSingleton<TestOutboxRelaySeam>();
+        builder.Services.AddSingleton<IOutboxRelaySeam>(provider => provider.GetRequiredService<TestOutboxRelaySeam>());
         builder.Services.AddKernelOrganisation();
         builder.Services.AddKernelMasterData();
         builder.Services.AddKernelPosting();
         builder.Services.AddKernelDocuments();
+        builder.Services.AddKernelMessaging(builder.Configuration);
         builder.Services.AddKernelOpenApi();
         builder.Services.AddProblemDetails();
 
@@ -98,12 +117,28 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         PipelineTestHost host = new(app, app.GetTestClient(), logs, new MeterListener(), db);
         host._meterListener.InstrumentPublished = (instrument, listener) =>
         {
-            if (instrument.Meter.Name == PipelineTelemetry.SourceName && instrument.Name == "themis.command.retries")
+            if ((instrument.Meter.Name == PipelineTelemetry.SourceName && instrument.Name == "themis.command.retries") || instrument.Meter.Name == OutboxRelayTelemetry.MeterName)
             {
                 listener.EnableMeasurementEvents(instrument);
             }
         };
-        host._meterListener.SetMeasurementEventCallback<long>((_, value, _, _) => host.Retries += value);
+        host._meterListener.SetMeasurementEventCallback<long>((instrument, value, _, _) =>
+        {
+            switch (instrument.Name)
+            {
+                case "themis.command.retries":
+                    host.Retries += value;
+                    break;
+                case OutboxRelayTelemetry.PublishedName:
+                    host.Published += value;
+                    break;
+                case OutboxRelayTelemetry.OldestPendingAgeName:
+                    host.OldestPendingAge = value;
+                    break;
+                default:
+                    break;
+            }
+        });
         host._meterListener.Start();
         return host;
     }

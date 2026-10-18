@@ -1,6 +1,5 @@
 using Themis.Kernel.Contracts.Commands;
 using Themis.Kernel.Contracts.Documents;
-using Themis.Kernel.Contracts.Persistence;
 using Themis.Kernel.Primitives;
 
 namespace Themis.Kernel.Contracts.Posting;
@@ -58,15 +57,4 @@ public sealed record PostingOutcome(string DocumentNumber, Guid? JournalEntryId,
 public interface IPostingService
 {
     Task<Result<PostingOutcome>> PostInventoryAdjustmentAsync(InventoryAdjustmentPosting posting, ICommandContext context, CancellationToken cancellationToken);
-}
-
-/// <summary>
-/// The seam the acceptance tests of the Build Brief need (a failure injected after the inventory entries and before
-/// commit leaves nothing behind, R-LED-05; a serialization failure on the first attempt is retried once, D-41): the
-/// posting service calls it once after the ledger rows and cache updates are written and before it returns. The
-/// production registration does nothing; the integration tests register one that raises the injected failure.
-/// </summary>
-public interface IPostingHook
-{
-    Task AfterLedgerWritesAsync(IUnitOfWork unitOfWork, Guid documentId, ICommandContext context, CancellationToken cancellationToken);
 }

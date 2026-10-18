@@ -362,6 +362,13 @@
           "Themis.Kernel.Primitives": "[1.0.0, )"
         }
       },
+      "themis.kernel.messaging": {
+        "type": "Project",
+        "dependencies": {
+          "Themis.Kernel.Contracts": "[1.0.0, )",
+          "Themis.Kernel.Primitives": "[1.0.0, )"
+        }
+      },
       "themis.kernel.organisation": {
         "type": "Project",
         "dependencies": {

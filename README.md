@@ -5,7 +5,7 @@ kernel with organisation, parties, items, documents and immutable ledgers, then 
 through a first financial close. C# on .NET 10, PostgreSQL, a modular monolith with enforced module boundaries.
 Apache-2.0.
 
-Status: milestone 1 step 8, the posting service: INVENTORY_ADJUSTMENT.POST writes the inventory entries, one balanced journal entry, the caches, the audit events and INVENTORY_ADJUSTED in one transaction; the reporting view and the milestone close (step 9) follow (D-27).
+Status: milestone 1 step 9, the outbox relay: every committed outbox event is picked up by the relay in the host, logged with its envelope and marked published, at least once and with no audit event of its own (D-53); the reporting view (step 10) follows (D-27).
 
 ## Documents
 

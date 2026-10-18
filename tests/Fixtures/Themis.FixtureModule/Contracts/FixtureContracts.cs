@@ -68,13 +68,3 @@ public sealed record TouchCounter(Guid Id, long ExpectedVersion, long Increment,
 
 /// <summary>The counter after the command. Sample is a decimal, so the response proves D-37 (strings for decimals, numbers for integers).</summary>
 public sealed record CounterSnapshot(Guid Id, Guid CompanyId, Guid? SiteId, long Value, long Version, decimal Sample, bool Posted) : IVersionedResult;
-
-/// <summary>
-/// What the fixture module's posting hook raises after the ledger writes of INVENTORY_ADJUSTMENT.POST (step 8 brief,
-/// Tests). A test sets the failure before the command and resets it after; the hook is a singleton of the test host,
-/// registered before the kernel's posting services so that it replaces the production hook, which does nothing.
-/// </summary>
-public sealed class PostingFailureSwitch
-{
-    public FixtureFailure Failure { get; set; }
-}

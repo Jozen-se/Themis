@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Scalar.AspNetCore;
+using Themis.Host.Messaging;
 using Themis.Host.Observability;
 using Themis.Kernel.Contracts.Documents;
 using Themis.Kernel.Contracts.MasterData;
@@ -7,6 +8,7 @@ using Themis.Kernel.Contracts.Organisation;
 using Themis.Kernel.Documents;
 using Themis.Kernel.Identity;
 using Themis.Kernel.MasterData;
+using Themis.Kernel.Messaging;
 using Themis.Kernel.Organisation;
 using Themis.Kernel.Persistence;
 using Themis.Kernel.Pipeline;
@@ -47,6 +49,13 @@ public sealed class Program
         builder.Services.AddKernelMasterData();
         builder.Services.AddKernelPosting();
         builder.Services.AddKernelDocuments();
+        // Step 9 (D-53): the relay's options are validated at every start; the loop itself needs the database.
+        builder.Services.AddKernelMessaging(builder.Configuration);
+        if (databaseConfigured)
+        {
+            builder.Services.AddHostedService<OutboxRelayHostedService>();
+        }
+
         builder.Services.AddKernelOpenApi();
         builder.Services.AddProblemDetails();
 

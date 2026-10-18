@@ -177,9 +177,3 @@ internal sealed class InventoryPostingService : IPostingService
         return new PostingOutcome(documentNumber, entry?.Id, entry?.EntryNumber, posted);
     }
 }
-
-/// <summary>The production hook: nothing happens after the ledger writes.</summary>
-internal sealed class NoPostingHook : IPostingHook
-{
-    public Task AfterLedgerWritesAsync(IUnitOfWork unitOfWork, Guid documentId, ICommandContext context, CancellationToken cancellationToken) => Task.CompletedTask;
-}
