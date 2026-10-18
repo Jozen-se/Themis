@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Foundation Design* (https://claude.ai/artifact/B7yhaqHmFJqQCAo23KSDXq), revision 172, taken 2026-10-19.
+> **Snapshot** of the live document *Themis Foundation Design* (https://claude.ai/artifact/B7yhaqHmFJqQCAo23KSDXq), revision 173, taken 2026-10-19.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite rule IDs
 > without leaving the repository. Where this copy and the live document differ, the live document wins.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -353,7 +353,7 @@ Fifty-one decisions are made and three are open (D-10, D-20, D-48); none of the 
 | D-11 | Returns valued at the cost of the original issue | [Decided] | Confirmed 2026-10-09. Configurable under P-11 |
 | D-12 | Identity: Keycloak for development and self-hosting; any OpenID Connect provider (for example Entra ID) in production; SCIM 2.0 for user provisioning | [Decided] | Confirmed 2026-10-08 |
 | D-13 | First localisation: Sweden (SEK, Swedish VAT, SIE 4) | [Decided] | Confirmed 2026-10-09. Account choices still need an accountant (D-20) |
-| D-14 | Product name: Themis, with Jozen as the working brand | [Decided] | Your choice, 2026-10-08. Trademark check before the repository goes public: Themis is already used by governance, risk and compliance software |
+| D-14 | Product name: Themis, with Jozen as the working brand | [Decided] | Your choice, 2026-10-08. Themis is also used by governance, risk and compliance software. Your decision, 2026-10-18: no trademark check before going public. No trademark is registered and the name is not binding, so a later rename stays possible; the projects remain yours |
 | D-15 | Journal amounts are signed, debit positive | [Decided] | Confirmed 2026-10-09 |
 | D-16 | Type-specific document header fields in one-to-one extension tables, not JSON | [Decided] | Confirmed 2026-10-09. Ownership in D-39 |
 | D-17 | Identifiers are UUID v7 | [Decided] | Confirmed 2026-10-09 |
