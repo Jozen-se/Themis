@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/artifact/5NwCL8oDM8UmE8tg8Abicz), revision 183, taken 2026-10-18.
+> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/artifact/5NwCL8oDM8UmE8tg8Abicz), revision 184, taken 2026-10-18.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite rule IDs
 > without leaving the repository. Where this copy and the live document differ, the live document wins.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -545,7 +545,8 @@ Twelve entities hold the books. JournalEntry, JournalLine and InventoryEntry are
 
 | Attribute | Type | Req | Rule |
 |---|---|---|---|
-| `journal_entry_id`, `line_number` | → JournalEntry, integer | Y |  |
+| `journal_entry_id`, `line_number` | → JournalEntry, integer | Y | Numbered from 1. A posting writes its lines in document line order, and for each document line the debit line first. |
+| `company_id` | → Company | Y | The entry's company, stored on every line so that the composite keys to the account, the item's company row and the warehouse keep the line in that company (Company scope, D-43). |
 | `account_id` | → Account | Y |  |
 | `account_role` | Code | N | The role that resolved the account; empty on manual lines. |
 | `posting_rule_id` | → PostingProfileRule | N | The mapping rule used, for explainability. |
@@ -669,7 +670,7 @@ One permission exists per command, plus one TYPE.READ permission per resource ty
 | IdempotencyRecord | `expires_at` | Timestamp | Y | Default 7 days. |
 | OutboxEvent | `event_type`, `schema_version` | Code, integer | Y | For example GOODS_ISSUED, version 1. |
 | OutboxEvent | `aggregate_id`, `payload` | UUID, JSON | Y | Written in the same transaction as the change. |
-| OutboxEvent | `occurred_at`, `published_at`, `attempts` | Timestamp, Timestamp, integer | Y, N, Y |  |
+| OutboxEvent | `occurred_at`, `published_at`, `attempts` | Timestamp, Timestamp, integer | Y, N, Y | `published_at` and `attempts` are the delivery columns, written only by the outbox relay, with no audit event (D-53). |
 | OutboxEvent | `aggregate_type`, `command_name`, `correlation_id` | Code, Code, text | Y | The event envelope (D-50): the aggregate's type, the command that wrote the event and the request's correlation id. The idempotency key and the user never travel in the envelope; payloads carry no personal data beyond ids. |
 | OutboxEvent | `company_id` | → Company | N | Empty only for installation-scope aggregates such as ITEM_CREATED (D-50). |
 

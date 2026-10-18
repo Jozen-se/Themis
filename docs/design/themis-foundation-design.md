@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Foundation Design* (https://claude.ai/artifact/B7yhaqHmFJqQCAo23KSDXq), revision 158, taken 2026-10-18.
+> **Snapshot** of the live document *Themis Foundation Design* (https://claude.ai/artifact/B7yhaqHmFJqQCAo23KSDXq), revision 161, taken 2026-10-18.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite rule IDs
 > without leaving the repository. Where this copy and the live document differ, the live document wins.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -155,7 +155,7 @@ These 58 rules (17 added by the Phase 0 specification, 3 by D-24 and its follow-
 | R-TIME-01 | System timestamps are stored in UTC; business dates are calendar dates in the company's time zone. | No time zone drift in period cut-off. |
 | R-SEC-01 | Every command and query is authorised against permission and scope (company, site) before it runs. A site-limited assignment never satisfies a command or query without a site, and a command or query that cannot name its scope is rejected (D-47). | Least privilege. |
 | R-SEC-02 | Defined conflicting permissions cannot be held by one user, for example "set credit limit" and "release credit-blocked order". | Segregation of duties. |
-| R-AUD-01 | Every write creates an audit event: user, time, command, idempotency key, changed fields. A posting's ledger rows record their own command, user and time; they, the cache updates and the number series counters are traced through the command's audit events, not one event each (D-51). | Full traceability. |
+| R-AUD-01 | Every write creates an audit event: user, time, command, idempotency key, changed fields. A posting's ledger rows record their own command, user and time; they, the cache updates and the number series counters are traced through the command's audit events, not one event each (D-51). The outbox relay writes only the delivery columns published_at and attempts, outside the command pipeline, and writes no audit event (D-53). | Full traceability. |
 | R-API-01 | Every command accepts an idempotency key; a repeated key returns the first result with no second effect. | Safe retries from integrations. |
 | R-API-02 | Documents carry a version number; an update based on a stale version is rejected. | No lost updates. |
 | R-API-03 | A rejected command returns a stable error code and the ID of the rule that failed. | Explainable errors for users and integrations. |
@@ -336,7 +336,7 @@ The biggest risk is a kernel model that turns out wrong after code depends on it
 
 ## Decision log
 
-Forty-eight decisions are made and four are open (D-10, D-20, D-36, D-48); none of the open ones blocks the walking skeleton.
+Forty-nine decisions are made and four are open (D-10, D-20, D-36, D-48); none of the open ones blocks the walking skeleton.
 
 | ID | Decision | Status | Note |
 |---|---|---|---|
@@ -392,6 +392,7 @@ Forty-eight decisions are made and four are open (D-10, D-20, D-36, D-48); none 
 | D-50 | Event envelope (review RR-15): every outbox event carries its id, type and schema version (D-44), aggregate type and id, company (empty only for installation-scope aggregates), occurrence time, command name and correlation id. The idempotency key and the user never travel with events. Ordering, claiming, retries, dead letters and retention are specified before integrations | [Decided] | Your decision, 2026-10-17, while settling the milestone 1 step 7 brief with the coder. Built in step 7. Development and test databases may be recreated for the step 7 envelope migration, since none holds data worth keeping before milestone 1 is done |
 | D-51 | Audit of postings (amends R-AUD-01): a posting's journal and inventory entries record their own command, user and time; caches are rebuilt from the ledgers; number series counters are traced by the numbers they issue. None of these gets its own audit event. The command's audit events cover the document and its lines, and every audit event stores the command id, so each ledger row leads to its command's audit events and idempotency key. Audit events written before the command id existed keep it empty; it is required for every audit event written after, and no audit row is ever changed | [Decided] | Your decision, 2026-10-18, while settling the milestone 1 step 8 brief. One audit event per ledger row and cache change was rejected: it roughly doubles the writes of every posting and adds no trace the ledger rows lack. A one-time fill of the earlier audit events was rejected after the independent review, since it would change audit rows. Built in step 8. |
 | D-52 | Missing number series (rule R-DOC-08): a command that must assign a number and finds no series for its document type and scope is rejected; there is no fallback. A posting needs the journal entry series only when it writes a journal entry. A guard that a fiscal year cannot open without its series waits for the fiscal year commands | [Decided] | Your decision, 2026-10-18, while settling the milestone 1 step 8 brief; closes the item carried from step 7. Built in step 8 |
+| D-53 | Outbox relay and audit (amends R-AUD-01): the relay writes only the delivery columns published_at and attempts of an outbox event. It runs outside the command pipeline, has no user, command or idempotency key, and writes no audit event; the delivery columns are the record. Each pass is one short transaction run as themis_kernel with SET LOCAL ROLE, as R-DB-01 requires of a command's transaction. It picks up events in short transactions that never let two passes hold the same event at the same time; delivery is at least once, so consumers must be idempotent. Ordering per aggregate, claiming with a lease, retries, dead letters and retention stay with the D-50 delivery terms | [Decided] | Your decision, 2026-10-18, while settling the milestone 1 step 9 brief with the coder. One audit event per published event was rejected: a relay pass has none of the fields R-AUD-01 names, so the event would be malformed as well as redundant. Built in step 9. |
 
 ## Next steps
 
