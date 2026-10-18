@@ -1,0 +1,61 @@
+# A long property-based run of the invariant tests (milestone 1 step 11): the same random command sequences as the
+# pull request run, with many more sequences. Started by hand; a nightly schedule is added when the repository goes
+# public (owner's decision, D-42). THEMIS_PROPERTY_SEQUENCES and THEMIS_PROPERTY_SEED are read by
+# tests/Themis.Integration.Tests/Invariants/InvariantPropertyTests.cs.
+name: Invariants long run
+
+on:
+  workflow_dispatch:
+    inputs:
+      sequences:
+        description: Number of random command sequences per property (the pull request run uses 200)
+        required: true
+        default: "5000"
+      seed:
+        description: CsCheck seed to reproduce a run (leave empty for a fresh one)
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+  TESTINGPLATFORM_TELEMETRY_OPTOUT: "true"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
+
+jobs:
+  long-run:
+    name: Property runs (${{ inputs.sequences }} sequences)
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Set up .NET (version from global.json)
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Restore packages (locked to packages.lock.json)
+        run: dotnet restore Themis.sln --locked-mode
+
+      - name: Build
+        run: dotnet build Themis.sln --configuration Release --no-restore
+
+      - name: Property runs over the real pipeline (I-01, I-02, I-03, I-04, I-06, I-08, I-09, I-15)
+        env:
+          THEMIS_PROPERTY_SEQUENCES: ${{ inputs.sequences }}
+          THEMIS_PROPERTY_SEED: ${{ inputs.seed }}
+        run: dotnet test --project tests/Themis.Integration.Tests/Themis.Integration.Tests.csproj --configuration Release --no-build --filter-trait "Category=Invariant" --report-xunit-trx --results-directory TestResults/invariant-long-run
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: invariant-long-run-results
+          path: TestResults/
+          if-no-files-found: ignore
+          retention-days: 30

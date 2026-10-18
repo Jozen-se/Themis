@@ -2,8 +2,9 @@
 
   <!--
     Invariant tests: property-based with CsCheck (brief, Tests). Milestone 1 step 2 covers the primitives and the
-    JSON number contract, step 3 the fiscal calendar; the ledger invariants I-01 to I-09 arrive with the posting
-    service.
+    JSON number contract, step 3 the fiscal calendar. The ledger invariants I-01, I-02, I-03, I-04, I-06, I-08, I-09 and
+    I-15 are checked by the property-based runs over the real pipeline in tests/Themis.Integration.Tests/Invariants,
+    which need PostgreSQL and therefore live in the integration test project under the same trait, Category=Invariant.
   -->
 
   <ItemGroup>

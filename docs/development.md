@@ -96,7 +96,7 @@ to trace an integration's own call through the logs.
 | Architecture | `tests/Themis.Architecture.Tests` | nothing; ARCH-01 to ARCH-08, each proven against fixtures |
 | Unit | `tests/Themis.Kernel.Tests` | nothing; the host starts in memory without a database |
 | Integration | `tests/Themis.Integration.Tests` | Docker or Podman, or `THEMIS_TEST_CONNECTION` pointing at a PostgreSQL 16+ superuser |
-| Invariant | `tests/Themis.Invariants.Tests` | nothing; CsCheck properties over the primitives and the JSON number contract |
+| Invariant | `tests/Themis.Invariants.Tests` and `tests/Themis.Integration.Tests/Invariants` | the primitives and the JSON number contract need nothing; the property-based runs over the real pipeline need PostgreSQL like the integration tests |
 
 ```bash
 dotnet test
@@ -518,7 +518,48 @@ Operations note: until row-level security is added (Build Brief, Database roles)
 the installation, so the `themis_reporting` credentials are installation-wide and are handed out accordingly. Not in
 step 10: the star schema, other KPI definitions, values at a past date, row-level security, a read replica.
 
-## Linting, formatting and the licence scan
+## Invariant queries and property-based runs
+
+Step 11 writes every checkable invariant once as a query in `db/invariants` (`I-01.sql` to `I-15.sql`, named by ID;
+see the README there): each returns the violating rows, takes no parameters and runs as the table owner
+`themis_migrator`. The same files serve the tests now and the production nightly check later (built before Phase 0 is
+declared complete). `InvariantQueryTests` proves them: every invariant of the Specification has a query, is held by
+the privilege tests (I-11, I-14) or is listed with the phase that makes it checkable (I-05 reservations and I-10
+document links in Phase 1; I-07 receivables, I-12 open items and I-13 ROUNDING lines in Phase 2; never faked as
+passing); every query is empty on the seeded database; where a constraint makes a violation impossible the test shows
+the constraint rejecting the row (`ck_journal_line_amount`, `ck_journal_line_txn_sign`, `ck_inventory_entry_quantity`
+for I-02, `ck_inventory_entry_journal_entry` for the entry part of I-08, `ck_item_cost_state_value` for the zero-value
+part of I-04, `ux_journal_entry_company_number` for I-09 duplicates), and for every other part the table owner plants
+a violating row with its parents inside a rolled-back transaction and the query must report it. Two parts of I-15 are
+guaranteed by the view's definition and cannot be planted (the warehouse values always sum to the item value because
+the remainder goes to one warehouse; a warehouse without stock never has a row); `StockByWarehouseViewTests` proves
+them on real postings.
+
+`InvariantPropertyTests` (trait `Category=Invariant`, in the integration test project because it needs the pipeline
+host and PostgreSQL) runs random command sequences through the real pipeline over HTTP with CsCheck: ITEM.CREATE and
+INVENTORY_ADJUSTMENT CREATE, UPDATE, DISCARD and POST with random items (also unknown ones), signed quantities, entered
+costs present or absent, stock statuses, reason codes (Scrap included), posting dates across the Open periods, the
+Closed period 1, none and a date outside every fiscal year, two warehouses, stale versions, the clerk and the preparer,
+interleaved with relay passes. A rejected command (400, 403, 404, 412, 422) is a valid outcome; a 500 fails the run.
+After every command every query in `db/invariants` must return no rows. Every sequence starts from a fresh database
+cloned with `CREATE DATABASE ... TEMPLATE` from a template that the test class migrates and seeds once (the milestone
+1 fixture plus the property fixture's second warehouse `PROP-W2`); the clone is dropped afterwards. The run is
+deterministic from its seed: the seed is the first sequence and every further sequence's seed is drawn from it. A
+failing sequence is shrunk by CsCheck to the smallest failing one and the failure names the shrunk sequence's seed
+and commands; setting `THEMIS_PROPERTY_SEED` to that seed reproduces it as the first sequence. The concurrent variant
+runs two random lists of posted adjustments on the same three items at once: the invariants hold afterwards and no
+command retried after a deadlock (SQLSTATE 40P01, R-LED-08); on failure it logs the seed and both lists and does not
+shrink. Settings, all environment variables: `THEMIS_PROPERTY_SEQUENCES` (200 by default, the pull request run),
+`THEMIS_PROPERTY_SEED`, `THEMIS_PROPERTY_THREADS` (2), `THEMIS_PROPERTY_SHRINK_ITERATIONS` (100). The test output
+lists the seed and the outcomes per command and status. The workflow `.github/workflows/invariants-long-run.yml` runs
+the same tests with many more sequences on manual start; a nightly schedule comes when the repository goes public.
+
+```bash
+THEMIS_PROPERTY_SEQUENCES=20 dotnet test --project tests/Themis.Integration.Tests --filter-trait "Category=Invariant"
+THEMIS_PROPERTY_SEED=77n5PqrBEsc1 dotnet test --project tests/Themis.Integration.Tests --filter-trait "Category=Invariant"   # reproduce a reported sequence
+```
+
+## Linting, formatting, the licence scan and the DCO check
 
 ```bash
 dotnet format Themis.sln                      # fix
@@ -528,3 +569,9 @@ dotnet nuget-license -i Themis.sln -t -a eng/licenses/allowed-licenses.json -map
 
 Warnings are errors. `float`, `double`, `Half` and the static clock (`DateTime.Now`, `DateTime.UtcNow`) do not
 compile (R-MON-01, R-TIME-01); see `eng/BannedSymbols.txt`.
+
+Every commit carries a `Signed-off-by` line matching its author (Developer Certificate of Origin, D-36; `git commit
+-s`). The workflow `.github/workflows/dco.yml` runs `.github/scripts/dco-check.sh` over a pull request's commits and
+fails when one lacks it; dependabot[bot], github-actions[bot] and merge commits are exempt, squash commits on `main`
+are not checked. `.github/scripts/dco-check-selftest.sh` proves the script on synthetic repositories. See
+`CONTRIBUTING.md`.

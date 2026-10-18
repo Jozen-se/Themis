@@ -67,6 +67,42 @@ public sealed class HostSmokeTests : IDisposable
         Assert.NotEqual("bad id with spaces", Assert.Single(response.Headers.GetValues("X-Correlation-Id")));
     }
 
+    [Fact]
+    public async Task D_25_a_request_trace_is_visible_in_the_console_exporter_when_it_is_enabled()
+    {
+        // Milestone 1 acceptance: traces are visible in the console exporter. The host runs with Telemetry:ConsoleExporter on,
+        // the request carries a known trace id, and the exporter's console output names that trace with the request's path.
+        using WebApplicationFactory<Program> factory = new WebApplicationFactory<Program>()
+            .WithWebHostBuilder(builder => builder.UseEnvironment("Testing").UseSetting("Telemetry:ConsoleExporter", "true"));
+        const string traceId = "4bf92f3577b34da6a3ce929d0e0e4736";
+        TextWriter original = Console.Out;
+        using StringWriter console = new();
+        Console.SetOut(console);
+        try
+        {
+            using HttpClient client = factory.CreateClient();
+            client.DefaultRequestHeaders.Add("traceparent", $"00-{traceId}-00f067aa0ba902b7-01");
+
+            using HttpResponseMessage response = await client.GetAsync(new Uri("/health/live", UriKind.Relative), TestContext.Current.CancellationToken);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            // The server span ends after the response is on its way and is exported on that thread; wait for it to be printed.
+            DateTimeOffset deadline = TimeProvider.System.GetUtcNow().AddSeconds(10);
+            while (!console.ToString().Contains("url.path: /health/live", StringComparison.Ordinal) && TimeProvider.System.GetUtcNow() < deadline)
+            {
+                await Task.Delay(50, TestContext.Current.CancellationToken);
+            }
+        }
+        finally
+        {
+            Console.SetOut(original);
+        }
+
+        string output = console.ToString();
+        Assert.Contains($"Activity.TraceId:            {traceId}", output, StringComparison.Ordinal);
+        Assert.Contains("url.path: /health/live", output, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("BatchSize", "0")]
     [InlineData("PollInterval", "00:00:00")]

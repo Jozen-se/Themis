@@ -6,6 +6,9 @@
     The bootstrap applied is the same file the compose stack applies, db/bootstrap/01-roles.sql, followed by the
     fixture module's test-only bootstrap, the kernel migrations through Themis.Migrator and the fixture table.
     The command pipeline is exercised through an in-memory test server with the fixture module's commands.
+    The Invariants folder holds the property-based runs over the real pipeline (CsCheck, trait Category=Invariant,
+    each sequence on a database cloned from a seeded template) and the negative tests of the invariant queries in
+    db/invariants (step 11).
   -->
 
   <ItemGroup>
@@ -18,6 +21,7 @@
     <PackageReference Include="Testcontainers.PostgreSql" />
     <PackageReference Include="Testcontainers.Keycloak" />
     <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+    <PackageReference Include="CsCheck" />
   </ItemGroup>
 
   <ItemGroup>
@@ -31,6 +35,7 @@
 
   <ItemGroup>
     <None Include="../../db/bootstrap/*.sql" Link="db/bootstrap/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../db/invariants/*.sql" Link="db/invariants/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../docker/keycloak/themis-realm.json" Link="docker/keycloak/themis-realm.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

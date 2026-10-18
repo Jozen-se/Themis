@@ -1,0 +1,40 @@
+# Developer Certificate of Origin (D-36): every commit of a pull request carries a Signed-off-by line matching its
+# author; dependabot[bot], github-actions[bot] and merge commits are exempt; squash commits on main are not checked.
+# The check is .github/scripts/dco-check.sh; the second job proves the script itself on synthetic repositories.
+# Making "DCO sign-off" a required status check is a change to the ruleset on main, which the owner makes (D-42).
+name: DCO
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dco-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dco:
+    name: DCO sign-off
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out with the full history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Every commit of the pull request carries a matching Signed-off-by line (D-36)
+        run: .github/scripts/dco-check.sh "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+
+  self-test:
+    name: DCO check self-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: The check fails an unsigned commit and passes signed, bot and merge commits
+        run: .github/scripts/dco-check-selftest.sh

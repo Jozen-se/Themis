@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 using System.Net.Http.Headers;
 using System.Text;
@@ -31,7 +32,8 @@ namespace Themis.Integration.Tests.Pipeline;
 /// test token issuer of the step 4 brief: persistence as themis_app, the kernel pipeline, bearer authentication
 /// with a local signing key, problem details for unhandled exceptions, the correlation id middleware and the
 /// fixture module's routes. Requests are signed for the clerk unless a test names another subject. Captures log
-/// lines with their scopes (D-25) and the pipeline's retry metric (D-41).
+/// lines with their scopes (D-25) and the pipeline's retry metric (D-41), per SQLSTATE as well (R-LED-08). Runs
+/// against the fixture's database, or against another database on the same server (a clone of a template, step 11).
 /// </summary>
 internal sealed class PipelineTestHost : IAsyncDisposable
 {
@@ -39,13 +41,14 @@ internal sealed class PipelineTestHost : IAsyncDisposable
     private readonly WebApplication _app;
     private readonly MeterListener _meterListener;
 
-    private PipelineTestHost(WebApplication app, HttpClient client, CapturingLoggerProvider logs, MeterListener meterListener, PostgresFixture db)
+    private PipelineTestHost(WebApplication app, HttpClient client, CapturingLoggerProvider logs, MeterListener meterListener, PostgresFixture db, string superuserConnectionString)
     {
         _app = app;
         Client = client;
         Logs = logs;
         _meterListener = meterListener;
         Database = db;
+        SuperuserConnectionString = superuserConnectionString;
     }
 
     public HttpClient Client { get; }
@@ -58,6 +61,12 @@ internal sealed class PipelineTestHost : IAsyncDisposable
 
     public long Retries { get; private set; }
 
+    /// <summary>The retries of D-41 per SQLSTATE (40001 serialization failure, 40P01 deadlock); R-LED-08 expects no deadlock at all.</summary>
+    public ConcurrentDictionary<string, long> RetriesBySqlState { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>Superuser connection string of the database this host runs against (the fixture's unless a clone was named).</summary>
+    public string SuperuserConnectionString { get; }
+
     /// <summary>Outbox events the relay published through this host (counter themis.outbox.published).</summary>
     public long Published { get; private set; }
 
@@ -68,8 +77,11 @@ internal sealed class PipelineTestHost : IAsyncDisposable
 
     public OutboxRelayPass Relay => Services.GetRequiredService<OutboxRelayPass>();
 
-    public static async Task<PipelineTestHost> StartAsync(PostgresFixture db)
+    /// <summary>Starts the host against the fixture's database, or against <paramref name="database"/> on the same server when named.</summary>
+    public static async Task<PipelineTestHost> StartAsync(PostgresFixture db, string? database = null)
     {
+        string applicationConnectionString = WithDatabase(db.ConnectionStringFor("themis_app"), database);
+        string superuserConnectionString = WithDatabase(db.SuperuserConnectionString, database);
         CapturingLoggerProvider logs = new();
         WebApplicationBuilder builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
         builder.WebHost.UseTestServer();
@@ -83,7 +95,7 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         // Step 9: the tests call the relay's pass directly and never wait on the timer.
         builder.Configuration["Outbox:Relay:Enabled"] = "false";
 
-        builder.Services.AddKernelPersistence(db.ConnectionStringFor("themis_app"));
+        builder.Services.AddKernelPersistence(applicationConnectionString);
         builder.Services.AddKernelPipeline();
         builder.Services.AddKernelIdentity(builder.Configuration, builder.Environment.EnvironmentName);
         builder.Services.AddFixtureModule();
@@ -114,7 +126,7 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         app.MapOpenApi();
         await app.StartAsync();
 
-        PipelineTestHost host = new(app, app.GetTestClient(), logs, new MeterListener(), db);
+        PipelineTestHost host = new(app, app.GetTestClient(), logs, new MeterListener(), db, superuserConnectionString);
         host._meterListener.InstrumentPublished = (instrument, listener) =>
         {
             if ((instrument.Meter.Name == PipelineTelemetry.SourceName && instrument.Name == "themis.command.retries") || instrument.Meter.Name == OutboxRelayTelemetry.MeterName)
@@ -122,12 +134,20 @@ internal sealed class PipelineTestHost : IAsyncDisposable
                 listener.EnableMeasurementEvents(instrument);
             }
         };
-        host._meterListener.SetMeasurementEventCallback<long>((instrument, value, _, _) =>
+        host._meterListener.SetMeasurementEventCallback<long>((instrument, value, tags, _) =>
         {
             switch (instrument.Name)
             {
                 case "themis.command.retries":
                     host.Retries += value;
+                    foreach (KeyValuePair<string, object?> tag in tags)
+                    {
+                        if (tag.Key == "sqlstate" && tag.Value is string sqlState)
+                        {
+                            host.RetriesBySqlState.AddOrUpdate(sqlState, value, (_, current) => current + value);
+                        }
+                    }
+
                     break;
                 case OutboxRelayTelemetry.PublishedName:
                     host.Published += value;
@@ -189,7 +209,7 @@ internal sealed class PipelineTestHost : IAsyncDisposable
     /// <summary>A superuser view of what the command left behind.</summary>
     public async Task<object?> ScalarAsync(string sql, CancellationToken cancellationToken, params (string Name, object? Value)[] parameters)
     {
-        await using NpgsqlConnection connection = await PostgresFixture.OpenAsync(Database.SuperuserConnectionString, cancellationToken);
+        await using NpgsqlConnection connection = await PostgresFixture.OpenAsync(SuperuserConnectionString, cancellationToken);
         await using NpgsqlCommand command = new(sql, connection);
         foreach ((string name, object? value) in parameters)
         {
@@ -210,6 +230,9 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         await _app.StopAsync();
         await _app.DisposeAsync();
     }
+
+    private static string WithDatabase(string connectionString, string? database) =>
+        database is null ? connectionString : new NpgsqlConnectionStringBuilder(connectionString) { Database = database }.ConnectionString;
 
     private static void AddHeader(HttpRequestMessage request, string name, string? value)
     {
