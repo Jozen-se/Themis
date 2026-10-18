@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Foundation Design* (https://claude.ai/artifact/B7yhaqHmFJqQCAo23KSDXq), revision 166, taken 2026-10-19.
+> **Snapshot** of the live document *Themis Foundation Design* (https://claude.ai/artifact/B7yhaqHmFJqQCAo23KSDXq), revision 172, taken 2026-10-19.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite rule IDs
 > without leaving the repository. Where this copy and the live document differ, the live document wins.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -315,7 +315,7 @@ Security is built into the kernel, not added later, and the licence must be chos
 | LGPL-3.0 or MPL-2.0 | Weak copyleft: changes to the core stay open, extensions may be closed. | Odoo Community (LGPL-3.0) |
 | Apache-2.0 | Permissive with a patent grant. Widest adoption; allows closed forks. | Apache OFBiz |
 
-Decided for the project period: Apache-2.0 (D-07). It keeps later options open: Apache-2.0 code can be combined into a GPL-3.0 or AGPL-3.0 work, and the licence grants no trademark rights, which protects the Themis name. Contributor terms remain open (D-36).
+Decided for the project period: Apache-2.0 (D-07). It keeps later options open: Apache-2.0 code can be combined into a GPL-3.0 or AGPL-3.0 work, and the licence grants no trademark rights, which protects the Themis name. Contributors sign off every commit under the Developer Certificate of Origin (D-36). Contributor terms remain open (D-36).
 
 ## Risks and trade-offs
 
@@ -336,7 +336,7 @@ The biggest risk is a kernel model that turns out wrong after code depends on it
 
 ## Decision log
 
-Fifty decisions are made and four are open (D-10, D-20, D-36, D-48); none of the open ones blocks the walking skeleton.
+Fifty-one decisions are made and three are open (D-10, D-20, D-48); none of the open ones blocks the walking skeleton.
 
 | ID | Decision | Status | Note |
 |---|---|---|---|
@@ -375,7 +375,7 @@ Fifty decisions are made and four are open (D-10, D-20, D-36, D-48); none of the
 | D-33 | External finance systems consume Themis journal entries (event feed, SIE 4); the internal ledger stays. Sub-ledger accounting (option C) is documented and revisited before Phase 2 | [Decided] | Confirmed 2026-10-09 |
 | D-34 | Fixed lock order in posting transactions (R-LED-08); several gapless series per company allowed | [Decided] | Confirmed 2026-10-08. Several series still to confirm with an accountant |
 | D-35 | Rules expression language: NCalc in decimal mode behind one engine interface, with whitelisted decimal-only functions, defined division precision and save-time validation against a declared context. Used for guards, validation, defaulting and pricing conditions; account and tax determination stay decision tables. Exit conditions at scaffold time, DynamicExpresso tested against the same conditions; an owned decimal language modelled on CEL is the fallback | [Decided] | Confirmed 2026-10-08, with the architect's notes |
-| D-36 | Contributor terms: Developer Certificate of Origin or a contributor licence agreement | [Open] | Before the repository goes public or accepts an outside contribution |
+| D-36 | Contributor terms: Developer Certificate of Origin (DCO 1.1). Every commit carries a Signed-off-by line matching its author; a CI check enforces it on pull requests, with bot commits such as Dependabot's exempt. A contributor licence agreement was not chosen, so relicensing outside contributions later needs their contributors' consent (D-07) | [Decided] | Your decision, 2026-10-18, before the repository goes public. In force from milestone 1 step 11, which adds the check on pull request commits; squash commits on main are not checked. A coding agent cannot certify the DCO: commits it makes on the owner's instruction are authored and signed off with the owner's project identity, named in CLAUDE.md, and the owner certifies them by that standing instruction |
 | D-37 | Responses and events carry money and quantities as JSON strings, never as JSON numbers. Requests accept strings or numbers and parse the number text exactly, never through a binary float | [Decided] | Confirmed 2026-10-08; wording clarified 2026-10-09 (review RR-02) |
 | D-38 | A licence scan in CI fails the build on any copyleft dependency | [Decided] | Confirmed 2026-10-08. Watch PDF libraries in particular |
 | D-39 | The document framework is a kernel platform module. It owns Document, DocumentLine, DocumentLink, NumberSeries and Attachment in the kernel schema, plus the state machine engine and numbering. Type-specific extension tables belong to the module that owns the document type, in that module's schema, with a foreign key to the kernel document; the kernel owns the extensions of its own document types | [Decided] | Your decision, 2026-10-09. A module reaches the framework only through its interface |
