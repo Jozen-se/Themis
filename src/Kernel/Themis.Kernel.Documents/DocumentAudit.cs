@@ -11,6 +11,9 @@ internal enum LineChange
     Changed,
     Cancelled,
     Reopened,
+
+    /// <summary>POST stored the line's unit cost and cost amount (R-DOC-05).</summary>
+    Posted,
 }
 
 /// <summary>One line in the document's outbox event: its id, number, what happened to it and the changed fields.</summary>
@@ -42,6 +45,8 @@ internal static class DocumentAudit
         Add(changes, "currency", before?.Currency, after.Currency);
         Add(changes, "warehouseId", before?.WarehouseId?.ToString(), after.WarehouseId?.ToString());
         Add(changes, "externalReference", before?.ExternalReference, after.ExternalReference);
+        Add(changes, "postedAt", Text(before?.PostedAt), Text(after.PostedAt));
+        Add(changes, "postedBy", before?.PostedBy?.ToString(), after.PostedBy?.ToString());
         Add(changes, "version", Text(before?.Version), Text(after.Version));
         return changes;
     }
@@ -69,6 +74,8 @@ internal static class DocumentAudit
         Add(changes, "warehouseId", before?.WarehouseId.ToString(), after.WarehouseId.ToString());
         Add(changes, "stockStatus", before?.StockStatus.ToString(), after.StockStatus.ToString());
         Add(changes, "enteredUnitCost", Text(before?.EnteredUnitCost), Text(after.EnteredUnitCost));
+        Add(changes, "unitCost", Text(before?.UnitCost), Text(after.UnitCost));
+        Add(changes, "costAmount", Text(before?.CostAmount), Text(after.CostAmount));
         Add(changes, "version", Text(before?.Version), Text(after.Version));
         return changes;
     }
@@ -96,4 +103,6 @@ internal static class DocumentAudit
     private static string? Text(long? value) => value?.ToString(CultureInfo.InvariantCulture);
 
     private static string? Text(DateOnly? value) => value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+    private static string? Text(DateTimeOffset? value) => value?.ToString("O", CultureInfo.InvariantCulture);
 }

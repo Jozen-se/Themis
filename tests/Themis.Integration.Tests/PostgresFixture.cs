@@ -50,12 +50,12 @@ public sealed class PostgresFixture : IAsyncLifetime
     public int MigratorExitCode { get; private set; } = -1;
 
     /// <summary>
-    /// Removes every row the pipeline tests wrote, so each test class starts from empty tables; the seeded rows stay,
+    /// Removes every row the pipeline tests wrote, the ledgers and caches of step 8 included (the migrator, not the kernel role, may truncate them), so each test class starts from empty tables; the seeded rows stay,
     /// and the seeded number series are wound back to their first number (version 1) since numbering tests advance them.
     /// </summary>
     public async Task TruncateAsync(CancellationToken cancellationToken) =>
         await ExecuteAsMigratorAsync(
-            "TRUNCATE kernel.idempotency_record, kernel.outbox_event, kernel.document_line, kernel.inventory_adjustment, kernel.document, kernel.item_company, kernel.item, fixture.counter; " +
+            "TRUNCATE kernel.idempotency_record, kernel.outbox_event, kernel.journal_line, kernel.journal_entry, kernel.inventory_entry, kernel.stock_balance, kernel.item_cost_state, kernel.document_line, kernel.inventory_adjustment, kernel.document, kernel.item_company, kernel.item, fixture.counter; " +
             "DELETE FROM kernel.audit_event WHERE command_name NOT LIKE 'SYSTEM.%'; " +
             "UPDATE kernel.number_series SET next_number = 1, version = 1", cancellationToken);
 

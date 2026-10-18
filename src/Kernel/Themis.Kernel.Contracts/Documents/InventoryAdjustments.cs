@@ -85,6 +85,15 @@ public sealed record UpdateInventoryAdjustment(
 [Command("INVENTORY_ADJUSTMENT.DISCARD")]
 public sealed record DiscardInventoryAdjustment(Guid Id, long ExpectedVersion) : ICommand<InventoryAdjustmentView>, IVersionedCommand;
 
+/// <summary>
+/// INVENTORY_ADJUSTMENT.POST (step 8 brief; Sensitive permission): Draft to Posted on the current version. In one
+/// transaction the posting service writes the inventory entries, the balanced journal entry, the cache updates,
+/// the audit events and INVENTORY_ADJUSTED, or nothing (R-LED-05, R-LED-07). The guards of the state machine run
+/// first (R-DOC-01, R-LED-04, R-INV-05), the stock and cost checks after their rows are locked (R-INV-03, R-LED-08).
+/// </summary>
+[Command("INVENTORY_ADJUSTMENT.POST")]
+public sealed record PostInventoryAdjustment(Guid Id, long ExpectedVersion) : ICommand<InventoryAdjustmentView>, IVersionedCommand;
+
 /// <summary>A line of an inventory adjustment as the API returns it; quantities and costs travel as strings (D-37).</summary>
 public sealed record InventoryAdjustmentLineView(
     Guid Id,
@@ -137,6 +146,7 @@ public static class DocumentRoutes
     public const string InventoryAdjustments = "/v1/kernel/inventory-adjustments";
     public const string InventoryAdjustmentUpdate = "/v1/kernel/inventory-adjustments/{id}/update";
     public const string InventoryAdjustmentDiscard = "/v1/kernel/inventory-adjustments/{id}/discard";
+    public const string InventoryAdjustmentPost = "/v1/kernel/inventory-adjustments/{id}/post";
     public const string InventoryAdjustment = "/v1/kernel/companies/{companyId}/inventory-adjustments/{id}";
 
     /// <summary>The command routes the composition root maps through the kernel pipeline (brief, API conventions).</summary>
@@ -145,5 +155,6 @@ public static class DocumentRoutes
         new CommandRoute<CreateInventoryAdjustment, InventoryAdjustmentView>(InventoryAdjustments),
         new CommandRoute<UpdateInventoryAdjustment, InventoryAdjustmentView>(InventoryAdjustmentUpdate),
         new CommandRoute<DiscardInventoryAdjustment, InventoryAdjustmentView>(InventoryAdjustmentDiscard),
+        new CommandRoute<PostInventoryAdjustment, InventoryAdjustmentView>(InventoryAdjustmentPost),
     ];
 }

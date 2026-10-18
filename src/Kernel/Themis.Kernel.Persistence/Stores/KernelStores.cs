@@ -47,7 +47,7 @@ internal sealed class KernelIdempotencyStore : IIdempotencyStore
     private sealed record StoredResponse(int StatusCode, string ContentType, string Body, long? Version);
 }
 
-/// <summary>Audit events on the command's unit of work, insert only (R-AUD-01, R-LED-06).</summary>
+/// <summary>Audit events on the command's unit of work, insert only (R-AUD-01, R-LED-06), each carrying the command id (D-51).</summary>
 internal sealed class KernelAuditStore : IAuditStore
 {
     private static readonly JsonSerializerOptions ChangesJson = new(JsonSerializerDefaults.Web);
@@ -65,6 +65,7 @@ internal sealed class KernelAuditStore : IAuditStore
             context.AuditEvents.Add(new AuditEvent
             {
                 Id = EntityId.New(),
+                CommandId = commandContext.CommandId.Value,
                 OccurredAt = commandContext.Now,
                 UserId = commandContext.Principal.UserId.Value,
                 CommandName = commandName,

@@ -49,7 +49,7 @@ internal sealed class SqlCounterStore : ICounterStore
 
     public Task WriteKernelTableAsync(IUnitOfWork unitOfWork, CancellationToken cancellationToken) =>
         unitOfWork.ExecuteAsync(Role,
-            "INSERT INTO kernel.audit_event (id, occurred_at, user_id, command_name, entity_type, entity_id, changes) VALUES (gen_random_uuid(), now(), gen_random_uuid(), 'FIXTURE', 'Fixture', gen_random_uuid(), '{}')",
+            "INSERT INTO kernel.audit_event (id, command_id, occurred_at, user_id, command_name, entity_type, entity_id, changes) VALUES (gen_random_uuid(), gen_random_uuid(), now(), gen_random_uuid(), 'FIXTURE', 'Fixture', gen_random_uuid(), '{}')",
             null,
             cancellationToken);
 

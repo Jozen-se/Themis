@@ -58,6 +58,14 @@ internal static class KernelPrivilegeMatrix
         TableGrant.Mutable(Kernel, "document_line", KernelRole),
         TableGrant.Mutable(Kernel, "inventory_adjustment", KernelRole),
         TableGrant.Mutable(Kernel, "number_series", KernelRole),
+
+        // Ledgers and caches (milestone 1 step 8): the entries are append-only (R-LED-01, R-LED-06, I-11); the caches
+        // are rebuilt from them and updated in place, never deleted.
+        TableGrant.AppendOnly(Kernel, "journal_entry", KernelRole),
+        TableGrant.AppendOnly(Kernel, "journal_line", KernelRole),
+        TableGrant.AppendOnly(Kernel, "inventory_entry", KernelRole),
+        TableGrant.Mutable(Kernel, "item_cost_state", KernelRole),
+        TableGrant.Mutable(Kernel, "stock_balance", KernelRole),
     ];
 
     /// <summary>The tables the organisation migration creates, in dependency order.</summary>
@@ -78,6 +86,9 @@ internal static class KernelPrivilegeMatrix
     /// <summary>The tables the document framework migration creates, in dependency order.</summary>
     public static IReadOnlyList<string> DocumentTables { get; } =
         ["document_type", "document_transition", "document", "document_line", "inventory_adjustment", "number_series"];
+
+    /// <summary>The tables the posting migration creates, in dependency order.</summary>
+    public static IReadOnlyList<string> LedgerTables { get; } = ["journal_entry", "journal_line", "inventory_entry", "item_cost_state", "stock_balance"];
 
     /// <summary>The grant statements a migration emits for the tables it creates.</summary>
     public static IEnumerable<string> GrantsFor(params string[] tables) =>

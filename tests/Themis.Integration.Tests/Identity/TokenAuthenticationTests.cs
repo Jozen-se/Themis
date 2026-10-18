@@ -90,7 +90,8 @@ public sealed class TokenAuthenticationTests : IAsyncLifetime
         string strangerWithRoles = TestTokens.For("stranger-" + Guid.NewGuid().ToString("N"), TimeProvider.System, claims);
         Guid id = await CreateAsync("roles-create");
 
-        CommandReply preparer = await _host.PostAsync($"{Counters}/{id}/post", null, "roles-1", ifMatch: "\"1\"", token: preparerWithRoles, cancellationToken: Ct);
+        // FIXTURE.TOUCH belongs to the clerk only; a token claiming roles does not add it.
+        CommandReply preparer = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 1 }, "roles-1", ifMatch: "\"1\"", token: preparerWithRoles, cancellationToken: Ct);
         CommandReply stranger = await _host.GetAsync(CompanyUrl, token: strangerWithRoles, cancellationToken: Ct);
 
         Assert.Equal(403, preparer.Status);
@@ -110,8 +111,8 @@ public sealed class TokenAuthenticationTests : IAsyncLifetime
         CommandReply otherSite = await _host.PostAsync(Counters, atMainSite, "site-2", subject: _data.OtherSiteSubject, cancellationToken: Ct);
         CommandReply noSite = await _host.PostAsync(Counters, companyWide, "site-3", subject: _data.OtherSiteSubject, cancellationToken: Ct);
         Guid id = ownSite.Json!["id"]!.GetValue<Guid>();
-        // The scope of a command on the counter comes from the row, loaded inside the transaction.
-        CommandReply postOwn = await _host.PostAsync($"{Counters}/{id}/post", null, "site-4", ifMatch: "\"1\"", subject: _data.OtherSiteSubject, cancellationToken: Ct);
+        // The scope of a command on the counter comes from the row, loaded inside the transaction (the other-site user holds FIXTURE.TOUCH at its site).
+        CommandReply postOwn = await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 1 }, "site-4", ifMatch: "\"1\"", subject: _data.OtherSiteSubject, cancellationToken: Ct);
         CommandReply clerkEverywhere = await _host.PostAsync(Counters, atOtherSite, "site-5", cancellationToken: Ct);
 
         Assert.Equal(200, ownSite.Status);
@@ -146,10 +147,10 @@ public sealed class TokenAuthenticationTests : IAsyncLifetime
     public async Task R_AUD_01_every_audit_event_carries_the_acting_user_and_seeded_rows_carry_the_system_user()
     {
         Guid id = await CreateAsync("audit-create");
-        await _host.PostAsync($"{Counters}/{id}/post", null, "audit-post", ifMatch: "\"1\"", cancellationToken: Ct);
+        await _host.PostAsync($"{Counters}/{id}/touch", new { increment = 1 }, "audit-touch", ifMatch: "\"1\"", cancellationToken: Ct);
 
         Assert.Equal(0L, await _host.ScalarAsync("SELECT count(*) FROM kernel.audit_event e LEFT JOIN kernel.user_account u ON u.id = e.user_id WHERE u.id IS NULL", Ct));
-        Assert.Equal(Milestone1IdentityFixture.ClerkId, await _host.ScalarAsync("SELECT DISTINCT user_id FROM kernel.audit_event WHERE command_name IN ('ITEM.CREATE', 'INVENTORY_ADJUSTMENT.POST')", Ct));
+        Assert.Equal(Milestone1IdentityFixture.ClerkId, await _host.ScalarAsync("SELECT DISTINCT user_id FROM kernel.audit_event WHERE command_name IN ('ITEM.CREATE', 'FIXTURE.TOUCH')", Ct));
         Assert.Equal(WellKnownUsers.System.Value, await _host.ScalarAsync("SELECT DISTINCT user_id FROM kernel.audit_event WHERE command_name LIKE 'SYSTEM.%'", Ct));
         Assert.Equal(WellKnownUsers.System.Value, await _host.ScalarAsync("SELECT DISTINCT created_by FROM kernel.role_assignment", Ct));
     }

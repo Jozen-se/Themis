@@ -127,7 +127,7 @@ public sealed class IdentityFixtureTests
 
         await using NpgsqlConnection kernel = await PostgresFixture.OpenAsync(_db.ConnectionStringFor("themis_app"), Ct);
         PostgresException orphan = await Assert.ThrowsAsync<PostgresException>(() => ExecuteAsync(kernel,
-            "SET LOCAL ROLE themis_kernel; INSERT INTO kernel.audit_event (id, occurred_at, user_id, command_name, entity_type, entity_id, changes) VALUES (gen_random_uuid(), now(), gen_random_uuid(), 'TEST.ORPHAN', 'Test', gen_random_uuid(), '{}')"));
+            "SET LOCAL ROLE themis_kernel; INSERT INTO kernel.audit_event (id, command_id, occurred_at, user_id, command_name, entity_type, entity_id, changes) VALUES (gen_random_uuid(), gen_random_uuid(), now(), gen_random_uuid(), 'TEST.ORPHAN', 'Test', gen_random_uuid(), '{}')"));
         Assert.Equal(ForeignKeyViolation, orphan.SqlState);
     }
 

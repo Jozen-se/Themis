@@ -24,16 +24,4 @@ internal sealed record Counter(Guid Id, Guid CompanyId, Guid? SiteId, long Value
             ? Error.Rule("R-API-03", "increment_zero", "An increment of zero changes nothing and is rejected.")
             : this with { Value = Value + increment, Version = Version + 1 };
     }
-
-    public Result<Counter> Post(long expectedVersion)
-    {
-        if (expectedVersion != Version)
-        {
-            return Error.PreconditionFailed("version_stale", $"The counter is at version {Version}; the command expected {expectedVersion}.");
-        }
-
-        return Posted
-            ? Error.Rule("R-API-03", "already_posted", "The counter is already posted.")
-            : this with { Posted = true, Version = Version + 1 };
-    }
 }

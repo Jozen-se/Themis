@@ -9,7 +9,7 @@ namespace Themis.Kernel.Identity;
 /// every run and never removes a permission. A unit test holds the catalogue and the command and query types to
 /// each other in both directions: every type names a permission here, and every permission here has its type, or
 /// is listed in <see cref="AwaitingCommands"/> with the milestone step that builds the command (Build Brief, step 4
-/// names the INVENTORY_ADJUSTMENT verbs ahead of steps 7 and 8).
+/// named the INVENTORY_ADJUSTMENT verbs ahead of steps 7 and 8, which built them).
 /// </summary>
 internal static class PermissionCatalog
 {
@@ -48,12 +48,8 @@ internal static class PermissionCatalog
             Pair(FiscalPeriodReopen, ManualJournalPost),
         ]);
 
-    /// <summary>Permissions seeded ahead of their commands, with the milestone step that builds the command. Shrinks as the steps land.</summary>
-    public static IReadOnlyDictionary<string, string> AwaitingCommands { get; } = new Dictionary<string, string>(StringComparer.Ordinal)
-    {
-        // Step 7 built CREATE, UPDATE, DISCARD and READ; POST comes with the posting service (R-LED-05).
-        [InventoryAdjustmentPost] = "milestone 1 step 8",
-    };
+    /// <summary>Permissions seeded ahead of their commands, with the milestone step that builds the command. Empty since step 8 built INVENTORY_ADJUSTMENT.POST; later steps add their permissions here first.</summary>
+    public static IReadOnlyDictionary<string, string> AwaitingCommands { get; } = new Dictionary<string, string>(StringComparer.Ordinal);
 
     /// <summary>A pair with its codes in ordinal order, so (a, b) and (b, a) are the same row.</summary>
     public static SodConflictDefinition Pair(string first, string second)

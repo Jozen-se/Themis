@@ -5,7 +5,7 @@ kernel with organisation, parties, items, documents and immutable ledgers, then 
 through a first financial close. C# on .NET 10, PostgreSQL, a modular monolith with enforced module boundaries.
 Apache-2.0.
 
-Status: milestone 1 step 7, the document framework: inventory adjustment drafts, the state machine engine, numbering and the event envelope; the posting service (step 8) follows (D-27).
+Status: milestone 1 step 8, the posting service: INVENTORY_ADJUSTMENT.POST writes the inventory entries, one balanced journal entry, the caches, the audit events and INVENTORY_ADJUSTED in one transaction; the reporting view and the milestone close (step 9) follow (D-27).
 
 ## Documents
 

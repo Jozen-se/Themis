@@ -412,8 +412,14 @@ internal sealed class DiscardInventoryAdjustmentHandler : ICommandHandler<Discar
 /// The scope of a command on an existing inventory adjustment: the document's company (Build Brief, Authorisation:
 /// scope-checked after the record is loaded, inside the transaction). A missing document is 404.
 /// </summary>
-internal sealed class InventoryAdjustmentScopeResolver : IScopeResolver<UpdateInventoryAdjustment>, IScopeResolver<DiscardInventoryAdjustment>
+internal sealed class InventoryAdjustmentScopeResolver : IScopeResolver<UpdateInventoryAdjustment>, IScopeResolver<DiscardInventoryAdjustment>, IScopeResolver<PostInventoryAdjustment>
 {
+    public Task<Result<RequestScope>> ResolveAsync(PostInventoryAdjustment request, IUnitOfWork unitOfWork, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return ResolveAsync(request.Id, unitOfWork, cancellationToken);
+    }
+
     public Task<Result<RequestScope>> ResolveAsync(UpdateInventoryAdjustment request, IUnitOfWork unitOfWork, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);

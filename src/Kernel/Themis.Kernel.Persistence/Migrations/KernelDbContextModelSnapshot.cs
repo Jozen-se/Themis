@@ -35,6 +35,10 @@ namespace Themis.Kernel.Persistence.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("changes");
 
+                    b.Property<Guid?>("CommandId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("command_id");
+
                     b.Property<string>("CommandName")
                         .IsRequired()
                         .HasMaxLength(81)
@@ -2380,6 +2384,387 @@ namespace Themis.Kernel.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Themis.Kernel.Persistence.Entities.Posting.InventoryEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CommandId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("command_id");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("company_id");
+
+                    b.Property<decimal>("CostAmount")
+                        .HasColumnType("numeric(20,4)")
+                        .HasColumnName("cost_amount");
+
+                    b.Property<DateOnly>("DocumentDate")
+                        .HasColumnType("date")
+                        .HasColumnName("document_date");
+
+                    b.Property<string>("Extension")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("extension")
+                        .HasDefaultValueSql("'{}'::jsonb");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("item_id");
+
+                    b.Property<Guid?>("JournalEntryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("journal_entry_id");
+
+                    b.Property<Guid?>("LotId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lot_id");
+
+                    b.Property<string>("MovementType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("movement_type");
+
+                    b.Property<DateOnly>("PostingDate")
+                        .HasColumnType("date")
+                        .HasColumnName("posting_date");
+
+                    b.Property<decimal>("QuantityBase")
+                        .HasColumnType("numeric(20,6)")
+                        .HasColumnName("quantity_base");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at");
+
+                    b.Property<Guid>("RecordedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recorded_by");
+
+                    b.Property<Guid?>("ReversalOfEntryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reversal_of_entry_id");
+
+                    b.Property<Guid>("SourceLineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_line_id");
+
+                    b.Property<string>("StockStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("stock_status");
+
+                    b.Property<decimal>("UnitCost")
+                        .HasColumnType("numeric(28,10)")
+                        .HasColumnName("unit_cost");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("warehouse_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_inventory_entry");
+
+                    b.HasIndex("JournalEntryId")
+                        .HasDatabaseName("ix_inventory_entry_journal_entry");
+
+                    b.HasIndex("ReversalOfEntryId");
+
+                    b.HasIndex("ItemId", "CompanyId");
+
+                    b.HasIndex("JournalEntryId", "CompanyId");
+
+                    b.HasIndex("SourceLineId", "CompanyId");
+
+                    b.HasIndex("WarehouseId", "CompanyId");
+
+                    b.HasIndex("CompanyId", "ItemId", "WarehouseId", "StockStatus")
+                        .HasDatabaseName("ix_inventory_entry_balance_key");
+
+                    b.ToTable("inventory_entry", "kernel", t =>
+                        {
+                            t.HasCheckConstraint("ck_inventory_entry_cost_sign", "cost_amount = 0 OR sign(cost_amount) = sign(quantity_base)");
+
+                            t.HasCheckConstraint("ck_inventory_entry_journal_entry", "cost_amount = 0 OR journal_entry_id IS NOT NULL");
+
+                            t.HasCheckConstraint("ck_inventory_entry_lot_id", "lot_id IS NULL");
+
+                            t.HasCheckConstraint("ck_inventory_entry_movement_type", "movement_type IN ('AdjustmentIn', 'AdjustmentOut', 'Issue', 'ReturnIn', 'StatusOut', 'StatusIn')");
+
+                            t.HasCheckConstraint("ck_inventory_entry_quantity", "quantity_base <> 0");
+
+                            t.HasCheckConstraint("ck_inventory_entry_stock_status", "stock_status IN ('Available', 'Blocked')");
+                        });
+                });
+
+            modelBuilder.Entity("Themis.Kernel.Persistence.Entities.Posting.ItemCostState", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal?>("AverageCost")
+                        .HasColumnType("numeric(28,10)")
+                        .HasColumnName("average_cost");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Extension")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("extension")
+                        .HasDefaultValueSql("'{}'::jsonb");
+
+                    b.Property<decimal>("InventoryValue")
+                        .HasColumnType("numeric(20,4)")
+                        .HasColumnName("inventory_value");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("item_id");
+
+                    b.Property<Guid?>("LastInventoryEntryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("last_inventory_entry_id");
+
+                    b.Property<decimal>("QuantityBase")
+                        .HasColumnType("numeric(20,6)")
+                        .HasColumnName("quantity_base");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.Property<long>("Version")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_item_cost_state");
+
+                    b.HasIndex("LastInventoryEntryId");
+
+                    b.HasIndex("CompanyId", "ItemId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_item_cost_state_company_item");
+
+                    b.HasIndex("ItemId", "CompanyId");
+
+                    b.ToTable("item_cost_state", "kernel", t =>
+                        {
+                            t.HasCheckConstraint("ck_item_cost_state_quantity", "quantity_base >= 0");
+
+                            t.HasCheckConstraint("ck_item_cost_state_value", "inventory_value >= 0 AND (quantity_base <> 0 OR inventory_value = 0)");
+                        });
+                });
+
+            modelBuilder.Entity("Themis.Kernel.Persistence.Entities.Posting.JournalEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CommandId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("command_id");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("company_id");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("description");
+
+                    b.Property<DateOnly>("DocumentDate")
+                        .HasColumnType("date")
+                        .HasColumnName("document_date");
+
+                    b.Property<string>("EntryNumber")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("entry_number");
+
+                    b.Property<string>("Extension")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("extension")
+                        .HasDefaultValueSql("'{}'::jsonb");
+
+                    b.Property<Guid>("FiscalPeriodId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("fiscal_period_id");
+
+                    b.Property<DateOnly>("PostingDate")
+                        .HasColumnType("date")
+                        .HasColumnName("posting_date");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at");
+
+                    b.Property<Guid>("RecordedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recorded_by");
+
+                    b.Property<Guid?>("ReversalOfEntryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reversal_of_entry_id");
+
+                    b.Property<Guid>("SourceDocumentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_document_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_journal_entry");
+
+                    b.HasAlternateKey("Id", "CompanyId")
+                        .HasName("ak_journal_entry_id_company_id");
+
+                    b.HasIndex("FiscalPeriodId");
+
+                    b.HasIndex("ReversalOfEntryId");
+
+                    b.HasIndex("CompanyId", "EntryNumber")
+                        .IsUnique()
+                        .HasDatabaseName("ux_journal_entry_company_number");
+
+                    b.HasIndex("CompanyId", "PostingDate")
+                        .HasDatabaseName("ix_journal_entry_company_posting_date");
+
+                    b.HasIndex("SourceDocumentId", "CompanyId");
+
+                    b.ToTable("journal_entry", "kernel");
+                });
+
+            modelBuilder.Entity("Themis.Kernel.Persistence.Entities.Posting.JournalLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("account_id");
+
+                    b.Property<string>("AccountRole")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("account_role");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(20,4)")
+                        .HasColumnName("amount");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("company_id");
+
+                    b.Property<string>("Extension")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("extension")
+                        .HasDefaultValueSql("'{}'::jsonb");
+
+                    b.Property<Guid?>("ItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("item_id");
+
+                    b.Property<Guid>("JournalEntryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("journal_entry_id");
+
+                    b.Property<int>("LineNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("line_number");
+
+                    b.Property<Guid?>("PostingRuleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("posting_rule_id");
+
+                    b.Property<Guid?>("SourceLineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_line_id");
+
+                    b.Property<decimal>("TxnAmount")
+                        .HasColumnType("numeric(20,4)")
+                        .HasColumnName("txn_amount");
+
+                    b.Property<string>("TxnCurrency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("txn_currency");
+
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("warehouse_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_journal_line");
+
+                    b.HasIndex("AccountId")
+                        .HasDatabaseName("ix_journal_line_account");
+
+                    b.HasIndex("PostingRuleId");
+
+                    b.HasIndex("TxnCurrency");
+
+                    b.HasIndex("ItemId", "CompanyId");
+
+                    b.HasIndex("JournalEntryId", "CompanyId");
+
+                    b.HasIndex("JournalEntryId", "LineNumber")
+                        .IsUnique()
+                        .HasDatabaseName("ux_journal_line_entry_number");
+
+                    b.HasIndex("SourceLineId", "CompanyId");
+
+                    b.HasIndex("WarehouseId", "CompanyId");
+
+                    b.ToTable("journal_line", "kernel", t =>
+                        {
+                            t.HasCheckConstraint("ck_journal_line_amount", "amount <> 0");
+
+                            t.HasCheckConstraint("ck_journal_line_line_number", "line_number > 0");
+
+                            t.HasCheckConstraint("ck_journal_line_txn_sign", "sign(txn_amount) = sign(amount)");
+                        });
+                });
+
             modelBuilder.Entity("Themis.Kernel.Persistence.Entities.Posting.PostingProfileRule", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2491,6 +2876,101 @@ namespace Themis.Kernel.Persistence.Migrations
                             t.HasCheckConstraint("ck_posting_profile_rule_ship_to_scope", "ship_to_scope IS NULL OR ship_to_scope IN ('Domestic', 'EU', 'NonEU')");
 
                             t.HasCheckConstraint("ck_posting_profile_rule_validity", "valid_to IS NULL OR valid_to > valid_from");
+                        });
+                });
+
+            modelBuilder.Entity("Themis.Kernel.Persistence.Entities.Posting.StockBalance", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Extension")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("extension")
+                        .HasDefaultValueSql("'{}'::jsonb");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("item_id");
+
+                    b.Property<Guid?>("LastInventoryEntryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("last_inventory_entry_id");
+
+                    b.Property<Guid?>("LotId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lot_id");
+
+                    b.Property<decimal>("OnHandBase")
+                        .HasColumnType("numeric(20,6)")
+                        .HasColumnName("on_hand_base");
+
+                    b.Property<decimal>("ReservedBase")
+                        .HasColumnType("numeric(20,6)")
+                        .HasColumnName("reserved_base");
+
+                    b.Property<string>("StockStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("stock_status");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.Property<long>("Version")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("version");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("warehouse_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_stock_balance");
+
+                    b.HasIndex("LastInventoryEntryId");
+
+                    b.HasIndex("ItemId", "CompanyId");
+
+                    b.HasIndex("WarehouseId", "CompanyId");
+
+                    b.HasIndex("CompanyId", "ItemId", "WarehouseId", "LotId", "StockStatus")
+                        .IsUnique()
+                        .HasDatabaseName("ux_stock_balance_key");
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("CompanyId", "ItemId", "WarehouseId", "LotId", "StockStatus"), false);
+
+                    b.ToTable("stock_balance", "kernel", t =>
+                        {
+                            t.HasCheckConstraint("ck_stock_balance_lot_id", "lot_id IS NULL");
+
+                            t.HasCheckConstraint("ck_stock_balance_reserved", "reserved_base >= 0");
+
+                            t.HasCheckConstraint("ck_stock_balance_stock_status", "stock_status IN ('Available', 'Blocked')");
                         });
                 });
 
@@ -2811,6 +3291,154 @@ namespace Themis.Kernel.Persistence.Migrations
                         .HasConstraintName("fk_account_chart");
                 });
 
+            modelBuilder.Entity("Themis.Kernel.Persistence.Entities.Posting.InventoryEntry", b =>
+                {
+                    b.HasOne("Themis.Kernel.Persistence.Entities.Organisation.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_inventory_entry_company");
+
+                    b.HasOne("Themis.Kernel.Persistence.Entities.Posting.InventoryEntry", null)
+                        .WithMany()
+                        .HasForeignKey("ReversalOfEntryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_inventory_entry_reversal_of");
+
+                    b.HasOne("Themis.Kernel.Persistence.Entities.MasterData.ItemCompany", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId", "CompanyId")
+                        .HasPrincipalKey("ItemId", "CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_inventory_entry_item_company");
+
+                    b.HasOne("Themis.Kernel.Persistence.Entities.Posting.JournalEntry", null)
+                        .WithMany()
+                        .HasForeignKey("JournalEntryId", "CompanyId")
+                        .HasPrincipalKey("Id", "CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_inventory_entry_journal_entry_company");
+
+                    b.HasOne("Themis.Kernel.Persistence.Entities.Documents.DocumentLine", null)
+                        .WithMany()
+                        .HasForeignKey("SourceLineId", "CompanyId")
+                        .HasPrincipalKey("Id", "CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_inventory_entry_source_line_company");
+
+                    b.HasOne("Themis.Kernel.Persistence.Entities.Organisation.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId", "CompanyId")
+                        .HasPrincipalKey("Id", "CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_inventory_entry_warehouse_company");
+                });
+
+            modelBuilder.Entity("Themis.Kernel.Persistence.Entities.Posting.ItemCostState", b =>
+                {
+                    b.HasOne("Themis.Kernel.Persistence.Entities.Posting.InventoryEntry", null)
+                        .WithMany()
+                        .HasForeignKey("LastInventoryEntryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_item_cost_state_last_entry");
+
+                    b.HasOne("Themis.Kernel.Persistence.Entities.MasterData.ItemCompany", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId", "CompanyId")
+                        .HasPrincipalKey("ItemId", "CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_item_cost_state_item_company");
+                });
+
+            modelBuilder.Entity("Themis.Kernel.Persistence.Entities.Posting.JournalEntry", b =>
+                {
+                    b.HasOne("Themis.Kernel.Persistence.Entities.Organisation.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_journal_entry_company");
+
+                    b.HasOne("Themis.Kernel.Persistence.Entities.Organisation.FiscalPeriod", null)
+                        .WithMany()
+                        .HasForeignKey("FiscalPeriodId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_journal_entry_fiscal_period");
+
+                    b.HasOne("Themis.Kernel.Persistence.Entities.Posting.JournalEntry", null)
+                        .WithMany()
+                        .HasForeignKey("ReversalOfEntryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_journal_entry_reversal_of");
+
+                    b.HasOne("Themis.Kernel.Persistence.Entities.Documents.Document", null)
+                        .WithMany()
+                        .HasForeignKey("SourceDocumentId", "CompanyId")
+                        .HasPrincipalKey("Id", "CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_journal_entry_source_document_company");
+                });
+
+            modelBuilder.Entity("Themis.Kernel.Persistence.Entities.Posting.JournalLine", b =>
+                {
+                    b.HasOne("Themis.Kernel.Persistence.Entities.Posting.Account", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_journal_line_account");
+
+                    b.HasOne("Themis.Kernel.Persistence.Entities.Posting.PostingProfileRule", null)
+                        .WithMany()
+                        .HasForeignKey("PostingRuleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_journal_line_posting_rule");
+
+                    b.HasOne("Themis.Kernel.Persistence.Entities.MasterData.Currency", null)
+                        .WithMany()
+                        .HasForeignKey("TxnCurrency")
+                        .HasPrincipalKey("Code")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_journal_line_txn_currency");
+
+                    b.HasOne("Themis.Kernel.Persistence.Entities.MasterData.ItemCompany", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId", "CompanyId")
+                        .HasPrincipalKey("ItemId", "CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_journal_line_item_company");
+
+                    b.HasOne("Themis.Kernel.Persistence.Entities.Posting.JournalEntry", null)
+                        .WithMany()
+                        .HasForeignKey("JournalEntryId", "CompanyId")
+                        .HasPrincipalKey("Id", "CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_journal_line_entry_company");
+
+                    b.HasOne("Themis.Kernel.Persistence.Entities.Documents.DocumentLine", null)
+                        .WithMany()
+                        .HasForeignKey("SourceLineId", "CompanyId")
+                        .HasPrincipalKey("Id", "CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_journal_line_source_line_company");
+
+                    b.HasOne("Themis.Kernel.Persistence.Entities.Organisation.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId", "CompanyId")
+                        .HasPrincipalKey("Id", "CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_journal_line_warehouse_company");
+                });
+
             modelBuilder.Entity("Themis.Kernel.Persistence.Entities.Posting.PostingProfileRule", b =>
                 {
                     b.HasOne("Themis.Kernel.Persistence.Entities.Organisation.Company", null)
@@ -2834,6 +3462,31 @@ namespace Themis.Kernel.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_posting_profile_rule_account_control");
+                });
+
+            modelBuilder.Entity("Themis.Kernel.Persistence.Entities.Posting.StockBalance", b =>
+                {
+                    b.HasOne("Themis.Kernel.Persistence.Entities.Posting.InventoryEntry", null)
+                        .WithMany()
+                        .HasForeignKey("LastInventoryEntryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_stock_balance_last_entry");
+
+                    b.HasOne("Themis.Kernel.Persistence.Entities.MasterData.ItemCompany", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId", "CompanyId")
+                        .HasPrincipalKey("ItemId", "CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_stock_balance_item_company");
+
+                    b.HasOne("Themis.Kernel.Persistence.Entities.Organisation.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId", "CompanyId")
+                        .HasPrincipalKey("Id", "CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_stock_balance_warehouse_company");
                 });
 #pragma warning restore 612, 618
         }

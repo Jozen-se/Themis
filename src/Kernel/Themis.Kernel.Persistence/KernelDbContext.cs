@@ -83,6 +83,16 @@ internal sealed class KernelDbContext : DbContext
 
     public DbSet<NumberSeries> NumberSeries => Set<NumberSeries>();
 
+    public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
+
+    public DbSet<JournalLine> JournalLines => Set<JournalLine>();
+
+    public DbSet<InventoryEntry> InventoryEntries => Set<InventoryEntry>();
+
+    public DbSet<ItemCostState> ItemCostStates => Set<ItemCostState>();
+
+    public DbSet<StockBalance> StockBalances => Set<StockBalance>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);
@@ -91,6 +101,7 @@ internal sealed class KernelDbContext : DbContext
         MasterDataModel.Configure(modelBuilder);
         GeneralLedgerModel.Configure(modelBuilder);
         DocumentModel.Configure(modelBuilder);
+        LedgerModel.Configure(modelBuilder);
 
         modelBuilder.Entity<IdempotencyRecord>(entity =>
         {
@@ -110,6 +121,8 @@ internal sealed class KernelDbContext : DbContext
             entity.ToTable("audit_event");
             entity.HasKey(e => e.Id).HasName("pk_audit_event");
             entity.Property(e => e.Id).HasColumnName("id");
+            // D-51: required from step 8 on by a NOT VALID check added in raw SQL (LedgerModel.AuditCommandIdCheckSql), so earlier rows stay as written.
+            entity.Property(e => e.CommandId).HasColumnName("command_id");
             entity.Property(e => e.OccurredAt).HasColumnName("occurred_at");
             entity.Property(e => e.UserId).HasColumnName("user_id");
             entity.Property(e => e.CommandName).HasColumnName("command_name").HasMaxLength(81);
