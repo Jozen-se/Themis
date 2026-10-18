@@ -3,7 +3,6 @@ using Themis.FixtureModule.Application;
 using Themis.FixtureModule.Contracts;
 using Themis.FixtureModule.Infrastructure;
 using Themis.Kernel.Contracts.Commands;
-using Themis.Kernel.Contracts.Posting;
 using Themis.Kernel.Contracts.Security;
 
 namespace Themis.FixtureModule;
@@ -19,9 +18,6 @@ internal static class FixtureModuleServices
     public static IServiceCollection AddFixtureModule(this IServiceCollection services)
     {
         services.AddSingleton<FixtureFailureInjector>();
-        // Step 8 brief, Tests: the posting hook that injects failures after the ledger writes; AddKernelPosting keeps it (TryAdd).
-        services.AddSingleton<PostingFailureSwitch>();
-        services.AddSingleton<IPostingHook, FixturePostingHook>();
         services.AddSingleton<ICounterStore, SqlCounterStore>();
         services.AddScoped<ICommandHandler<CreateCounter, CounterSnapshot>, CreateCounterHandler>();
         services.AddScoped<ICommandHandler<TouchCounter, CounterSnapshot>, TouchCounterHandler>();

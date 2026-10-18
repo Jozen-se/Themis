@@ -6,6 +6,7 @@
 | `design/themis-phase-0-specification.md` | Snapshot of the Themis Phase 0 Specification: entity attributes, state machines, posting profile, invariants |
 | `design/themis-build-brief.md` | Snapshot of the Themis Build Brief: stack, repository layout, database roles, the current milestone |
 | `development.md` | Local development: toolchain, the compose stack, migrator, tests, database roles, telemetry |
+| `development/test-seams.md` | The register of everything that exists only for development and tests, with how each part stays out of production (Build Brief, Test seams) |
 | `../CLAUDE.md` | Ground rules for the build session, taken from the brief |
 | `../src/Modules/README.md` | How a process module is laid out and what it may reference |
 | `../db/bootstrap/01-roles.sql` | The database role model, with its reasoning in the file header |

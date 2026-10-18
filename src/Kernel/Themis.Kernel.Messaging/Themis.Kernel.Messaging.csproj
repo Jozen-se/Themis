@@ -1,6 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Themis.Kernel.Messaging: the outbox and its relay. -->
+  <!--
+    Themis.Kernel.Messaging: the outbox relay (step 9; D-53). The pass service only: the background loop that runs it
+    on a timer lives in Themis.Host, so this project needs no hosting package. The shared framework gives it options,
+    configuration binding and logging, as Themis.Kernel.Pipeline uses it. No public types (ARCH-07).
+  -->
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../Themis.Kernel.Primitives/Themis.Kernel.Primitives.csproj" />

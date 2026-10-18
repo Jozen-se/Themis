@@ -3,6 +3,7 @@ using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using Themis.Kernel.Messaging;
 using Themis.Kernel.Pipeline.Telemetry;
 
 namespace Themis.Host.Observability;
@@ -56,6 +57,7 @@ internal static class TelemetryExtensions
                 metrics.AddHttpClientInstrumentation();
                 metrics.AddRuntimeInstrumentation();
                 metrics.AddMeter(PipelineTelemetry.SourceName);
+                metrics.AddMeter(OutboxRelayTelemetry.MeterName);
                 if (otlpEnabled)
                 {
                     metrics.AddOtlpExporter();
