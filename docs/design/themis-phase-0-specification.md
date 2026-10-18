@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/artifact/5NwCL8oDM8UmE8tg8Abicz), revision 174, taken 2026-10-17.
+> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/artifact/5NwCL8oDM8UmE8tg8Abicz), revision 183, taken 2026-10-18.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite rule IDs
 > without leaving the repository. Where this copy and the live document differ, the live document wins.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -466,7 +466,7 @@ A gapless number is taken inside the posting transaction under a row lock on the
 | `quantity`, `unit_code` | Quantity, text | N | Required for Item lines; unit must be an ItemUnit or the base unit. |
 | `quantity_base` | Quantity | D | quantity x factor_to_base, stored. |
 | `lot_id` | → Lot | N | Required on stock movement lines of lot-tracked items. |
-| `warehouse_id` | → Warehouse | N | Required on stock lines. |
+| `warehouse_id` | → Warehouse | N | Required on stock lines, drafts included: a line sent without one takes the header's warehouse_id at that write, and the stored line value is what POST uses. |
 | `stock_status` | Enum: Available, Blocked | N | Required on stock movement lines. |
 | `unit_price`, `price_unit_qty`, `discount_pct` | UnitPrice, Quantity, Percent | N |  |
 | `price_source_id` | → PriceListLine | D | Which price line was used, for explainability. |
@@ -636,7 +636,7 @@ Costing follows recording order, not posting date. A back-dated posting in an op
 | 3 | StockBalance | Missing rows inserted the same way, then locked with one SELECT ... ORDER BY company, item, warehouse, lot, stock status FOR UPDATE before they are updated | Phase 0, milestone 1 |
 | 4 | Reservations and the source lines they claim | Id order | Phase 1 (specified there) |
 | 5 | OpenItem | Id order | Phase 2 (specified there) |
-| Last | NumberSeries | The series rows the command uses (for a posting: the document's series and the journal entry series), in primary key order; the gapless journal entry number is taken as the last step before commit | Phase 0, milestone 1 |
+| Last | NumberSeries | The series rows the command uses (for a posting: the document's series, and the journal entry series only when it writes a journal entry, D-52), in primary key order; the gapless journal entry number is taken as the last step before commit | Phase 0, milestone 1 |
 
 StockBalance rows written by a posting always belong to items whose ItemCostState row is already locked, so milestone 1 cannot deadlock. A concurrency test posts two adjustments on the same items in opposite line order.
 
@@ -663,6 +663,7 @@ One permission exists per command, plus one TYPE.READ permission per resource ty
 | AuditEvent | `entity_type`, `entity_id` | text, UUID | Y |  |
 | AuditEvent | `changes` | JSON (before and after per field) | Y | PD fields are masked in reads without the right permission. |
 | AuditEvent | `idempotency_key`, `correlation_id` | text | N |  |
+| AuditEvent | `command_id` | UUID | Y | The command that wrote it. JournalEntry and InventoryEntry store the same id, so a ledger row leads to its command's audit events and idempotency key (D-51). Required for every audit event written from milestone 1 step 8 on; events written before it by migrations and seeders keep it empty, and no audit row is ever changed. |
 | IdempotencyRecord | `key`, `user_id`, `command_name` | text, → User, Code | Y | Unique per user and key. |
 | IdempotencyRecord | `request_hash`, `response` | text, JSON | Y | Same key with a different request hash is rejected (R-API-04). |
 | IdempotencyRecord | `expires_at` | Timestamp | Y | Default 7 days. |
@@ -678,7 +679,7 @@ One permission exists per command, plus one TYPE.READ permission per resource ty
 
 All master data shares one lifecycle, and nothing is ever deleted (R-MD-03). Fiscal periods move one way to Closed, with a single step back from SoftClosed.
 
-Each transition table reads: from state, command, to state, the guards that must hold, and the effects. A command whose guard fails is rejected with the rule ID (R-API-03).
+Each transition table reads: from state, command, to state, the guards that must hold, and the effects. A command whose guard fails is rejected with the rule ID (R-API-03). A guard with no rule of its own is rejected under R-DOC-01, the state machine rule of the document type, with a code naming the guard.
 
 **Master data lifecycle** (Party, PartyRole, ItemCompany, Warehouse, Account; Company and Contact use only Active and Inactive)
 
@@ -726,7 +727,7 @@ Three kernel documents let Phase 0 put stock in, take it out and block it before
 
 **Shared rules for every document type**
 
-- CREATE gives status Draft and a `draft_reference`. UPDATE is allowed only in Draft and only on the current `version` (R-DOC-02, R-API-02). An UPDATE carries the whole draft. Lines are matched by line number, which must be positive and unique in the request: a new number inserts a line, an existing one updates it, a line left out becomes Cancelled, and a cancelled number given again reopens that line with the new values. Nothing is deleted, and POST ignores Cancelled lines.
+- CREATE gives status Draft and a `draft_reference`. UPDATE is allowed only in Draft and only on the current `version` (R-DOC-02, R-API-02). An UPDATE carries the whole draft. Lines are matched by line number, which must be positive and unique in the request: a new number inserts a line, an existing one updates it, a line left out becomes Cancelled, and a cancelled number given again reopens that line with the new values. Nothing is deleted, and POST ignores Cancelled lines. Every accepted UPDATE increments the document version, also when it repeats the stored draft; such an update writes one audit event for the document row and one TYPE_UPDATED event (D-44) whose changed fields hold only the version.
 - DISCARD moves a Draft to Discarded for types numbered on post. Types numbered on create (sales order, delivery, return) use CANCEL instead, so every issued number stays accounted for. Nothing is deleted (R-DOC-06).
 - POST and every later transition write the status change, ledger effects, audit event and outbox event in one transaction (R-LED-05).
 - REVERSE never edits the original. It creates opposite entries dated on a reversal posting date that must be in an open period (R-LED-01, R-LED-04).
@@ -742,7 +743,7 @@ Three kernel documents let Phase 0 put stock in, take it out and block it before
 
 | From | Command | To | Guards | Effects |
 |---|---|---|---|---|
-| Draft | POST | Posted | Items Stocked, and Active in the document's company (ItemCompany, D-43); lot given for lot-tracked items; outbound lines covered by stock in the line's stock status, and Available stock is not reserved (R-INV-03); entered_unit_cost given on inbound lines when the item has no average cost yet; reason code given; at least one Open line; period open | InventoryEntries (AdjustmentIn, AdjustmentOut) costed by the moving average algorithm; JournalEntry per posting events E-01 and E-02; caches updated; event INVENTORY_ADJUSTED |
+| Draft | POST | Posted | Items Stocked, and Active in the document's company (ItemCompany, D-43); lot given for lot-tracked items; outbound lines covered by stock in the line's stock status, and Available stock is not reserved (R-INV-03); entered_unit_cost given on inbound lines when the item has no average cost yet (R-INV-05); no entered_unit_cost on outbound lines, whose cost comes from the algorithm (R-INV-05); reason code given; at least one Open line; period open (R-LED-04); a number series for each number assigned (R-DOC-08) | InventoryEntries (AdjustmentIn, AdjustmentOut) costed by the moving average algorithm; JournalEntry per posting events E-01 and E-02; caches updated; event INVENTORY_ADJUSTED |
 | Posted | REVERSE | Reversed | The reversal must not make stock negative | Outbound lines come back in at their original cost. Inbound lines go out as outbound movements costed by the algorithm (step 3, including R-INV-07), so stock value can never turn negative. A reversing JournalEntry posts the resulting amounts to the original accounts (R-PP-03) |
 
 **STOCK_STATUS_CHANGE** (each line: item, lot, warehouse, from status, to status, quantity)
@@ -977,7 +978,7 @@ Fourteen invariants define "the books are correct". Each is an automated test af
 | ID | Invariant | Protects |
 |---|---|---|
 | I-01 | Every JournalEntry sums to 0 in company currency. | R-LED-02 |
-| I-02 | No JournalLine or InventoryEntry has amount or quantity 0; lines that would be 0 (for example 0 % VAT) are not written. Txn and company amounts share a sign. | Data quality |
+| I-02 | No JournalLine has amount 0 and no InventoryEntry has quantity 0 (an InventoryEntry may have cost 0, I-08); lines that would be 0 (for example 0 % VAT) are not written. Txn and company amounts share a sign. | Data quality |
 | I-03 | StockBalance on hand = sum of InventoryEntry quantity per key, and is never below 0 in a warehouse that does not allow negative stock (the default, R-INV-03). | R-INV-01, R-INV-03 |
 | I-04 | ItemCostState value and quantity = sums of InventoryEntry cost and quantity per company and item; value is 0 when quantity is 0. | R-INV-05, R-INV-07 |
 | I-05 | Active reservations per item and warehouse never exceed Available stock outside Blocked lots. | R-INV-04 |
