@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/artifact/5NwCL8oDM8UmE8tg8Abicz), revision 184, taken 2026-10-18.
+> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/artifact/5NwCL8oDM8UmE8tg8Abicz), revision 186, taken 2026-10-19.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite rule IDs
 > without leaving the repository. Where this copy and the live document differ, the live document wins.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -974,7 +974,7 @@ These mappings are configuration data in a localisation package, not code. They 
 
 ## Invariants Claude Code must test
 
-Fourteen invariants define "the books are correct". Each is an automated test after every command in property-based test runs, and a nightly check in production; any failure stops period close.
+Fifteen invariants define "the books are correct". Each is an automated test after every command in property-based test runs, and a nightly check in production; any failure stops period close.
 
 | ID | Invariant | Protects |
 |---|---|---|
@@ -992,6 +992,7 @@ Fourteen invariants define "the books are correct". Each is an automated test af
 | I-12 | Open amount = original amount minus non-reversed settlements, and never changes sign. | Settlement integrity |
 | I-13 | A ROUNDING line never exceeds half a minor unit per converted line in its entry. | R-MON-02 |
 | I-14 | Each module role is refused every write outside its own schema, the login role is refused every table write, and no role can UPDATE or DELETE ledger or audit tables. An integration test attempts each forbidden write and expects a database error. | R-DB-01, R-LED-06 |
+| I-15 | The reported stock values per warehouse of an item sum to its ItemCostState value, per company and item, and so per company to the balance of the INVENTORY-role accounts; no reported warehouse value is negative, and a warehouse with no stock on hand reports none. | D-54, I-04, I-06 |
 
 **Scenario catalogue (to write next):** opening balance, sale with full and partial delivery, backorder allocation, credit block and approval, invoice and payment with a difference, EUR invoice with exchange difference, credit note, return into Blocked stock, period soft close and close.
 
