@@ -69,6 +69,57 @@ public sealed class PostgresFixture : IAsyncLifetime
         return connectionString;
     }
 
+    /// <summary>
+    /// A second database on the same server, bootstrapped, migrated and seeded with the milestone 1 fixture exactly as
+    /// this fixture's own, to serve as the template of the property-based runs (step 11); the caller drops it.
+    /// </summary>
+    public async Task<string> CreateSeededDatabaseAsync(CancellationToken cancellationToken)
+    {
+        string connectionString = await CreateEmptyDatabaseAsync(cancellationToken);
+        string migrator = new NpgsqlConnectionStringBuilder(connectionString) { Username = "themis_migrator", Password = "themis" }.ConnectionString;
+        int exitCode = await Themis.Migrator.Program.Main(["--connection", migrator, "--fixture", "milestone-1"]);
+        if (exitCode != 0)
+        {
+            throw new InvalidOperationException($"Themis.Migrator exited with {exitCode} on {new NpgsqlConnectionStringBuilder(connectionString).Database}.");
+        }
+
+        return connectionString;
+    }
+
+    /// <summary>
+    /// A fresh database cloned from a template with <c>CREATE DATABASE ... TEMPLATE</c> (step 11: every property
+    /// sequence starts from a clean clone). PostgreSQL refuses the clone while any other session is connected to the
+    /// template, so the pooled connections are released first and any remaining session on it is ended. Clones are
+    /// created one at a time; the caller drops the clone.
+    /// </summary>
+    public async Task<string> CloneDatabaseAsync(string templateConnectionString, CancellationToken cancellationToken)
+    {
+        string template = new NpgsqlConnectionStringBuilder(templateConnectionString).Database!;
+        string clone = "themis_clone_" + Guid.NewGuid().ToString("N")[..12];
+        await CloneLock.WaitAsync(cancellationToken);
+        try
+        {
+            NpgsqlConnection.ClearAllPools();
+            await using NpgsqlConnection connection = await OpenAsync(SuperuserConnectionString, cancellationToken);
+            await using (NpgsqlCommand terminate = new("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = @template AND pid <> pg_backend_pid()", connection))
+            {
+                terminate.Parameters.AddWithValue("template", template);
+                await terminate.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            await using NpgsqlCommand create = new($"CREATE DATABASE \"{clone}\" TEMPLATE \"{template}\"", connection);
+            await create.ExecuteNonQueryAsync(cancellationToken);
+        }
+        finally
+        {
+            CloneLock.Release();
+        }
+
+        return new NpgsqlConnectionStringBuilder(SuperuserConnectionString) { Database = clone }.ConnectionString;
+    }
+
+    private static readonly SemaphoreSlim CloneLock = new(1, 1);
+
     public async Task DropDatabaseAsync(string connectionString, CancellationToken cancellationToken)
     {
         string name = new NpgsqlConnectionStringBuilder(connectionString).Database!;

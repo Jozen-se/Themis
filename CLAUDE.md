@@ -47,4 +47,4 @@ Reference only (not sources of truth; the documents above win on any conflict):
 - Run: dotnet run --project src/Themis.Host
 
 ## Current milestone
-Milestone 1, walking skeleton. Scope and acceptance criteria are in docs/design/themis-build-brief.md. Do not start work outside that scope.
+Milestone 1 complete. Milestone 2 is not released yet; do not start work outside a released step.

@@ -8,6 +8,9 @@
 | `development.md` | Local development: toolchain, the compose stack, migrator, tests, database roles, telemetry |
 | `kpi/stock-value.md` | The stock value KPI, version 1: the definition the view `reporting.stock_by_warehouse` serves (D-54, I-15), its owner and its change log |
 | `development/test-seams.md` | The register of everything that exists only for development and tests, with how each part stays out of production (Build Brief, Test seams) |
+| `milestones/milestone-1.md` | The milestone 1 acceptance map: every checklist item of the Build Brief with the tests that prove it, or the manual steps for the start-up item |
+| `../db/invariants/README.md` | The invariant queries, one file per checkable invariant, run by the tests and later by the production nightly check |
+| `../CONTRIBUTING.md` | How to contribute: the Developer Certificate of Origin sign-off (D-36), the local checks, the pull request rules |
 | `../CLAUDE.md` | Ground rules for the build session, taken from the brief |
 | `../src/Modules/README.md` | How a process module is laid out and what it may reference |
 | `../db/bootstrap/01-roles.sql` | The database role model, with its reasoning in the file header |

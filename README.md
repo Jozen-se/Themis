@@ -5,7 +5,7 @@ kernel with organisation, parties, items, documents and immutable ledgers, then 
 through a first financial close. C# on .NET 10, PostgreSQL, a modular monolith with enforced module boundaries.
 Apache-2.0.
 
-Status: milestone 1 step 10, the reporting view: `reporting.stock_by_warehouse` gives a BI tool current stock quantity and value per company, item and warehouse from the caches, the value allocated per D-54 and tied to the ledgers (I-15); property-based runs (step 11) follow (D-27).
+Status: milestone 1 complete (steps 1 to 11): the walking skeleton posts inventory adjustments through the kernel pipeline into immutable ledgers with the role model, idempotency, audit and outbox events, the outbox relay and the first reporting view; every acceptance criterion maps to a passing test in [`docs/milestones/milestone-1.md`](docs/milestones/milestone-1.md), and property-based runs over random command sequences keep the invariants true after every command (D-27). Milestone 2 is not released yet.
 
 ## Documents
 
@@ -59,6 +59,11 @@ dotnet run --project src/Themis.Host        # http://localhost:5080/health/ready
 
 The compose stack's Keycloak realm (`docker/keycloak/themis-realm.json`) has the API client `themis-api` and the
 two test users `clerk` and `preparer` of the milestone 1 fixture; see docs/development.md, Identity, for a token.
+
+## Contributing
+
+Every commit is signed off under the Developer Certificate of Origin (`git commit -s`, D-36); a CI check enforces it
+on pull requests. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Licence
 
