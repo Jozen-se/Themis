@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Foundation Design* (https://claude.ai/artifact/B7yhaqHmFJqQCAo23KSDXq), revision 161, taken 2026-10-18.
+> **Snapshot** of the live document *Themis Foundation Design* (https://claude.ai/artifact/B7yhaqHmFJqQCAo23KSDXq), revision 166, taken 2026-10-19.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite rule IDs
 > without leaving the repository. Where this copy and the live document differ, the live document wins.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -336,7 +336,7 @@ The biggest risk is a kernel model that turns out wrong after code depends on it
 
 ## Decision log
 
-Forty-nine decisions are made and four are open (D-10, D-20, D-36, D-48); none of the open ones blocks the walking skeleton.
+Fifty decisions are made and four are open (D-10, D-20, D-36, D-48); none of the open ones blocks the walking skeleton.
 
 | ID | Decision | Status | Note |
 |---|---|---|---|
@@ -393,6 +393,7 @@ Forty-nine decisions are made and four are open (D-10, D-20, D-36, D-48); none o
 | D-51 | Audit of postings (amends R-AUD-01): a posting's journal and inventory entries record their own command, user and time; caches are rebuilt from the ledgers; number series counters are traced by the numbers they issue. None of these gets its own audit event. The command's audit events cover the document and its lines, and every audit event stores the command id, so each ledger row leads to its command's audit events and idempotency key. Audit events written before the command id existed keep it empty; it is required for every audit event written after, and no audit row is ever changed | [Decided] | Your decision, 2026-10-18, while settling the milestone 1 step 8 brief. One audit event per ledger row and cache change was rejected: it roughly doubles the writes of every posting and adds no trace the ledger rows lack. A one-time fill of the earlier audit events was rejected after the independent review, since it would change audit rows. Built in step 8. |
 | D-52 | Missing number series (rule R-DOC-08): a command that must assign a number and finds no series for its document type and scope is rejected; there is no fallback. A posting needs the journal entry series only when it writes a journal entry. A guard that a fiscal year cannot open without its series waits for the fiscal year commands | [Decided] | Your decision, 2026-10-18, while settling the milestone 1 step 8 brief; closes the item carried from step 7. Built in step 8 |
 | D-53 | Outbox relay and audit (amends R-AUD-01): the relay writes only the delivery columns published_at and attempts of an outbox event. It runs outside the command pipeline, has no user, command or idempotency key, and writes no audit event; the delivery columns are the record. Each pass is one short transaction run as themis_kernel with SET LOCAL ROLE, as R-DB-01 requires of a command's transaction. It picks up events in short transactions that never let two passes hold the same event at the same time; delivery is at least once, so consumers must be idempotent. Ordering per aggregate, claiming with a lease, retries, dead letters and retention stay with the D-50 delivery terms | [Decided] | Your decision, 2026-10-18, while settling the milestone 1 step 9 brief with the coder. One audit event per published event was rejected: a relay pass has none of the fields R-AUD-01 names, so the event would be malformed as well as redundant. Built in step 9. |
+| D-54 | Stock value per warehouse (reporting): an item's company inventory value is allocated to its warehouses in proportion to each warehouse's total on hand across stock statuses, each share rounded down (toward zero) to the company currency's minor unit, and the rounding difference assigned to the warehouse with the largest on hand, then the lowest warehouse id, so the warehouse values sum to the item value and to the INVENTORY account (I-15). This is a reporting allocation, not a ledger fact; average cost stays per company and item (R-INV-05). Rounding down keeps every warehouse value at 0 or above; it is a reporting rounding point defined here, outside the line, tax and total points of R-MON-02. The definition is a versioned KPI in the repository with the role Finance owner as its owner; it gets a new version if costing per warehouse is ever added | [Decided] | Your decision, 2026-10-18, while settling the milestone 1 step 10 brief with the coder. Summing each warehouse's own ledger costs was rejected: under a company-wide average it can show value at zero quantity and negative values. Largest-remainder rounding was rejected as harder to explain and to reproduce in a BI tool. Built in step 10. |
 
 ## Next steps
 

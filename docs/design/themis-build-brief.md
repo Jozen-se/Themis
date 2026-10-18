@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Build Brief* (https://claude.ai/artifact/MghYVSVm65mLxjfuBUGvSe), revision 65, taken 2026-10-18.
+> **Snapshot** of the live document *Themis Build Brief* (https://claude.ai/artifact/MghYVSVm65mLxjfuBUGvSe), revision 67, taken 2026-10-19.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite rule IDs
 > without leaving the repository. Where this copy and the live document differ, the live document wins.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -177,7 +177,7 @@ Milestone 1 proves the architecture end to end with the smallest real business f
 7. **Document framework:** the document type registry as a code catalogue (INVENTORY_ADJUSTMENT with its four transitions and event names; JOURNAL_ENTRY as a numbering-only row); the document, document_line and inventory_adjustment tables (document_link and attachment wait for Phase 1); the state machine engine; INVENTORY_ADJUSTMENT.CREATE, UPDATE (whole draft, lines matched by line number, none deleted), DISCARD and READ, replacing the fixture stand-in for UPDATE; the numbering service with series rows for INVENTORY_ADJUSTMENT (IA-, continuous) and JOURNAL_ENTRY (JE2026-, per fiscal year, gapless); the event envelope (D-50). The POST transition is registered, but the POST command, its guards and its effects come together in step 8 (R-LED-05).
 8. **Posting service:** AdjustmentIn and AdjustmentOut entries. Inbound cost = quantity x entered unit cost, rounded to the currency's minor unit; an inbound line without an entered cost takes quantity x value / quantity on hand while stock is above 0, and the stored average only at zero stock. Outbound cost = quantity x value / quantity on hand, computed exactly and then rounded, never from the stored average (spec, moving average algorithm). Stock balance and cost state caches, journal entry per E-01 and E-02 through the posting profile, locks per R-LED-08. INVENTORY_ADJUSTMENT.POST with the guards of the specification's state machine (a missing number series is rejected with R-DOC-08), replacing the fixture's POST stand-in. One journal entry per document; a zero-cost line writes its inventory entry but no journal lines. Audit events for the document and its lines, with the command id on every audit event (D-51).
 9. **Outbox:** INVENTORY_ADJUSTED written in the posting transaction; the relay marks it published and logs it. No external delivery yet. The relay runs in the host in short transactions as themis_kernel, writes only published_at and attempts and no audit event (D-53); its options are host configuration.
-10. **Reporting:** one view in the `reporting` schema with stock quantity and value per item and warehouse.
+10. **Reporting:** one view in the `reporting` schema with stock quantity and value per item and warehouse. Value per warehouse is the allocation of D-54, defined as a versioned KPI in the repository; the view reads the caches.
 11. **Tests:** the acceptance criteria below, including property-based invariant tests and the role and privilege test I-14.
 
 ## Milestone 1: acceptance criteria
@@ -220,7 +220,7 @@ Each step is its own INVENTORY_ADJUSTMENT document with reason code CountDiffere
 - All money, quantity and cost values in JSON responses are strings, and integers such as versions stay numbers (D-37).
 - Role and privilege test I-14 passes: the actual grants equal the expected privilege matrix; `themis_fixture` cannot write to `kernel`; `themis_kernel` cannot update or delete journal or inventory entries; `themis_app` cannot write any table without switching role.
 - Property-based runs of random adjustment sequences keep I-01, I-02, I-03, I-04, I-06, I-08 and I-09 true.
-- The reporting view returns stock quantity and value per item and warehouse, and `themis_reporting` holds no privilege on any `kernel` table.
+- The reporting view returns stock quantity and value per item and warehouse (D-54, I-15 holds), and `themis_reporting` holds no privilege on any `kernel` table.
 - An illegal reference from the fixture module into a kernel internal project makes the architecture tests fail.
 - Every log line of a command carries the command name and correlation id (relay lines as in the Observability convention), and traces are visible in the console exporter.
 - Two adjustments on the same items, posted concurrently with their lines in opposite order, both commit without deadlock (R-LED-08).
