@@ -84,42 +84,11 @@ internal sealed class TouchCounterHandler : ICommandHandler<TouchCounter, Counte
     }
 }
 
-/// <summary>Post: the stand-in for INVENTORY_ADJUSTMENT.POST (step 4 brief); versioned, audited, FIXTURE_COUNTER_POSTED.</summary>
-internal sealed class PostCounterHandler : ICommandHandler<PostCounter, CounterSnapshot>
-{
-    private readonly ICounterStore _store;
-
-    public PostCounterHandler(ICounterStore store)
-    {
-        _store = store;
-    }
-
-    public async Task<Result<CounterSnapshot>> HandleAsync(PostCounter command, ICommandContext context, CancellationToken cancellationToken)
-    {
-        Counter? current = await _store.FindAsync(context.UnitOfWork, command.Id, cancellationToken);
-        if (current is null)
-        {
-            return Error.NotFound("counter_not_found", $"Counter {command.Id} does not exist.");
-        }
-
-        Result<Counter> posted = current.Post(command.ExpectedVersion);
-        if (posted.IsFailure)
-        {
-            return Result<CounterSnapshot>.Failure(posted.Errors);
-        }
-
-        await _store.UpdateAsync(context.UnitOfWork, posted.Value, cancellationToken);
-        context.Audit.Record(FixtureContracts.EntityType, posted.Value.Id, CounterAudit.Changes(current, posted.Value));
-        context.Outbox.Publish(EventNames.Generated(FixtureContracts.TypeCode, "POST"), EventNames.DefaultSchemaVersion, FixtureContracts.TypeCode, posted.Value.Id, posted.Value.CompanyId, CreateCounterHandler.Snapshot(posted.Value));
-        return CreateCounterHandler.Snapshot(posted.Value);
-    }
-}
-
 /// <summary>
 /// The scope of a command on an existing counter: the counter's company and, when it has one, its site (Build
 /// Brief, Authorisation: scope-checked after the record is loaded, inside the transaction). A missing counter is 404.
 /// </summary>
-internal sealed class CounterScopeResolver : IScopeResolver<TouchCounter>, IScopeResolver<PostCounter>
+internal sealed class CounterScopeResolver : IScopeResolver<TouchCounter>
 {
     private readonly ICounterStore _store;
 
@@ -129,9 +98,6 @@ internal sealed class CounterScopeResolver : IScopeResolver<TouchCounter>, IScop
     }
 
     public Task<Result<RequestScope>> ResolveAsync(TouchCounter request, IUnitOfWork unitOfWork, CancellationToken cancellationToken) =>
-        ResolveAsync(request.Id, unitOfWork, cancellationToken);
-
-    public Task<Result<RequestScope>> ResolveAsync(PostCounter request, IUnitOfWork unitOfWork, CancellationToken cancellationToken) =>
         ResolveAsync(request.Id, unitOfWork, cancellationToken);
 
     private async Task<Result<RequestScope>> ResolveAsync(Guid id, IUnitOfWork unitOfWork, CancellationToken cancellationToken)

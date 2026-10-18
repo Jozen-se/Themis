@@ -14,7 +14,7 @@ public sealed class DatabaseRoleModelTests : IAsyncLifetime
     private const string InsufficientPrivilege = "42501";
 
     private const string InsertAudit =
-        "INSERT INTO kernel.audit_event (id, occurred_at, user_id, command_name, entity_type, entity_id, changes) VALUES (gen_random_uuid(), now(), '00000000-0000-7000-8000-000000000001', 'PROBE.WRITE', 'Probe', gen_random_uuid(), '{}')";
+        "INSERT INTO kernel.audit_event (id, command_id, occurred_at, user_id, command_name, entity_type, entity_id, changes) VALUES (gen_random_uuid(), gen_random_uuid(), now(), '00000000-0000-7000-8000-000000000001', 'PROBE.WRITE', 'Probe', gen_random_uuid(), '{}')";
 
     private readonly PostgresFixture _db;
 
@@ -72,6 +72,12 @@ public sealed class DatabaseRoleModelTests : IAsyncLifetime
         await ExecuteAsync(connection, InsertAudit);
         await AssertRefusedAsync(connection, "UPDATE kernel.audit_event SET changes = '{\"edited\": true}'", insideTransaction: true);
         await AssertRefusedAsync(connection, "DELETE FROM kernel.audit_event", insideTransaction: true);
+        // I-11, I-14: the ledgers of step 8 are insert-only too; the privilege check runs before any row is looked at.
+        foreach (string table in new[] { "journal_entry", "journal_line", "inventory_entry" })
+        {
+            await AssertRefusedAsync(connection, $"UPDATE kernel.{table} SET company_id = company_id", insideTransaction: true);
+            await AssertRefusedAsync(connection, $"DELETE FROM kernel.{table}", insideTransaction: true);
+        }
     }
 
     [Fact]

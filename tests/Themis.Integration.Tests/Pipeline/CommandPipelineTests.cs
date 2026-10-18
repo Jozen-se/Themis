@@ -60,7 +60,7 @@ public sealed class CommandPipelineTests : IAsyncLifetime
         Guid id = reply.Json["id"]!.GetValue<Guid>();
 
         Assert.Equal(1L, await _host.CountAsync("fixture.counter", Ct));
-        Assert.Equal(1L, await _host.ScalarAsync("SELECT count(*) FROM kernel.audit_event WHERE command_name IN ('ITEM.CREATE', 'FIXTURE.TOUCH', 'INVENTORY_ADJUSTMENT.POST')", Ct));
+        Assert.Equal(1L, await _host.ScalarAsync("SELECT count(*) FROM kernel.audit_event WHERE command_name IN ('ITEM.CREATE', 'FIXTURE.TOUCH')", Ct));
         Assert.Equal(1L, await _host.CountAsync("kernel.outbox_event", Ct));
         Assert.Equal(1L, await _host.CountAsync("kernel.idempotency_record", Ct));
 
@@ -116,7 +116,7 @@ public sealed class CommandPipelineTests : IAsyncLifetime
         Assert.Equal(first.Body, second.Body);
         Assert.Equal(1L, await _host.CountAsync("fixture.counter", Ct));
         Assert.Equal(1L, await _host.CountAsync("kernel.outbox_event", Ct));
-        Assert.Equal(1L, await _host.ScalarAsync("SELECT count(*) FROM kernel.audit_event WHERE command_name IN ('ITEM.CREATE', 'FIXTURE.TOUCH', 'INVENTORY_ADJUSTMENT.POST')", Ct));
+        Assert.Equal(1L, await _host.ScalarAsync("SELECT count(*) FROM kernel.audit_event WHERE command_name IN ('ITEM.CREATE', 'FIXTURE.TOUCH')", Ct));
     }
 
     [Fact]
@@ -176,25 +176,6 @@ public sealed class CommandPipelineTests : IAsyncLifetime
         Assert.Equal("idempotency_key_required", reply.Code);
         Assert.Equal("R-API-01", reply.RuleId);
         Assert.Equal(0L, await _host.CountAsync("fixture.counter", Ct));
-    }
-
-    [Fact]
-    public async Task R_SEC_01_the_preparer_without_INVENTORY_ADJUSTMENT_POST_is_rejected_with_403_and_the_rule_id_and_the_clerk_posts()
-    {
-        // Step 4 brief, acceptance 3: the fixture's post command stands in for INVENTORY_ADJUSTMENT.POST until step 7.
-        Guid id = await CreateAsync("forbidden-create");
-
-        CommandReply preparer = await _host.PostAsync($"{Counters}/{id}/post", null, "forbidden-1", ifMatch: "\"1\"", subject: TestUsers.PreparerSubject, cancellationToken: Ct);
-        CommandReply clerk = await _host.PostAsync($"{Counters}/{id}/post", null, "forbidden-2", ifMatch: "\"1\"", subject: TestUsers.ClerkSubject, cancellationToken: Ct);
-
-        Assert.Equal(403, preparer.Status);
-        Assert.Equal("application/problem+json", preparer.MediaType);
-        Assert.Equal("permission_missing", preparer.Code);
-        Assert.Equal("R-SEC-01", preparer.RuleId);
-        Assert.Equal(0L, await _host.ScalarAsync("SELECT count(*) FROM kernel.idempotency_record WHERE key = 'forbidden-1'", Ct));
-        Assert.Equal(200, clerk.Status);
-        Assert.True(clerk.Json!["posted"]!.GetValue<bool>());
-        Assert.Equal(TestUsers.Clerk, await _host.ScalarAsync("SELECT user_id FROM kernel.audit_event WHERE command_name = 'INVENTORY_ADJUSTMENT.POST'", Ct));
     }
 
     [Fact]

@@ -36,6 +36,8 @@ internal static class DocumentTypeSeeder
         await using KernelDbContext context = KernelDbContextFactory.ForMigrations(migratorConnectionString);
         await using IDbContextTransaction transaction = await context.Database.BeginTransactionAsync(cancellationToken);
         Guid by = seededBy.Value;
+        // D-51: one command id per seeder call, shared by every audit event it writes.
+        Guid commandId = EntityId.New();
         int changed = 0;
 
         foreach (DocumentTypeDefinition definition in catalogue)
@@ -84,7 +86,7 @@ internal static class DocumentTypeSeeder
 
             if (changes.Count > 0)
             {
-                Audit(context, "DocumentType", existing.Id, now, by, changes);
+                Audit(context, commandId, "DocumentType", existing.Id, now, by, changes);
                 changed++;
             }
 
@@ -131,7 +133,7 @@ internal static class DocumentTypeSeeder
 
                 if (transitionChanges.Count > 0)
                 {
-                    Audit(context, "DocumentTransition", row.Id, now, by, transitionChanges);
+                    Audit(context, commandId, "DocumentTransition", row.Id, now, by, transitionChanges);
                     changed++;
                 }
             }
@@ -153,10 +155,11 @@ internal static class DocumentTypeSeeder
 
     private static string Text(bool value) => value ? "True" : "False";
 
-    private static void Audit(KernelDbContext context, string entityType, Guid entityId, DateTimeOffset now, Guid by, IReadOnlyDictionary<string, FieldChange> changes) =>
+    private static void Audit(KernelDbContext context, Guid commandId, string entityType, Guid entityId, DateTimeOffset now, Guid by, IReadOnlyDictionary<string, FieldChange> changes) =>
         context.AuditEvents.Add(new AuditEvent
         {
             Id = EntityId.New(),
+            CommandId = commandId,
             OccurredAt = now,
             UserId = by,
             CommandName = CommandName,

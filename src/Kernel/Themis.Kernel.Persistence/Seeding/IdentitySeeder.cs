@@ -35,6 +35,8 @@ internal static class IdentitySeeder
         await using KernelDbContext context = KernelDbContextFactory.ForMigrations(migratorConnectionString);
         await using IDbContextTransaction transaction = await context.Database.BeginTransactionAsync(cancellationToken);
         Guid by = seededBy.Value;
+        // D-51: one command id per seeder call, shared by every audit event it writes.
+        Guid commandId = EntityId.New();
         int changed = 0;
 
         foreach (PermissionDefinition definition in catalogue.Permissions)
@@ -47,7 +49,7 @@ internal static class IdentitySeeder
             {
                 Permission permission = new() { Id = EntityId.New(), Code = code, RiskLevel = riskLevel, CreatedAt = now, CreatedBy = by, UpdatedAt = now, UpdatedBy = by };
                 context.Permissions.Add(permission);
-                Audit(context, CatalogueCommandName, "Permission", permission.Id, now, by, new Dictionary<string, FieldChange> { ["code"] = new(null, code), ["riskLevel"] = new(null, riskLevel) });
+                Audit(context, commandId, CatalogueCommandName, "Permission", permission.Id, now, by, new Dictionary<string, FieldChange> { ["code"] = new(null, code), ["riskLevel"] = new(null, riskLevel) });
                 changed++;
             }
             else if (!string.Equals(existing.RiskLevel, riskLevel, StringComparison.Ordinal))
@@ -57,7 +59,7 @@ internal static class IdentitySeeder
                 existing.UpdatedAt = now;
                 existing.UpdatedBy = by;
                 existing.Version++;
-                Audit(context, CatalogueCommandName, "Permission", existing.Id, now, by, new Dictionary<string, FieldChange> { ["riskLevel"] = new(before, riskLevel) });
+                Audit(context, commandId, CatalogueCommandName, "Permission", existing.Id, now, by, new Dictionary<string, FieldChange> { ["riskLevel"] = new(before, riskLevel) });
                 changed++;
             }
         }
@@ -75,7 +77,7 @@ internal static class IdentitySeeder
             {
                 SodConflict conflict = new() { Id = EntityId.New(), PermissionA = a, PermissionB = b, CreatedAt = now, CreatedBy = by, UpdatedAt = now, UpdatedBy = by };
                 context.SodConflicts.Add(conflict);
-                Audit(context, CatalogueCommandName, "SodConflict", conflict.Id, now, by, new Dictionary<string, FieldChange> { ["permissionA"] = new(null, a), ["permissionB"] = new(null, b) });
+                Audit(context, commandId, CatalogueCommandName, "SodConflict", conflict.Id, now, by, new Dictionary<string, FieldChange> { ["permissionA"] = new(null, a), ["permissionB"] = new(null, b) });
                 changed++;
             }
         }
@@ -99,11 +101,13 @@ internal static class IdentitySeeder
         await using KernelDbContext context = KernelDbContextFactory.ForMigrations(migratorConnectionString);
         await using IDbContextTransaction transaction = await context.Database.BeginTransactionAsync(cancellationToken);
         Guid by = seededBy.Value;
+        // D-51: one command id per seeder call, shared by every audit event it writes.
+        Guid commandId = EntityId.New();
         int inserted = 0;
 
         foreach (UserDefinition user in fixture.Users)
         {
-            inserted += await AddIfMissingAsync(context, "User", user, user.Id, now, by, () => new UserAccount
+            inserted += await AddIfMissingAsync(context, commandId, "User", user, user.Id, now, by, () => new UserAccount
             {
                 Id = user.Id,
                 ExternalSubject = user.ExternalSubject,
@@ -120,7 +124,7 @@ internal static class IdentitySeeder
 
         foreach (RoleDefinition role in fixture.Roles)
         {
-            inserted += await AddIfMissingAsync(context, "Role", role with { Permissions = [] }, role.Id, now, by, () => new Role
+            inserted += await AddIfMissingAsync(context, commandId, "Role", role with { Permissions = [] }, role.Id, now, by, () => new Role
             {
                 Id = role.Id,
                 Code = role.Code.Value,
@@ -141,14 +145,14 @@ internal static class IdentitySeeder
 
                 RolePermission rolePermission = new() { Id = EntityId.New(), RoleId = role.Id, PermissionCode = PermissionCodes.Validated(permissionCode), CreatedAt = now, CreatedBy = by, UpdatedAt = now, UpdatedBy = by };
                 context.RolePermissions.Add(rolePermission);
-                Audit(context, FixtureCommandName, "RolePermission", rolePermission.Id, now, by, new Dictionary<string, FieldChange> { ["roleId"] = new(null, role.Id.ToString()), ["permissionCode"] = new(null, permissionCode) });
+                Audit(context, commandId, FixtureCommandName, "RolePermission", rolePermission.Id, now, by, new Dictionary<string, FieldChange> { ["roleId"] = new(null, role.Id.ToString()), ["permissionCode"] = new(null, permissionCode) });
                 inserted++;
             }
         }
 
         foreach (RoleAssignmentDefinition assignment in fixture.Assignments)
         {
-            inserted += await AddIfMissingAsync(context, "RoleAssignment", assignment, assignment.Id, now, by, () => new RoleAssignment
+            inserted += await AddIfMissingAsync(context, commandId, "RoleAssignment", assignment, assignment.Id, now, by, () => new RoleAssignment
             {
                 Id = assignment.Id,
                 UserId = assignment.UserId,
@@ -170,7 +174,7 @@ internal static class IdentitySeeder
         return inserted;
     }
 
-    private static async Task<int> AddIfMissingAsync<T>(KernelDbContext context, string entityType, object definition, Guid id, DateTimeOffset now, Guid by, Func<T> create, CancellationToken cancellationToken)
+    private static async Task<int> AddIfMissingAsync<T>(KernelDbContext context, Guid commandId, string entityType, object definition, Guid id, DateTimeOffset now, Guid by, Func<T> create, CancellationToken cancellationToken)
         where T : MasterDataRow
     {
         if (await context.Set<T>().AnyAsync(row => row.Id == id, cancellationToken))
@@ -179,15 +183,16 @@ internal static class IdentitySeeder
         }
 
         context.Set<T>().Add(create());
-        Audit(context, FixtureCommandName, entityType, id, now, by, ChangesFrom(definition));
+        Audit(context, commandId, FixtureCommandName, entityType, id, now, by, ChangesFrom(definition));
         return 1;
     }
 
     /// <summary>R-AUD-01: one audit event per seeded row.</summary>
-    private static void Audit(KernelDbContext context, string commandName, string entityType, Guid entityId, DateTimeOffset now, Guid by, IReadOnlyDictionary<string, FieldChange> changes) =>
+    private static void Audit(KernelDbContext context, Guid commandId, string commandName, string entityType, Guid entityId, DateTimeOffset now, Guid by, IReadOnlyDictionary<string, FieldChange> changes) =>
         context.AuditEvents.Add(new AuditEvent
         {
             Id = EntityId.New(),
+            CommandId = commandId,
             OccurredAt = now,
             UserId = by,
             CommandName = commandName,

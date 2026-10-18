@@ -48,6 +48,7 @@ internal sealed class IdentityTestData : IAsyncDisposable
         string preparerRole = Milestone1IdentityFixture.PreparerRoleId.ToString();
         string posterRole = Milestone1IdentityFixture.PosterRoleId.ToString();
         string maintainerRole = Milestone1IdentityFixture.ItemMaintainerRoleId.ToString();
+        string touchRole = FixtureSchema.TouchRoleId.ToString();
 
         await data.RunAsync($"INSERT INTO kernel.site (id, company_id, code, name, created_at, created_by, updated_at, updated_by) VALUES ('{data.OtherSite}', '{Company}', 'OTHER', 'Other site', now(), '{system}', now(), '{system}')", cancellationToken);
         data._cleanup.Add($"DELETE FROM kernel.site WHERE id = '{data.OtherSite}'");
@@ -59,7 +60,7 @@ internal sealed class IdentityTestData : IAsyncDisposable
         }
 
         // The disabled user holds the preparer role; the expired user held it until 2026-02-01; the other-site user
-        // holds all three roles (preparer, poster, item maintainer), limited to the other site.
+        // holds all three roles (preparer, poster, item maintainer) and the test-only FIXTURE_TESTER, limited to the other site.
         string assignments = $"""
             INSERT INTO kernel.role_assignment (id, user_id, role_id, company_id, site_id, valid_from, valid_to, assigned_by, created_at, created_by, updated_at, updated_by) VALUES
             ('{Guid.NewGuid()}', '{data.DisabledUser}', '{preparerRole}', '{Company}', NULL, '2026-01-01', NULL, '{system}', now(), '{system}', now(), '{system}'),
@@ -67,6 +68,7 @@ internal sealed class IdentityTestData : IAsyncDisposable
             ('{Guid.NewGuid()}', '{data.OtherSiteUser}', '{preparerRole}', '{Company}', '{data.OtherSite}', '2026-01-01', NULL, '{system}', now(), '{system}', now(), '{system}'),
             ('{Guid.NewGuid()}', '{data.OtherSiteUser}', '{posterRole}', '{Company}', '{data.OtherSite}', '2026-01-01', NULL, '{system}', now(), '{system}', now(), '{system}'),
             ('{Guid.NewGuid()}', '{data.OtherSiteUser}', '{maintainerRole}', '{Company}', '{data.OtherSite}', '2026-01-01', NULL, '{system}', now(), '{system}', now(), '{system}'),
+            ('{Guid.NewGuid()}', '{data.OtherSiteUser}', '{touchRole}', '{Company}', '{data.OtherSite}', '2026-01-01', NULL, '{system}', now(), '{system}', now(), '{system}'),
             ('{Guid.NewGuid()}', '{data.PosterOnlyUser}', '{posterRole}', '{Company}', NULL, '2026-01-01', NULL, '{system}', now(), '{system}', now(), '{system}')
             """;
         await data.RunAsync(assignments, cancellationToken);

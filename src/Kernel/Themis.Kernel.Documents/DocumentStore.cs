@@ -1,5 +1,7 @@
 using System.Data.Common;
 using Themis.Kernel.Contracts.Documents;
+using Themis.Kernel.Contracts.MasterData;
+using Themis.Kernel.Contracts.Organisation;
 using Themis.Kernel.Contracts.Persistence;
 using Themis.Kernel.Contracts.Posting;
 using Themis.Kernel.Primitives;
@@ -46,6 +48,9 @@ internal sealed record DocumentLineRow(
 
 /// <summary>What a line takes from its item in the document's company (D-43): the description snapshot, the base unit and its decimals.</summary>
 internal sealed record ItemSnapshot(string Description, string BaseUnit, int UnitDecimals);
+
+/// <summary>What the POST guards read of a line's item in the document's company (Specification, INVENTORY_ADJUSTMENT POST): type, lot tracking, status and posting group.</summary>
+internal sealed record ItemPostingData(ItemType ItemType, LotTracking LotTracking, MasterDataStatus Status, Code ItemPostingGroup);
 
 /// <summary>
 /// Raw SQL on the command's unit of work as themis_kernel (R-DB-01): reads and writes of document headers, lines
@@ -104,6 +109,47 @@ internal static class DocumentStore
             cancellationToken);
         return rows.Count == 0 ? null : rows[0];
     }
+
+    /// <summary>The item's type, lot tracking, company status and posting group, if the item is set up in the company; else null.</summary>
+    public static async Task<ItemPostingData?> ItemPostingDataAsync(IUnitOfWork unitOfWork, Guid itemId, Guid companyId, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<ItemPostingData> rows = await unitOfWork.QueryAsync(DatabaseRole.Kernel,
+            """
+            SELECT i.item_type, i.lot_tracking, c.status, c.item_posting_group
+            FROM kernel.item i
+            JOIN kernel.item_company c ON c.item_id = i.id AND c.company_id = @company
+            WHERE i.id = @item
+            """,
+            new Dictionary<string, object?> { ["item"] = itemId, ["company"] = companyId },
+            reader => new ItemPostingData(Enum.Parse<ItemType>(reader.GetString(0)), Enum.Parse<LotTracking>(reader.GetString(1)), Enum.Parse<MasterDataStatus>(reader.GetString(2)), Code.From(reader.GetString(3))),
+            cancellationToken);
+        return rows.Count == 0 ? null : rows[0];
+    }
+
+    /// <summary>The minor units of a currency (R-MON-02), or null when the currency does not exist.</summary>
+    public static async Task<int?> CurrencyMinorUnitsAsync(IUnitOfWork unitOfWork, string currency, CancellationToken cancellationToken) =>
+        await unitOfWork.ScalarAsync(DatabaseRole.Kernel, "SELECT minor_units FROM kernel.currency WHERE code = @code", new Dictionary<string, object?> { ["code"] = currency }, cancellationToken) as int?;
+
+    /// <summary>Lock class 1 of a posting (R-LED-08): the versioned update that increments the version once (R-API-02); 0 rows means the version moved since it was read.</summary>
+    public static Task<int> LockForPostingAsync(IUnitOfWork unitOfWork, Guid id, long expectedVersion, DateTimeOffset now, UserId by, CancellationToken cancellationToken) =>
+        unitOfWork.ExecuteAsync(DatabaseRole.Kernel,
+            "UPDATE kernel.document SET version = version + 1, updated_at = @now, updated_by = @by WHERE id = @id AND version = @expected",
+            new Dictionary<string, object?> { ["id"] = id, ["expected"] = expectedVersion, ["now"] = now, ["by"] = by.Value },
+            cancellationToken);
+
+    /// <summary>The posting's document update: status, number, posted_at and posted_by; the version was taken by the lock (step 8 brief).</summary>
+    public static Task MarkPostedAsync(IUnitOfWork unitOfWork, DocumentRow document, DateTimeOffset now, UserId by, CancellationToken cancellationToken) =>
+        unitOfWork.ExecuteAsync(DatabaseRole.Kernel,
+            "UPDATE kernel.document SET status = @status, document_number = @number, posted_at = @postedAt, posted_by = @postedBy, updated_at = @now, updated_by = @by WHERE id = @id",
+            new Dictionary<string, object?> { ["id"] = document.Id, ["status"] = document.Status.ToString(), ["number"] = document.DocumentNumber, ["postedAt"] = document.PostedAt, ["postedBy"] = document.PostedBy, ["now"] = now, ["by"] = by.Value },
+            cancellationToken);
+
+    /// <summary>The posting's line update: unit cost and cost amount as on the inventory entry (R-DOC-05), the version advanced.</summary>
+    public static Task SetLineCostAsync(IUnitOfWork unitOfWork, DocumentLineRow line, DateTimeOffset now, UserId by, CancellationToken cancellationToken) =>
+        unitOfWork.ExecuteAsync(DatabaseRole.Kernel,
+            "UPDATE kernel.document_line SET unit_cost = @unitCost, cost_amount = @costAmount, updated_at = @now, updated_by = @by, version = @version WHERE id = @id",
+            new Dictionary<string, object?> { ["id"] = line.Id, ["unitCost"] = line.UnitCost, ["costAmount"] = line.CostAmount, ["now"] = now, ["by"] = by.Value, ["version"] = line.Version },
+            cancellationToken);
 
     /// <summary>The company a warehouse belongs to, or null when the warehouse does not exist.</summary>
     public static async Task<Guid?> WarehouseCompanyAsync(IUnitOfWork unitOfWork, Guid warehouseId, CancellationToken cancellationToken) =>

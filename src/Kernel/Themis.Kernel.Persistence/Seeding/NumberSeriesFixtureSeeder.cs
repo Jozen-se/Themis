@@ -27,6 +27,8 @@ internal static class NumberSeriesFixtureSeeder
         await using KernelDbContext context = KernelDbContextFactory.ForMigrations(migratorConnectionString);
         await using IDbContextTransaction transaction = await context.Database.BeginTransactionAsync(cancellationToken);
         Guid by = seededBy.Value;
+        // D-51: one command id per seeder call, shared by every audit event it writes.
+        Guid commandId = EntityId.New();
         int inserted = 0;
 
         foreach (NumberSeriesDefinition series in fixture.Series)
@@ -58,6 +60,7 @@ internal static class NumberSeriesFixtureSeeder
             context.AuditEvents.Add(new AuditEvent
             {
                 Id = EntityId.New(),
+                CommandId = commandId,
                 OccurredAt = now,
                 UserId = by,
                 CommandName = OrganisationFixtureSeeder.CommandName,

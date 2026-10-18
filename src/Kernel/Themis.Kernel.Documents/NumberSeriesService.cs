@@ -12,8 +12,8 @@ namespace Themis.Kernel.Documents;
 /// <c>SELECT ... ORDER BY id FOR UPDATE</c>, primary key order, as the last lock class of the lock order; each
 /// number is the series' next_number, formatted with the prefix and the padding as a minimum width (after
 /// IA-999999 comes IA-1000000), and the row advances. A failed transaction returns its numbers with the rollback,
-/// so no gap appears. A series the company does not have is refused; which rule that failure belongs to is open
-/// until step 8 (step 7 brief, carried to step 8).
+/// so no gap appears. A series the company does not have is refused with R-DOC-08, naming the type and, for a
+/// per-fiscal-year series, the fiscal year; there is no fallback series or sequence (D-52).
 /// </summary>
 internal sealed class NumberSeriesService : INumberSeriesService
 {
@@ -64,7 +64,8 @@ internal sealed class NumberSeriesService : INumberSeriesService
             if (!bySeries.ContainsKey(request))
             {
                 string year = request.FiscalYearId is { } fiscalYear ? $" for fiscal year {fiscalYear}" : string.Empty;
-                return Error.Validation(SeriesMissing, $"Company {companyId} has no {request.DocumentType} number series{year}.");
+                // R-DOC-08: a command that assigns a number requires the series for its type and scope; there is no fallback (D-52).
+                return Error.Rule("R-DOC-08", SeriesMissing, $"Company {companyId} has no {request.DocumentType} number series{year}.");
             }
         }
 

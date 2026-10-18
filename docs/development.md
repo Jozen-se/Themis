@@ -59,7 +59,8 @@ and assignments, see Identity below) is seeded with it by `IdentitySeeder`, afte
 (the item posting group `TRADE_GOODS`, see Master data below) is seeded after it by `MasterDataFixtureSeeder`, and the
 general ledger fixture of step 6 (two accounts and two posting profile rules, see General ledger below) after that by
 `GeneralLedgerFixtureSeeder`, behind the posting profile rule check; a fixture that fails it exits with code 5. The
-number series fixture of step 7 (two series, see Documents below) follows by `NumberSeriesFixtureSeeder`. On every run,
+number series fixture of step 7 (two series, see Documents below) follows by `NumberSeriesFixtureSeeder`. Every seeder
+writes its audit events with one command id per call (D-51, see Posting below). On every run,
 fixture or not, the migrator also writes the document type registry from the catalogue in code (`DocumentTypeSeeder`,
 exit code 7 if the catalogue breaks a registry rule), and it refuses with exit code 6 to apply the step 7 migration on
 a database whose outbox already holds rows (D-50, see Documents below).
@@ -112,14 +113,16 @@ compares every table privilege in `kernel`, `reporting` and `fixture` with the d
 `Themis.Kernel.Persistence` (plus the fixture table's own), so a migration cannot grant more than it declares.
 
 The command pipeline tests start an in-memory host (`tests/Themis.Integration.Tests/Pipeline`) wired like
-`Themis.Host`, with the fixture module's three commands on `/v1/fixture/counters`, the kernel's own commands and
-queries (the company read, `ITEM.CREATE` and the item reads, the inventory adjustment drafts) and the real identity
+`Themis.Host`, with the fixture module's two commands on `/v1/fixture/counters`, the kernel's own commands and
+queries (the company read, `ITEM.CREATE` and the item reads, the inventory adjustments) and the real identity
 capability behind the test token issuer: the tests mint bearer tokens for the fixture's users (see Identity below).
-Create shares `ITEM.CREATE` with the real command, post stands in for `INVENTORY_ADJUSTMENT.POST` until step 8
-(step 4 brief), and touch runs under the test-only permission `FIXTURE.TOUCH` (see Documents below). A counter belongs to a
-company and optionally a site, which is where its scope comes from. The fixture commands take a `failure` member
-that injects a rejection, an exception, a serialization failure on the first attempt or a write to a kernel table
-after the business write, so the tests prove what the pipeline leaves behind in each case.
+Create shares `ITEM.CREATE` with the real command and touch runs under the test-only permission `FIXTURE.TOUCH` (see
+Documents below); the post stand-in of step 4 retired in step 8, whose permission tests run against the real
+`INVENTORY_ADJUSTMENT.POST`. A counter belongs to a company and optionally a site, which is where its scope comes from.
+The fixture commands take a `failure` member that injects a rejection, an exception, a serialization failure on the
+first attempt or a write to a kernel table after the business write, so the tests prove what the pipeline leaves
+behind in each case. The fixture module also implements the posting service's hook (`IPostingHook`, see Posting
+below): `PostingFailureSwitch` names the failure the hook raises after the ledger writes of a posting.
 
 The Keycloak smoke test starts a Keycloak container with the realm export and signs in as the clerk. Without a
 container runtime it is skipped; set `THEMIS_TEST_KEYCLOAK` to the base URL of a running Keycloak with the realm
@@ -304,7 +307,7 @@ The commands (permissions `INVENTORY_ADJUSTMENT.CREATE`, `UPDATE`, `DISCARD`; th
   date, optional reason code, header warehouse, external reference and posting date, and lines. The currency is the
   company's base currency, set by the system; `draft_reference` is the document id as text, set once (R-DOC-04). A
   draft may be incomplete: the POST guards (reason code, at least one Open line, items Stocked and Active, stock
-  coverage, period open) run at posting in step 8.
+  coverage, period open) run at posting (see Posting below).
 - `POST /v1/kernel/inventory-adjustments/{id}/update` with `If-Match` carries the whole draft (R-DOC-02, R-API-02).
   Lines are matched by line number: a new number inserts, an existing one updates when its content differs, a line
   left out becomes Cancelled, a cancelled number given again reopens it with the new values; nothing is deleted. The
@@ -344,23 +347,95 @@ number it needs in one call; the service locks the series rows in one `SELECT ..
 order, as the last lock class of the lock order, formats each number as the prefix plus the sequence padded to at least
 `padding` digits (after `IA-999999` comes `IA-1000000`) and advances the rows. A failed transaction returns its numbers
 with the rollback. A series the company does not have is refused with `number_series_missing`; which rule a posting
-date in a fiscal year without a JOURNAL_ENTRY series breaks is open until step 8. The database enforces the
+date in a fiscal year without a JOURNAL_ENTRY series breaks is R-DOC-08 (D-52, see Posting below). The database enforces the
 Specification's rules: `fiscal_year_id` exactly when the scope is PerFiscalYear and of the series' company, one series
 per company, type and fiscal year (`NULLS NOT DISTINCT`), gapless where the type requires it (the stored
 `type_requires_gapless` is tied to the registry by a composite foreign key), JOURNAL_ENTRY series always gapless and
 PerFiscalYear. `--fixture milestone-1` seeds two series for SE01 under `SYSTEM.SEED_FIXTURE`: INVENTORY_ADJUSTMENT
 continuous, prefix `IA-`, padding 6, not gapless (`IA-000001` first), and JOURNAL_ENTRY per fiscal year 2026, prefix
-`JE2026-`, padding 6, gapless (`JE2026-000001` first). Step 8 is the first caller; step 7 proves the service with tests.
+`JE2026-`, padding 6, gapless (`JE2026-000001` first). Posting is the first caller (see Posting below).
 
 The fixture module's touch command no longer stands in for INVENTORY_ADJUSTMENT.UPDATE: the optimistic concurrency
 and ETag tests run against the real command, while the touch command keeps the failure injection under the
 `themis_fixture` role on the test-only permission `FIXTURE.TOUCH`, which the integration tests' fixture bootstrap
 (`FixtureSchema`) seeds with the role `FIXTURE_TESTER` and the clerk's assignment, outside the production catalogue
-(owner's decision on step 7). The post command stands in for INVENTORY_ADJUSTMENT.POST until step 8. Two decisions
+(owner's decision on step 7). Two decisions
 on the step 7 drafts are tested explicitly: a line sent without a warehouse takes the header's warehouse as it is on
 that write, and the stored line value is what posting reads; an UPDATE that repeats the stored draft still advances
 the version, with one audit event for the document row and one `INVENTORY_ADJUSTMENT_UPDATED` event whose changed
 fields hold only the version.
+
+## Posting
+
+Step 8 brings the posting service into the kernel (R-LED-05, R-LED-07): the ledger tables `journal_entry`,
+`journal_line` and `inventory_entry`, insert-only for the kernel role (I-11, R-LED-06; the privilege matrix declares
+SELECT and INSERT and nothing else), and the caches `item_cost_state` (quantity, inventory value and the informational
+average cost per company and item) and `stock_balance` (on hand and reserved per company, item, warehouse, lot and
+stock status; the unique key is `NULLS NOT DISTINCT` because `lot_id` is present but NULL in milestone 1, by check).
+Company scope is enforced by composite foreign keys as in the document tables (D-43). Ledger rows carry `command_id`,
+`recorded_at` and `recorded_by` and get no audit event of their own (D-51); `inventory_entry` references its journal
+entry whenever its cost is not 0 (R-INV-06, by check).
+
+`POST /v1/kernel/inventory-adjustments/{id}/post` with `If-Match` (permission `INVENTORY_ADJUSTMENT.POST`, Sensitive;
+the clerk and the poster hold it, the preparer does not, R-SEC-01, R-SEC-02) turns a Draft into Posted. The handler
+(`PostInventoryAdjustmentHandler`, `Themis.Kernel.Documents`) runs the guards before any lock, in this order and
+each with its rule and code: Draft with the POST transition in the registry (`R-DOC-01` `transition_not_allowed`);
+a posting date in an Open period (`R-LED-04` `posting_date_required`, `fiscal_period_not_open`; SoftClosed is refused
+too, since `FISCAL_PERIOD.POST_SOFT_CLOSED` does not exist in milestone 1); the guards without a rule of their own
+under R-DOC-01 with a code naming the guard: `no_open_lines`, `reason_code_required`, `item_not_stocked`,
+`item_not_active` (the item's ItemCompany row in the document's company), `lot_required` (lots are outside milestone
+1, so a lot-tracked item cannot be posted yet); and `R-INV-05` `entered_unit_cost_on_outbound`. POST uses each line's
+stored warehouse and stock status and never re-defaults them from the header. Every rejection is 422 with the rule id,
+stored as the key's result (R-API-03); nothing of the posting exists after it, the version included.
+
+Then the lock order (R-LED-08), at Read Committed and without statement-level retries (D-41): class 1, the document
+row by its versioned UPDATE, which is the one version increment of the command (R-API-02); the posting service
+(`IPostingService` in Contracts, `InventoryPostingService` in `Themis.Kernel.Posting`) takes class 2, the
+`item_cost_state` rows of the lines' items, and class 3, the `stock_balance` rows of the lines' balance keys, each
+by one ordered `INSERT ... ON CONFLICT DO NOTHING` for the missing rows followed by one `SELECT ... ORDER BY ... FOR
+UPDATE` in key order; then one pass over the Open lines in line order carrying the cost state and the stock from
+line to line (R-INV-09): the moving average algorithm (`MovingAverageCost`; steps 1, 2, 3 and 6 of the
+Specification, R-INV-05, R-INV-07, with `q x value / quantity` computed exactly and rounded once to the currency's
+minor unit, R-MON-02; an inbound line without an entered cost needs stock or a stored average, else `R-INV-05`
+`entered_unit_cost_required`), the stock check per balance key (`R-INV-03` `stock_insufficient`; Available stock is
+limited by its reservations, 0 in milestone 1, R-INV-04), and for every line with a non-zero cost both accounts
+through the resolver (INVENTORY by item posting group, INVENTORY_ADJUSTMENT by item posting group and reason code;
+R-PP-01, R-PP-02, D-49). The journal entry is built in memory: one per document, two lines per non-zero-cost line with
+the debit line first (E-01 inbound: debit INVENTORY, credit INVENTORY_ADJUSTMENT; E-02 outbound: the reverse), each
+carrying `account_role`, `posting_rule_id`, `item_id`, `warehouse_id` and `source_line_id`, amounts signed debit
+positive, the transaction amount in the company currency; a zero-cost line writes its inventory entry and no journal
+lines, and a document whose lines all have zero cost writes no journal entry (I-02, I-08). Last lock class: the
+number series in one statement, the document's series always and the JOURNAL_ENTRY series of the posting date's
+fiscal year only when a journal entry is written (D-52); a missing series is `R-DOC-08` `number_series_missing`,
+naming the type and the fiscal year. The inventory adjustment number comes first, the journal entry number last
+(R-DOC-07, I-09; a failed transaction gives both back). Then the writes, in this order: the journal entry with its
+lines, the inventory entries (movement types `AdjustmentIn` and `AdjustmentOut`), the cache updates, the document
+(Posted, `document_number`, `posted_at`, `posted_by`; the version stays as the lock left it) and the lines
+(`cost_amount` signed like the quantity, `unit_cost` as cost over base quantity to 10 decimals, R-DOC-05). Nothing on
+a ledger table is updated afterwards. The whole command is one transaction: a failure after the inventory entries
+leaves nothing behind, not even the idempotency record (R-LED-05), and a serialization failure on the first attempt
+is retried once as a whole (D-41).
+
+Audit (R-AUD-01 as amended by D-51): one audit event for the document row and one per costed line, all with the
+command's id; the ledger rows, the caches and the series counters are traced through them. `audit_event.command_id`
+arrived with the step 8 migration as a nullable column plus a `CHECK (command_id IS NOT NULL) NOT VALID`, which stays
+NOT VALID: the pipeline fills the column on every event, every seeder uses one command id per call, rows written before
+the column (among them the `SYSTEM.MIGRATE` rows of the step 4 and 5 data migrations, which run before the column
+exists on any database) keep it empty, and no audit row is ever changed. The outbox event is `INVENTORY_ADJUSTED` (the
+business name of POST, D-44) with the envelope of D-50, whose payload carries the id, the changed fields of the
+document (`status`, `documentNumber`, `postedAt`, `postedBy`, `version`) and per line `unitCost` and `costAmount`
+with the change `Posted`.
+
+The posting service's hook (`IPostingHook` in Contracts, called after the ledger writes and before the document
+update) exists for the failure-injection tests of the Build Brief; `Themis.Host` registers the production hook, which
+does nothing, and the integration tests register the fixture module's. The 13 reference calculations of the Build
+Brief run as unit tests of the algorithm (`MovingAverageCostTests`) and end to end through the pipeline
+(`InventoryAdjustmentPostingTests`), which also prove the guards, the transaction boundary, idempotency and versions,
+the lock order under concurrency (two adjustments on the same items in opposite line order, and two on new items racing
+the cache inserts), the audit and outbox convention, the role model on the new tables (I-14) and the invariants I-01,
+I-02, I-03, I-04, I-06, I-08 and I-09 after every posting. Not in step 8: REVERSE, lots, reservations, units other
+than the base unit, multi-currency and ROUNDING lines, the outbox relay, the reporting view, property-based runs and
+the fiscal year commands.
 
 ## Linting, formatting and the licence scan
 

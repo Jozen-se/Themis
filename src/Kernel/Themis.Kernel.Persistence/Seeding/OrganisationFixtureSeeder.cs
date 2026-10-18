@@ -29,8 +29,10 @@ internal static class OrganisationFixtureSeeder
 
         int inserted = 0;
         Guid by = seededBy.Value;
+        // D-51: one command id per seeder call, shared by every audit event it writes.
+        Guid commandId = EntityId.New();
 
-        inserted += await AddIfMissingAsync(context, "Installation", fixture.Installation, fixture.Installation.Id, now, by, () => new Installation
+        inserted += await AddIfMissingAsync(context, commandId, "Installation", fixture.Installation, fixture.Installation.Id, now, by, () => new Installation
         {
             Id = fixture.Installation.Id,
             Code = fixture.Installation.Code.Value,
@@ -44,7 +46,7 @@ internal static class OrganisationFixtureSeeder
         }, cancellationToken);
 
         PartyDefinition party = fixture.CompanyParty;
-        inserted += await AddIfMissingAsync(context, "Party", party, party.Id, now, by, () => new Party
+        inserted += await AddIfMissingAsync(context, commandId, "Party", party, party.Id, now, by, () => new Party
         {
             Id = party.Id,
             PartyNumber = party.PartyNumber.Value,
@@ -62,7 +64,7 @@ internal static class OrganisationFixtureSeeder
             UpdatedBy = by,
         }, cancellationToken);
 
-        inserted += await AddIfMissingAsync(context, "ChartOfAccounts", fixture.ChartOfAccounts, fixture.ChartOfAccounts.Id, now, by, () => new ChartOfAccounts
+        inserted += await AddIfMissingAsync(context, commandId, "ChartOfAccounts", fixture.ChartOfAccounts, fixture.ChartOfAccounts.Id, now, by, () => new ChartOfAccounts
         {
             Id = fixture.ChartOfAccounts.Id,
             Code = fixture.ChartOfAccounts.Code.Value,
@@ -75,7 +77,7 @@ internal static class OrganisationFixtureSeeder
         }, cancellationToken);
 
         CompanyDefinition company = fixture.Company;
-        inserted += await AddIfMissingAsync(context, "Company", company, company.Id, now, by, () => new Company
+        inserted += await AddIfMissingAsync(context, commandId, "Company", company, company.Id, now, by, () => new Company
         {
             Id = company.Id,
             Code = company.Code.Value,
@@ -97,7 +99,7 @@ internal static class OrganisationFixtureSeeder
             UpdatedBy = by,
         }, cancellationToken);
 
-        inserted += await AddIfMissingAsync(context, "Site", fixture.Site, fixture.Site.Id, now, by, () => new Site
+        inserted += await AddIfMissingAsync(context, commandId, "Site", fixture.Site, fixture.Site.Id, now, by, () => new Site
         {
             Id = fixture.Site.Id,
             CompanyId = fixture.Site.CompanyId,
@@ -110,7 +112,7 @@ internal static class OrganisationFixtureSeeder
             UpdatedBy = by,
         }, cancellationToken);
 
-        inserted += await AddIfMissingAsync(context, "Warehouse", fixture.Warehouse, fixture.Warehouse.Id, now, by, () => new Warehouse
+        inserted += await AddIfMissingAsync(context, commandId, "Warehouse", fixture.Warehouse, fixture.Warehouse.Id, now, by, () => new Warehouse
         {
             Id = fixture.Warehouse.Id,
             SiteId = fixture.Warehouse.SiteId,
@@ -126,7 +128,7 @@ internal static class OrganisationFixtureSeeder
         }, cancellationToken);
 
         FiscalYearDefinition year = fixture.FiscalYear;
-        inserted += await AddIfMissingAsync(context, "FiscalYear", year with { Periods = [] }, year.Id, now, by, () => new FiscalYear
+        inserted += await AddIfMissingAsync(context, commandId, "FiscalYear", year with { Periods = [] }, year.Id, now, by, () => new FiscalYear
         {
             Id = year.Id,
             CompanyId = year.CompanyId,
@@ -142,7 +144,7 @@ internal static class OrganisationFixtureSeeder
 
         foreach (FiscalPeriodDefinition period in year.Periods)
         {
-            inserted += await AddIfMissingAsync(context, "FiscalPeriod", period, period.Id, now, by, () => new FiscalPeriod
+            inserted += await AddIfMissingAsync(context, commandId, "FiscalPeriod", period, period.Id, now, by, () => new FiscalPeriod
             {
                 Id = period.Id,
                 FiscalYearId = year.Id,
@@ -163,7 +165,7 @@ internal static class OrganisationFixtureSeeder
         return inserted;
     }
 
-    private static async Task<int> AddIfMissingAsync<T>(KernelDbContext context, string entityType, object definition, Guid id, DateTimeOffset now, Guid by, Func<T> create, CancellationToken cancellationToken)
+    private static async Task<int> AddIfMissingAsync<T>(KernelDbContext context, Guid commandId, string entityType, object definition, Guid id, DateTimeOffset now, Guid by, Func<T> create, CancellationToken cancellationToken)
         where T : MasterDataRow
     {
         if (await context.Set<T>().AnyAsync(row => row.Id == id, cancellationToken))
@@ -172,10 +174,11 @@ internal static class OrganisationFixtureSeeder
         }
 
         context.Set<T>().Add(create());
-        // R-AUD-01: one audit event per seeded row, every field as a change from nothing to its seeded value.
+        // R-AUD-01: one audit event per seeded row, every field as a change from nothing to its seeded value; one command id per seeder call (D-51).
         context.AuditEvents.Add(new AuditEvent
         {
             Id = EntityId.New(),
+            CommandId = commandId,
             OccurredAt = now,
             UserId = by,
             CommandName = CommandName,

@@ -75,16 +75,18 @@ public sealed class DocumentFrameworkContractTests
     }
 
     [Fact]
-    public void The_draft_commands_name_their_permissions_and_the_create_scope_is_the_company_in_the_body()
+    public void The_commands_name_their_permissions_and_the_create_scope_is_the_company_in_the_body()
     {
         Assert.Equal("INVENTORY_ADJUSTMENT.CREATE", typeof(CreateInventoryAdjustment).GetCustomAttribute<CommandAttribute>()!.PermissionCode);
         Assert.Equal("INVENTORY_ADJUSTMENT.UPDATE", typeof(UpdateInventoryAdjustment).GetCustomAttribute<CommandAttribute>()!.PermissionCode);
         Assert.Equal("INVENTORY_ADJUSTMENT.DISCARD", typeof(DiscardInventoryAdjustment).GetCustomAttribute<CommandAttribute>()!.PermissionCode);
+        Assert.Equal("INVENTORY_ADJUSTMENT.POST", typeof(PostInventoryAdjustment).GetCustomAttribute<CommandAttribute>()!.PermissionCode);
         Assert.Equal("INVENTORY_ADJUSTMENT.READ", typeof(GetInventoryAdjustment).GetCustomAttribute<QueryAttribute>()!.PermissionCode);
         Assert.Equal(Company, Create(lines: Line()).Scope.CompanyId);
         Assert.True(typeof(IVersionedCommand).IsAssignableFrom(typeof(UpdateInventoryAdjustment)));
         Assert.True(typeof(IVersionedCommand).IsAssignableFrom(typeof(DiscardInventoryAdjustment)));
-        Assert.Equal(3, DocumentRoutes.Commands.Count);
+        Assert.True(typeof(IVersionedCommand).IsAssignableFrom(typeof(PostInventoryAdjustment)));
+        Assert.Equal(4, DocumentRoutes.Commands.Count);
         Assert.Empty(new CreateInventoryAdjustmentValidator().Validate(Create(lines: [Line(1), Line(2, -3m, 2.5m)])));
         Assert.Empty(new CreateInventoryAdjustmentValidator().Validate(Create()));
     }

@@ -131,7 +131,7 @@ public sealed class NumberSeriesServiceTests : IAsyncLifetime
         await unitOfWork.RollbackAsync(Ct);
 
         Assert.Equal(NumberSeriesService.SeriesMissing, otherYear.Primary!.Code);
-        Assert.Null(otherYear.Primary.RuleId);
+        Assert.Equal("R-DOC-08", otherYear.Primary.RuleId);
         Assert.Equal(NumberSeriesService.SeriesMissing, otherCompany.Primary!.Code);
         Assert.True(none.IsSuccess);
         Assert.Empty(none.Value);

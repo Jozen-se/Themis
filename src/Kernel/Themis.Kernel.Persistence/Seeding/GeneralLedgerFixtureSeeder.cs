@@ -34,11 +34,13 @@ internal static class GeneralLedgerFixtureSeeder
         await using KernelDbContext context = KernelDbContextFactory.ForMigrations(migratorConnectionString);
         await using IDbContextTransaction transaction = await context.Database.BeginTransactionAsync(cancellationToken);
         Guid by = seededBy.Value;
+        // D-51: one command id per seeder call, shared by every audit event it writes.
+        Guid commandId = EntityId.New();
         int inserted = 0;
 
         foreach (AccountDefinition account in fixture.Accounts)
         {
-            inserted += await AddIfMissingAsync(context, "Account", account.Id, now, by, () => new Account
+            inserted += await AddIfMissingAsync(context, commandId, "Account", account.Id, now, by, () => new Account
             {
                 Id = account.Id,
                 ChartId = account.ChartId,
@@ -64,7 +66,7 @@ internal static class GeneralLedgerFixtureSeeder
 
         foreach (PostingProfileRuleDefinition rule in fixture.Rules)
         {
-            inserted += await AddIfMissingAsync(context, "PostingProfileRule", rule.Id, now, by, () => new PostingProfileRule
+            inserted += await AddIfMissingAsync(context, commandId, "PostingProfileRule", rule.Id, now, by, () => new PostingProfileRule
             {
                 Id = rule.Id,
                 CompanyId = rule.CompanyId,
@@ -101,7 +103,7 @@ internal static class GeneralLedgerFixtureSeeder
         return inserted;
     }
 
-    private static async Task<int> AddIfMissingAsync<T>(KernelDbContext context, string entityType, Guid id, DateTimeOffset now, Guid by, Func<T> create, IReadOnlyDictionary<string, FieldChange> changes, CancellationToken cancellationToken)
+    private static async Task<int> AddIfMissingAsync<T>(KernelDbContext context, Guid commandId, string entityType, Guid id, DateTimeOffset now, Guid by, Func<T> create, IReadOnlyDictionary<string, FieldChange> changes, CancellationToken cancellationToken)
         where T : MasterDataRow
     {
         if (await context.Set<T>().AnyAsync(row => row.Id == id, cancellationToken))
@@ -113,6 +115,7 @@ internal static class GeneralLedgerFixtureSeeder
         context.AuditEvents.Add(new AuditEvent
         {
             Id = EntityId.New(),
+            CommandId = commandId,
             OccurredAt = now,
             UserId = by,
             CommandName = OrganisationFixtureSeeder.CommandName,

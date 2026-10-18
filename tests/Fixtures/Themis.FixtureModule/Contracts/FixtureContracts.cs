@@ -3,7 +3,7 @@ using Themis.Kernel.Contracts.Security;
 
 namespace Themis.FixtureModule.Contracts;
 
-/// <summary>The fixture module's public contract surface (ARCH-07): its schema, role, commands and routes.</summary>
+/// <summary>The fixture module's public contract surface (ARCH-07): its schema, role, commands and routes. The counter's posted flag stays in its table and snapshot as a column of the test schema; no command sets it since step 8.</summary>
 public static class FixtureContracts
 {
     public const string SchemaName = "fixture";
@@ -12,17 +12,16 @@ public static class FixtureContracts
     public const string EntityType = "FixtureCounter";
 
     /// <summary>
-    /// The permissions the fixture commands run under (step 4 brief, acceptance 3). Posting a counter stands in for
-    /// INVENTORY_ADJUSTMENT.POST until step 8 builds the command; creating one shares ITEM.CREATE with the real
-    /// command of step 5. Touching a counter runs under the test-only permission FIXTURE.TOUCH (owner's decision on
-    /// step 7, point 3): the failure injection keeps proving the pipeline's write path under the themis_fixture role
-    /// without any real permission's tests depending on test-only code. The integration tests' fixture bootstrap
-    /// seeds the permission, the role <see cref="TouchRoleCode"/> and the clerk's assignment; no production catalogue
-    /// knows them. The counter carries the company and optional site the scope comes from.
+    /// The permissions the fixture commands run under (step 4 brief, acceptance 3). Creating a counter shares
+    /// ITEM.CREATE with the real command of step 5. Touching a counter runs under the test-only permission
+    /// FIXTURE.TOUCH (owner's decision on step 7, point 3): the failure injection keeps proving the pipeline's write
+    /// path under the themis_fixture role without any real permission's tests depending on test-only code. The
+    /// integration tests' fixture bootstrap seeds the permission, the role <see cref="TouchRoleCode"/> and the clerk's
+    /// assignment; no production catalogue knows them. The POST stand-in retired in step 8 with the real
+    /// INVENTORY_ADJUSTMENT.POST. The counter carries the company and optional site the scope comes from.
     /// </summary>
     public const string CreatePermission = "ITEM.CREATE";
     public const string TouchPermission = "FIXTURE.TOUCH";
-    public const string PostPermission = "INVENTORY_ADJUSTMENT.POST";
 
     /// <summary>The test-only role that carries <see cref="TouchPermission"/>, assigned to the clerk by the integration tests.</summary>
     public const string TouchRoleCode = "FIXTURE_TESTER";
@@ -32,7 +31,6 @@ public static class FixtureContracts
     [
         new CommandRoute<CreateCounter, CounterSnapshot>("/v1/fixture/counters"),
         new CommandRoute<TouchCounter, CounterSnapshot>("/v1/fixture/counters/{id}/touch"),
-        new CommandRoute<PostCounter, CounterSnapshot>("/v1/fixture/counters/{id}/post"),
     ];
 }
 
@@ -68,9 +66,15 @@ public sealed record CreateCounter(Guid CompanyId, long InitialValue, decimal Sa
 [Command(FixtureContracts.TouchPermission)]
 public sealed record TouchCounter(Guid Id, long ExpectedVersion, long Increment, FixtureFailure Failure = FixtureFailure.None) : ICommand<CounterSnapshot>, IVersionedCommand;
 
-/// <summary>Marks a counter posted; stands in for INVENTORY_ADJUSTMENT.POST until step 8 (step 4 brief). Scope from the row.</summary>
-[Command(FixtureContracts.PostPermission)]
-public sealed record PostCounter(Guid Id, long ExpectedVersion) : ICommand<CounterSnapshot>, IVersionedCommand;
-
 /// <summary>The counter after the command. Sample is a decimal, so the response proves D-37 (strings for decimals, numbers for integers).</summary>
 public sealed record CounterSnapshot(Guid Id, Guid CompanyId, Guid? SiteId, long Value, long Version, decimal Sample, bool Posted) : IVersionedResult;
+
+/// <summary>
+/// What the fixture module's posting hook raises after the ledger writes of INVENTORY_ADJUSTMENT.POST (step 8 brief,
+/// Tests). A test sets the failure before the command and resets it after; the hook is a singleton of the test host,
+/// registered before the kernel's posting services so that it replaces the production hook, which does nothing.
+/// </summary>
+public sealed class PostingFailureSwitch
+{
+    public FixtureFailure Failure { get; set; }
+}
