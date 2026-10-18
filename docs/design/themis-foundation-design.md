@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Foundation Design* (https://claude.ai/artifact/B7yhaqHmFJqQCAo23KSDXq), revision 148, taken 2026-10-17.
+> **Snapshot** of the live document *Themis Foundation Design* (https://claude.ai/artifact/B7yhaqHmFJqQCAo23KSDXq), revision 158, taken 2026-10-18.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite rule IDs
 > without leaving the repository. Where this copy and the live document differ, the live document wins.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -122,7 +122,7 @@ The kernel has seven areas and every later module builds on them; no module adds
 
 ## Core rulesets
 
-These 57 rules (17 added by the Phase 0 specification, 3 by D-24 and its follow-ons, 1 by D-41, 1 by the 2026-10-09 review, 1 by D-49) apply to every module; code, tests and API errors refer to them by ID. A rule changes only through a recorded decision.
+These 58 rules (17 added by the Phase 0 specification, 3 by D-24 and its follow-ons, 1 by D-41, 1 by the 2026-10-09 review, 1 by D-49, 1 by D-52) apply to every module; code, tests and API errors refer to them by ID. A rule changes only through a recorded decision.
 
 | ID | Rule | Why |
 |---|---|---|
@@ -155,7 +155,7 @@ These 57 rules (17 added by the Phase 0 specification, 3 by D-24 and its follow-
 | R-TIME-01 | System timestamps are stored in UTC; business dates are calendar dates in the company's time zone. | No time zone drift in period cut-off. |
 | R-SEC-01 | Every command and query is authorised against permission and scope (company, site) before it runs. A site-limited assignment never satisfies a command or query without a site, and a command or query that cannot name its scope is rejected (D-47). | Least privilege. |
 | R-SEC-02 | Defined conflicting permissions cannot be held by one user, for example "set credit limit" and "release credit-blocked order". | Segregation of duties. |
-| R-AUD-01 | Every write creates an audit event: user, time, command, idempotency key, changed fields. | Full traceability. |
+| R-AUD-01 | Every write creates an audit event: user, time, command, idempotency key, changed fields. A posting's ledger rows record their own command, user and time; they, the cache updates and the number series counters are traced through the command's audit events, not one event each (D-51). | Full traceability. |
 | R-API-01 | Every command accepts an idempotency key; a repeated key returns the first result with no second effect. | Safe retries from integrations. |
 | R-API-02 | Documents carry a version number; an update based on a stale version is rejected. | No lost updates. |
 | R-API-03 | A rejected command returns a stable error code and the ID of the rule that failed. | Explainable errors for users and integrations. |
@@ -165,6 +165,7 @@ These 57 rules (17 added by the Phase 0 specification, 3 by D-24 and its follow-
 | R-TAX-03 | Exactly one tax rule must match a line; zero or several matches rejects the command. | Deterministic VAT. |
 | R-DOC-06 | A Draft can be discarded (or cancelled, for types numbered on create) but never deleted. | Every issued number stays accounted for. |
 | R-DOC-07 | A gapless number is taken inside the posting transaction under a row lock on its series. | A failed posting returns its number, so no gap appears. |
+| R-DOC-08 | A command that assigns a number requires the series of that document type for the scope the number falls in (Continuous, or the fiscal year of its date); without it the command is rejected, naming the type and, for a per-fiscal-year series, the fiscal year. | A missing series is a setup error the user can fix; there is no fallback series or sequence (D-52). |
 | R-ACC-01 | Control accounts accept postings only from their sub-ledger or the system documents VAT_SETTLEMENT and OPENING_OPEN_ITEMS, never from manual journals. | Sub-ledgers and the general ledger always reconcile. |
 | R-INV-07 | An issue that empties an item's stock takes the item's full remaining value. | No value left on zero stock. |
 | R-INV-08 | A stock status change moves quantity between statuses with zero value and no journal entry. | Blocking stock is not a financial event. |
@@ -186,7 +187,7 @@ These 57 rules (17 added by the Phase 0 specification, 3 by D-24 and its follow-
 
 **Invariants and configurable defaults (P-11, D-29).** A rule is fixed only when correctness, law or security needs it. Every other rule ships as the best-practice default and can be adjusted per company through audited configuration. Where a setting is planned but not yet built, v1 ships the default only, and the design must keep the setting possible.
 
-**Invariants** (changing one needs a decision): R-LED-01 to R-LED-08, R-DB-01, R-INV-01, R-INV-02, R-INV-06, R-INV-07, R-INV-08, R-DOC-01 (system states), R-DOC-02, R-DOC-03 (the limit itself), R-DOC-04 (where law requires gapless numbering), R-DOC-05, R-DOC-07, R-MD-02, R-MD-03, R-MD-05, R-MON-01, R-MON-03, R-TAX-02, R-TAX-03, R-TIME-01, R-SEC-01, R-AUD-01, R-API-01 to R-API-04, R-EXT-01, R-EXT-02, R-UOM-01, R-ACC-01, R-PP-01 to R-PP-06, R-OI-01, R-OI-02, R-O2C-05 (the billing limit), R-O2C-08 (a credit note references the invoice line), R-O2C-09.
+**Invariants** (changing one needs a decision): R-LED-01 to R-LED-08, R-DB-01, R-INV-01, R-INV-02, R-INV-06, R-INV-07, R-INV-08, R-DOC-01 (system states), R-DOC-02, R-DOC-03 (the limit itself), R-DOC-04 (where law requires gapless numbering), R-DOC-05, R-DOC-07, R-DOC-08, R-MD-02, R-MD-03, R-MD-05, R-MON-01, R-MON-03, R-TAX-02, R-TAX-03, R-TIME-01, R-SEC-01, R-AUD-01, R-API-01 to R-API-04, R-EXT-01, R-EXT-02, R-UOM-01, R-ACC-01, R-PP-01 to R-PP-06, R-OI-01, R-OI-02, R-O2C-05 (the billing limit), R-O2C-08 (a credit note references the invoice line), R-O2C-09.
 
 **Configurable defaults**
 
@@ -335,7 +336,7 @@ The biggest risk is a kernel model that turns out wrong after code depends on it
 
 ## Decision log
 
-Forty-six decisions are made and four are open (D-10, D-20, D-36, D-48); none of the open ones blocks the walking skeleton.
+Forty-eight decisions are made and four are open (D-10, D-20, D-36, D-48); none of the open ones blocks the walking skeleton.
 
 | ID | Decision | Status | Note |
 |---|---|---|---|
@@ -389,6 +390,8 @@ Forty-six decisions are made and four are open (D-10, D-20, D-36, D-48); none of
 | D-48 | Placement of replenishment planning for distribution (reorder point, order quantity, safety stock, forecast-driven requisitions) on the roadmap: a new phase or an extension of Phase 3. Any placement changes the phase list set by D-30 | [Open] | Raised 2026-10-12 from the Capability Coverage Map (gap G-02). Decide when the Phase 1 scope is set; D-30 stands unchanged until then |
 | D-49 | Posting profile rules hardened: R-PP-06 added (a rule sets only the mapping keys of its account role); R-PP-02 amended (a line whose matching rule's account is not Active is also rejected, and resolution never falls back to a less specific rule) | [Decided] | Your decision, 2026-10-13, while settling the milestone 1 step 6 brief with the coder. Enforced by database constraints generated from the account role catalogue (R-PP-04, R-PP-06) and by the resolver (R-PP-02) |
 | D-50 | Event envelope (review RR-15): every outbox event carries its id, type and schema version (D-44), aggregate type and id, company (empty only for installation-scope aggregates), occurrence time, command name and correlation id. The idempotency key and the user never travel with events. Ordering, claiming, retries, dead letters and retention are specified before integrations | [Decided] | Your decision, 2026-10-17, while settling the milestone 1 step 7 brief with the coder. Built in step 7. Development and test databases may be recreated for the step 7 envelope migration, since none holds data worth keeping before milestone 1 is done |
+| D-51 | Audit of postings (amends R-AUD-01): a posting's journal and inventory entries record their own command, user and time; caches are rebuilt from the ledgers; number series counters are traced by the numbers they issue. None of these gets its own audit event. The command's audit events cover the document and its lines, and every audit event stores the command id, so each ledger row leads to its command's audit events and idempotency key. Audit events written before the command id existed keep it empty; it is required for every audit event written after, and no audit row is ever changed | [Decided] | Your decision, 2026-10-18, while settling the milestone 1 step 8 brief. One audit event per ledger row and cache change was rejected: it roughly doubles the writes of every posting and adds no trace the ledger rows lack. A one-time fill of the earlier audit events was rejected after the independent review, since it would change audit rows. Built in step 8. |
+| D-52 | Missing number series (rule R-DOC-08): a command that must assign a number and finds no series for its document type and scope is rejected; there is no fallback. A posting needs the journal entry series only when it writes a journal entry. A guard that a fiscal year cannot open without its series waits for the fiscal year commands | [Decided] | Your decision, 2026-10-18, while settling the milestone 1 step 8 brief; closes the item carried from step 7. Built in step 8 |
 
 ## Next steps
 
