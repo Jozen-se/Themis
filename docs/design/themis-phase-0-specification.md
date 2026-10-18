@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/artifact/5NwCL8oDM8UmE8tg8Abicz), revision 186, taken 2026-10-19.
+> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/artifact/5NwCL8oDM8UmE8tg8Abicz), revision 189, taken 2026-10-19.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite rule IDs
 > without leaving the repository. Where this copy and the live document differ, the live document wins.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -656,7 +656,7 @@ One permission exists per command, plus one TYPE.READ permission per resource ty
 | Role | `code`, `name` | Code, Name | Y |  |
 | RolePermission | `role_id`, `permission_code` | → Role, Code | Y |  |
 | RoleAssignment | `user_id`, `role_id` | → User, → Role | Y |  |
-| RoleAssignment | `company_id` | → Company | Y | Scope (R-SEC-01). |
+| RoleAssignment | `company_id` | → Company | Y | Scope (R-SEC-01). A command or query of installation scope is satisfied by a company-wide assignment (no site) in any company of the installation, since one installation serves one company group (D-28, RR-52). |
 | RoleAssignment | `site_id` | → Site | N | Narrows scope to one site. |
 | RoleAssignment | `valid_from`, `valid_to`, `assigned_by` | Date, Date, user | Y, N, Y |  |
 | SodConflict | `permission_a`, `permission_b` | Code | Y | A user may not hold both in the same company (R-SEC-02). Checked when a role or assignment changes. |
@@ -670,7 +670,7 @@ One permission exists per command, plus one TYPE.READ permission per resource ty
 | IdempotencyRecord | `expires_at` | Timestamp | Y | Default 7 days. |
 | OutboxEvent | `event_type`, `schema_version` | Code, integer | Y | For example GOODS_ISSUED, version 1. |
 | OutboxEvent | `aggregate_id`, `payload` | UUID, JSON | Y | Written in the same transaction as the change. |
-| OutboxEvent | `occurred_at`, `published_at`, `attempts` | Timestamp, Timestamp, integer | Y, N, Y | `published_at` and `attempts` are the delivery columns, written only by the outbox relay, with no audit event (D-53). |
+| OutboxEvent | `occurred_at`, `published_at`, `attempts` | Timestamp, Timestamp, integer | Y, N, Y | `published_at` and `attempts` are the delivery columns, written only by the outbox relay, with no audit event (D-53). occurred_at is the command's time, taken when the command starts; it is not a delivery order key, since events can commit in another order (RR-43). |
 | OutboxEvent | `aggregate_type`, `command_name`, `correlation_id` | Code, Code, text | Y | The event envelope (D-50): the aggregate's type, the command that wrote the event and the request's correlation id. The idempotency key and the user never travel in the envelope; payloads carry no personal data beyond ids. |
 | OutboxEvent | `company_id` | → Company | N | Empty only for installation-scope aggregates such as ITEM_CREATED (D-50). |
 
