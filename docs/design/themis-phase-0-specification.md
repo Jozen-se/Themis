@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/artifact/5NwCL8oDM8UmE8tg8Abicz), revision 189, taken 2026-10-19.
+> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/artifact/5NwCL8oDM8UmE8tg8Abicz), revision 211, taken 2026-10-19.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite rule IDs
 > without leaving the repository. Where this copy and the live document differ, the live document wins.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -52,7 +52,7 @@ Every entity carries the common fields below (append-only entities omit the upda
 
 - **L:** a ledger row references the entity through a chain of required (NOT NULL) foreign keys, or the posting service reads the entity's rows at posting time to determine, classify, value or post a ledger row. Ledger caches (StockBalance, ItemCostState) count as L. Data copied onto a document before posting (a price, a customer part number) does not make its source L, because posting reads the document line, not the source.
 - **M, provisional:** the entity names the two module specifications expected to need it. When the second of them is released, the entity is confirmed or scheduled to leave the kernel before that module's build starts. A provisional entity must not be read by posting or referenced by a ledger; if it is, it is L. The remediation register keeps the list, and each Phase 1 specification release closes its entries.
-- **Fails:** the entity is moved to its module, or justified, before the Phase 1 build.
+- **Fails:** the entity is moved to its module, or justified, before the Phase 1 build. Phase 0 builds only part of this table: D-55 moves the M-provisional entities to Phase 1, and TaxCode, TaxRule, the EU country list, BankAccount, OpenItem and Settlement to Phase 2.
 
 | Entity | Basis | Justification |
 |---|---|---|
@@ -85,7 +85,7 @@ Every entity carries the common fields below (append-only entities omit the upda
 | JournalEntry, JournalLine, InventoryEntry, OpenItem, Settlement | L | The ledgers themselves. |
 | Reservation | M, provisional | Sales (order reservations) and Warehousing (Phase 3). |
 | StockBalance, ItemCostState | L | Ledger caches. |
-| User, Role, Permission, RolePermission, RoleAssignment, SodConflict, AuditEvent, IdempotencyRecord, OutboxEvent | I | Identity and access (scope is held on RoleAssignment, R-SEC-01), audit, idempotency and outbox. |
+| User, Role, Permission, RolePermission, RoleAssignment, SodConflict, AuditEvent, IdempotencyRecord, OutboxEvent, SettingDefinition, SettingValue | I | Identity and access (scope is held on RoleAssignment, R-SEC-01), audit, idempotency, outbox and settings. |
 
 ## Organisation entities
 
@@ -410,14 +410,15 @@ Manual journals are gapless because they are accounting vouchers. JOURNAL_ENTRY 
 
 | Attribute | Type | Req | Rule |
 |---|---|---|---|
-| `company_id`, `document_type` | → Company, Code | Y |  |
+| `company_id`, `document_type` | → Company, Code | N, Y | Company empty only for an installation-level series, such as party numbers. |
 | `prefix` | text | N | For example INV-. |
+| `prefix_template` | text | N | Required for PerFiscalYear series, empty otherwise. The prefix with the token {fiscal_year}, replaced by the fiscal year's code; for example JE{fiscal_year}- gives JE2027-. CREATE_YEAR builds the new year's series from it. The existing JOURNAL_ENTRY series get JE{fiscal_year}- in the migration that adds the column (an approved data change, owner 2026-10-19). |
 | `scope` | Enum: Continuous, PerFiscalYear | Y |  |
 | `fiscal_year_id` | → FiscalYear | N | Required exactly when scope = PerFiscalYear; a fiscal year of the series' company. One series per company, document type and fiscal year. |
 | `next_number`, `padding` | integer | Y |  |
 | `gapless` | boolean | Y | Copied from the document type; cannot be switched off where the type requires it. JOURNAL_ENTRY series are always gapless and PerFiscalYear. Padding is a minimum width, not a limit: after IA-999999 comes IA-1000000; a company wanting fixed-width numbers sets a larger padding. |
 
-A gapless number is taken inside the posting transaction under a row lock on the series. If the transaction fails, the number returns with it, so no gap appears (R-DOC-07). In v1 every series, gapless or not, takes its numbers from its locked series row; the gapless flag decides that the number is taken as the last step before commit and what I-09 checks. A command locks all the series it uses in one statement, in primary key order (Lock order). Journal entries number from a series with document type JOURNAL_ENTRY, scope PerFiscalYear, gapless.
+A gapless number is taken inside the posting transaction under a row lock on the series. If the transaction fails, the number returns with it, so no gap appears (R-DOC-07). In v1 every series, gapless or not, takes its numbers from its locked series row; the gapless flag decides that the number is taken as the last step before commit and what I-09 checks. A command locks all the series it uses in one statement, in primary key order (Lock order). Journal entries number from a series with document type JOURNAL_ENTRY, scope PerFiscalYear, gapless. A series with an empty company is installation-level and always Continuous, enforced by a check (company_id IS NOT NULL OR scope = Continuous) so the composite key to a fiscal year can never be skipped; the uniqueness of company, document type and fiscal year treats the empty company as one value. Party numbers use one: document type PARTY, a numbering-only registry row like JOURNAL_ENTRY, not gapless, since a party number is not a legal document number (R-DOC-04, R-DOC-07 do not apply).
 
 **Document** (header, all types)
 
@@ -667,7 +668,7 @@ One permission exists per command, plus one TYPE.READ permission per resource ty
 | AuditEvent | `command_id` | UUID | Y | The command that wrote it. JournalEntry and InventoryEntry store the same id, so a ledger row leads to its command's audit events and idempotency key (D-51). Required for every audit event written from milestone 1 step 8 on; events written before it by migrations and seeders keep it empty, and no audit row is ever changed. |
 | IdempotencyRecord | `key`, `user_id`, `command_name` | text, → User, Code | Y | Unique per user and key. |
 | IdempotencyRecord | `request_hash`, `response` | text, JSON | Y | Same key with a different request hash is rejected (R-API-04). |
-| IdempotencyRecord | `expires_at` | Timestamp | Y | Default 7 days. |
+| IdempotencyRecord | `expires_at` | Timestamp | Y | Stamped at insert from the setting idempotency.retention_days (default 7 days); a later change of the setting does not touch it. |
 | OutboxEvent | `event_type`, `schema_version` | Code, integer | Y | For example GOODS_ISSUED, version 1. |
 | OutboxEvent | `aggregate_id`, `payload` | UUID, JSON | Y | Written in the same transaction as the change. |
 | OutboxEvent | `occurred_at`, `published_at`, `attempts` | Timestamp, Timestamp, integer | Y, N, Y | `published_at` and `attempts` are the delivery columns, written only by the outbox relay, with no audit event (D-53). occurred_at is the command's time, taken when the command starts; it is not a delivery order key, since events can commit in another order (RR-43). |
@@ -675,6 +676,56 @@ One permission exists per command, plus one TYPE.READ permission per resource ty
 | OutboxEvent | `company_id` | → Company | N | Empty only for installation-scope aggregates such as ITEM_CREATED (D-50). |
 
 **Example conflict pairs for v1:** CUSTOMER.SET_CREDIT_LIMIT with SALES_ORDER.APPROVE_CREDIT; ACCOUNT.MAINTAIN with MANUAL_JOURNAL.POST; FISCAL_PERIOD.REOPEN with MANUAL_JOURNAL.POST.
+
+## Settings entities
+
+Every configurable default of the Foundation's classification list (P-11, D-29) is a setting, a column-backed default, a data-backed default or a planned definition that arrives with its feature; nothing reads a configurable default from code (D-58). A setting has one definition and values at the levels its definition allows.
+
+**SettingDefinition** (a system catalogue in code, SettingCatalog, written to its table by Themis.Migrator on every run, never by a migration, like the document type registry)
+
+| Attribute | Type | Req | Rule |
+|---|---|---|---|
+| `key` | Code | Y | Unique, dotted, for example idempotency.retention_days. |
+| `value_type` | Enum: Integer, Decimal, Boolean, Code, Duration | Y | Decimals travel as strings (R-MON-01). |
+| `default_value` | text | N | The documented best-practice default; empty only while the deciding decision is open (for example D-10). |
+| `min`, `max`, `allowed_values` | text | N | Validation by type; a violation is a 400. |
+| `levels` | set of Enum: Installation, Company, Site, Warehouse | Y | The levels a value may be written at (R-SET-01). |
+| `history_bearing` | boolean | Y | True when the caller chooses valid_from; none is in milestone 2. |
+| `locked_reason` | text | N | When set, the definition exists but no value may be written (R-SET-01). |
+| `backing` | Enum: Setting, Column, Data, Planned | Y | Column: the value lives on a named column, changed only by its entity's command (R-SET-01). Data: the default is rows of an entity, such as the shipped SodConflict pairs (R-SEC-02), changed by that entity's commands. Planned: the feature that reads it comes in a later phase, which the definition names, and it may name levels that phase adds (for example customer or item). A rule may have more than one definition, as R-MON-02 has. |
+| `rule_id`, `decision_id` | Code | Y, N | The rule whose default it configures and the decision that makes it a default. |
+
+The migrator reports, and never changes or deletes, a stored value that falls outside a range tightened in code, and a stored value whose definition has left the catalogue; such a definition's row stays in the table, marked retired, because values reference it.
+
+**SettingValue** (insert-only)
+
+| Attribute | Type | Req | Rule |
+|---|---|---|---|
+| `id` | UUID | Y | The audit entity and the event's aggregate id. |
+| `definition_key` | → SettingDefinition | Y | Backing Setting only (R-SET-01). |
+| `level` | Enum: Installation, Company, Site, Warehouse | Y | A level the definition allows (R-SET-01). |
+| `company_id`, `site_id`, `warehouse_id` | → Company, → Site, → Warehouse | N | A check ties them to the level: all empty for Installation (the one installation of D-28); company only for Company; company and site for Site; company and warehouse for Warehouse. Composite keys keep the site or warehouse inside the company. |
+| `kind` | Enum: Set, Cleared | Y | CLEAR inserts a Cleared row; nothing is updated or deleted. |
+| `value` | text | N | Required for Set; valid for the definition, otherwise a 400. |
+| `valid_from` | Date | N | History-bearing definitions only: the date the caller gives, for Set and Cleared alike. Empty for plain definitions. |
+| `version` | integer | Y | Per definition, level and target (company, site, warehouse), starting at 1; unique there with NULLS NOT DISTINCT, so two concurrent writes cannot both succeed. |
+| `recorded_at`, `recorded_by`, `command_id` | Timestamp, user, UUID | Y |  |
+
+**Resolution.** For one definition, level and target, a plain definition takes the row with the highest version; a history-bearing definition takes the row with the latest valid_from on or before the business date, ties going to the highest version (R-TIME-01, in the company's time zone; Installation values of history-bearing definitions use the requesting company's date). A Cleared row means no value at that level. The effective value is the first value found at the warehouse, then its site, then its company, then installation, then the definition's default. A level the definition does not allow is skipped when reading. A command reads the settings it needs inside its own transaction, with no cache across requests in v1 (D-41).
+
+**Commands and query.** SETTING.SET and SETTING.CLEAR (Sensitive) insert one row each. Each requires If-Match with the current version of its definition, level and target, 0 for a slot with no rows yet (R-API-02: 412 when stale, 428 when missing); a write that loses a concurrent race on the unique version index gets the same 412, which, like every 412, is not stored as the key's result. A company, site or warehouse write declares its company (and site); an installation-level write declares installation scope (RR-52), so a holder of SETTING.SET with a company-wide assignment in any company changes installation values for every company; access reviews treat SETTING.SET as installation-wide. SETTING.READ returns the effective value at a scope with its source (a level, the default, or a column) and the current version per level. Each write has its audit event and an outbox event SETTING_CHANGED carrying key, level, target, previous and new value (D-44, D-50).
+
+**Definitions in milestone 2**
+
+| Key | Type and range | Default | Levels | Backing | Rule, decision |
+|---|---|---|---|---|---|
+| idempotency.retention_days | Integer, 1 to 90 | 7 | Installation | Setting; a change applies to records written after it, existing records keep their expires_at | R-API-01, D-45 ends |
+| document.max_lines | Integer, 1 to 10,000 | 1,000 | Installation, Company | Setting | RR-54 |
+| inventory.negative_stock_allowed | Boolean | false | Company, Warehouse | Setting, locked until a costing rule for negative quantities exists | R-INV-03, D-09 |
+| company.rounding_mode | Code | HalfAwayFromZero | Company | Column, Company.rounding_mode, changed by COMPANY.UPDATE | R-MON-02 |
+| company.tax_rounding_level | Code | Set by D-10 (open); Line is the test value | Company | Column, Company.tax_rounding_level, changed by COMPANY.UPDATE | R-MON-02, D-10 |
+
+Every other configurable default in the Foundation's list is in the catalogue at least once, as a Data or Planned definition.
 
 ## State machines, part 1: master data and fiscal periods
 
@@ -711,7 +762,7 @@ Each transition table reads: from state, command, to state, the guards that must
 
 | From | Command | To | Guards | Effects |
 |---|---|---|---|---|
-| (none) | CREATE_YEAR | Open | Contiguous with the previous year | Creates its periods, all Open |
+| (none) | CREATE_YEAR | Open | Contiguous with the previous year | Creates its periods, all Open, and for each document type with a PerFiscalYear series in the company a series for the new year, copied from that type's latest series: prefix from prefix_template, same padding and gapless flag, next_number 1. A company's first fiscal year has no earlier series, so CREATE_YEAR then takes the JOURNAL_ENTRY template and padding as arguments, and is rejected under R-DOC-08 without them; given for a later year, they are a 400. A template must contain {fiscal_year} exactly once, otherwise it is a 400. Posting in the new year therefore never meets a missing journal entry series (D-52) |
 | Open | CLOSE_YEAR | Closed | All its periods Closed | Not available in v1 until the year-end result transfer is specified (see open questions). |
 
 **FiscalPeriod**
@@ -1042,4 +1093,4 @@ This spec adds 17 rules and 9 decisions. Both are mirrored into the foundation d
 - Should receiving a return offer to create the credit note in the same step?
 - VAT treatment of payment differences above a few kronor, if the tolerance is ever raised.
 - Year-end result transfer and opening balances for a new fiscal year (needed before the first year closes).
-- Party numbers: Party.party_number comes from an installation-level number series, but a NumberSeries belongs to one company. Options: a NumberSeries with an empty company for installation-level series; a plain installation-level sequence, since party numbers need no gapless guarantee; or per-company party numbers, which contradicts unique per installation and D-28. Decide before PARTY.CREATE is built.
+- Party numbers, settled 2026-10-19: Party.party_number comes from an installation-level NumberSeries, one whose company is empty (see NumberSeries).
