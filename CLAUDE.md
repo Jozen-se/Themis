@@ -47,4 +47,4 @@ Reference only (not sources of truth; the documents above win on any conflict):
 - Run: dotnet run --project src/Themis.Host
 
 ## Current milestone
-Milestone 2, kernel complete; only step 1 (hardening from the code review) is released. Scope is in docs/design/themis-build-brief.md, section Milestone 2. Do not start work outside a released step.
+Milestone 2, kernel complete; step 1 (hardening) is merged and step 2 (settings framework) is released. Scope is in docs/design/themis-build-brief.md, section Milestone 2. Do not start work outside a released step.
