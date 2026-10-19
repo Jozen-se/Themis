@@ -59,6 +59,9 @@ public sealed class PostgresFixture : IAsyncLifetime
             "DELETE FROM kernel.audit_event WHERE command_name NOT LIKE 'SYSTEM.%'; " +
             "UPDATE kernel.number_series SET next_number = 1, version = 1", cancellationToken);
 
+    /// <summary>A database with nothing in it, not even the bootstrap, for the drift test that restores a schema dump into it (RR-39); the caller drops it.</summary>
+    public async Task<string> CreateBareDatabaseAsync() => await CreateDatabaseAsync(SuperuserConnectionString);
+
     /// <summary>A second, empty database on the same server for a test that needs the migrator's work from scratch; the caller drops it.</summary>
     public async Task<string> CreateEmptyDatabaseAsync(CancellationToken cancellationToken)
     {

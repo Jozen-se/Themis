@@ -10,7 +10,8 @@ namespace Themis.Integration.Tests.Invariants;
 /// The invariant queries of db/invariants are complete and detect what they claim (step 11 brief): every invariant
 /// of the Specification has a query, is held by the privilege tests (I-11, I-14) or is listed with its phase; every
 /// query is empty on the seeded database; where a constraint makes a violation impossible the constraint is shown to
-/// reject the row (I-02, the entry part of I-08, the zero-value part of I-04, duplicates of I-09), and for every other
+/// reject the row (I-02, the entry part of I-08, the zero-value part of I-04, duplicates of I-09, since RR-47 the
+/// negative-stock part of I-03 and the negative-value part of I-15), and for every other
 /// part the table owner plants a violating row inside a rolled-back transaction and the query must report it. The
 /// constraints are never dropped.
 /// </summary>
@@ -134,23 +135,22 @@ public sealed partial class InvariantQueryTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task I_03_a_planted_balance_that_differs_from_its_entries_a_negative_balance_and_entries_without_a_balance_row_are_reported()
+    public async Task I_03_the_database_refuses_a_negative_balance_and_a_planted_balance_that_differs_from_its_entries_or_entries_without_a_balance_row_are_reported()
     {
         await InTransactionAsync(async (connection, scaffold) =>
         {
+            // A balance below 0 is refused by the backstop of RR-47 (ck_stock_balance_on_hand); every warehouse refuses negative stock in v1 (D-09).
+            await AssertRejectedAsync(connection, CheckViolation, "ck_stock_balance_on_hand", StockBalanceSql(scaffold, Warehouse, "Blocked", "-1"));
+
             // (a) a balance of 5 with no entries behind it.
             await ExecuteAsync(connection, StockBalanceSql(scaffold, Warehouse, "Available", "5"));
-            // (b) a balance of -1 that matches its entry, in a warehouse that refuses negative stock (every warehouse in v1, D-09).
+            // (b) an entry in a second key with no balance row at all.
             Guid entry = await JournalEntryAsync(connection, scaffold, "JE2026-000001");
-            await ExecuteAsync(connection, InventoryEntrySql(scaffold, "-1", "0", June, entry, stockStatus: "Blocked"));
-            await ExecuteAsync(connection, StockBalanceSql(scaffold, Warehouse, "Blocked", "-1"));
-            // (c) an entry in the second fixture-independent key with no balance row at all.
             await ExecuteAsync(connection, InventoryEntrySql(scaffold, "3", "0", June, entry, warehouse: scaffold.OtherWarehouse));
 
             IReadOnlyList<string> rows = await InvariantQueries.RowsAsync(connection, "I-03", Ct);
-            Assert.Equal(3, rows.Count);
+            Assert.Equal(2, rows.Count);
             Assert.Contains(rows, row => row.Contains("stock_status=Available", StringComparison.Ordinal) && row.Contains("violation=on hand differs from the entries", StringComparison.Ordinal));
-            Assert.Contains(rows, row => row.Contains("stock_status=Blocked", StringComparison.Ordinal) && row.Contains("violation=on hand below 0", StringComparison.Ordinal));
             Assert.Contains(rows, row => row.Contains($"warehouse_id={scaffold.OtherWarehouse}", StringComparison.Ordinal) && row.Contains("violation=entries without a stock balance row", StringComparison.Ordinal));
         });
     }
@@ -259,7 +259,7 @@ public sealed partial class InvariantQueryTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task I_15_a_planted_item_with_stock_and_no_reported_row_a_negative_reported_value_and_a_company_total_without_a_ledger_balance_are_reported()
+    public async Task I_15_a_planted_item_with_stock_and_no_reported_row_and_a_company_total_without_a_ledger_balance_are_reported()
     {
         await InTransactionAsync(async (connection, scaffold) =>
         {
@@ -273,23 +273,17 @@ public sealed partial class InvariantQueryTests : IAsyncLifetime
             IReadOnlyList<string> noLedger = await InvariantQueries.RowsAsync(connection, "I-15", Ct);
             Assert.Contains("violation=reported company total differs from the INVENTORY balance", Assert.Single(noLedger), StringComparison.Ordinal);
 
-            // A balance of -2 in the main warehouse beside 4 in another, against a cost state of 2 worth 10.00: the other warehouse
-            // ranks first and takes the remainder, the main warehouse keeps its share of -10.00.
-            await ExecuteAsync(connection, $"UPDATE kernel.stock_balance SET on_hand_base = -2 WHERE item_id = '{scaffold.Item}'");
-            await ExecuteAsync(connection, StockBalanceSql(scaffold, scaffold.OtherWarehouse, "Available", "4"));
-            IReadOnlyList<string> negative = await InvariantQueries.RowsAsync(connection, "I-15", Ct);
-            Assert.Contains(negative, row => row.Contains($"item_id={scaffold.Item}", StringComparison.Ordinal) && row.Contains("violation=negative reported warehouse value", StringComparison.Ordinal));
-            await ExecuteAsync(connection, $"DELETE FROM kernel.stock_balance WHERE warehouse_id = '{scaffold.OtherWarehouse}'");
-
-            // Two parts cannot be planted because the view guarantees them by construction (ReportingModel, D-54): the reported
-            // values always sum to the item cost state value, since the remainder of the truncated shares goes to one warehouse
-            // (a cost state quantity of 4 behind a balance of 2 still reports the full 10.00), and a warehouse with no stock on
-            // hand never has a row (HAVING on hand <> 0). StockByWarehouseViewTests prove both on real postings; the query keeps
-            // the checks so that a changed view cannot pass unnoticed.
-            await ExecuteAsync(connection, $"UPDATE kernel.stock_balance SET on_hand_base = 2 WHERE item_id = '{scaffold.Item}'");
+            // Three parts cannot be planted. A negative reported value needs a negative balance or cost state value, which the database
+            // refuses (ck_stock_balance_on_hand of RR-47, ck_item_cost_state_value). The reported values always sum to the item cost
+            // state value, since the remainder of the truncated shares goes to one warehouse (a cost state quantity of 4 behind a
+            // balance of 2 still reports the full 10.00), and a warehouse with no stock on hand never has a row (HAVING on hand <> 0;
+            // ReportingModel, D-54). StockByWarehouseViewTests prove them on real postings; the query keeps the checks so that a
+            // changed view or a relaxed constraint cannot pass unnoticed.
+            await AssertRejectedAsync(connection, CheckViolation, "ck_stock_balance_on_hand", $"UPDATE kernel.stock_balance SET on_hand_base = -2 WHERE item_id = '{scaffold.Item}'");
             await ExecuteAsync(connection, $"UPDATE kernel.item_cost_state SET quantity_base = 4 WHERE item_id = '{scaffold.Item}'");
             IReadOnlyList<string> structural = await InvariantQueries.RowsAsync(connection, "I-15", Ct);
             Assert.DoesNotContain(structural, row => row.Contains("violation=reported values do not sum", StringComparison.Ordinal));
+            Assert.DoesNotContain(structural, row => row.Contains("violation=negative reported warehouse value", StringComparison.Ordinal));
             Assert.DoesNotContain(structural, row => row.Contains("violation=reported row for a warehouse without stock", StringComparison.Ordinal));
         });
     }

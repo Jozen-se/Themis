@@ -74,12 +74,8 @@ internal static class GeneralLedgerModel
         });
     }
 
-    /// <summary>R-MD-02 with the Specification's reading for empty keys: a blank key is coalesced to a sentinel inside the constraint, so two rules that leave the same key empty overlap; the columns stay NULL.</summary>
-    public const string NoOverlapConstraintSql =
-        "ALTER TABLE kernel.posting_profile_rule ADD CONSTRAINT ex_posting_profile_rule_no_overlap EXCLUDE USING gist (" +
-        "company_id WITH =, account_role WITH =, coalesce(item_posting_group, '') WITH =, coalesce(party_posting_group, '') WITH =, " +
-        "coalesce(ship_to_scope, '') WITH =, coalesce(tax_code_id, '00000000-0000-0000-0000-000000000000'::uuid) WITH =, coalesce(reason_code, '') WITH =, " +
-        "daterange(valid_from, valid_to, '[)') WITH &&);";
+    // R-MD-02: the no-overlap exclusion constraint on posting profile rules is created by the general ledger migration as
+    // literal SQL (RR-39); a blank key is coalesced to a sentinel inside it, so two rules that leave the same key empty overlap.
 
     private static void Common<T>(EntityTypeBuilder<T> entity, string table)
         where T : MasterDataRow

@@ -276,11 +276,12 @@ internal sealed partial class MasterDataTables : Migration
             principalColumn: "code",
             onDelete: ReferentialAction.Restrict);
 
-        // Explicit grants per table, declared once in the privilege matrix (I-14).
-        foreach (string statement in KernelPrivilegeMatrix.GrantsFor([.. KernelPrivilegeMatrix.MasterDataTables]))
-        {
-            migrationBuilder.Sql(statement);
-        }
+        // Explicit grants per table as literal text, fixed once merged (RR-39); the privilege matrix is the expected state the I-14 test checks.
+        migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON \"kernel\".\"unit_of_measure\" TO \"themis_kernel\";");
+        migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON \"kernel\".\"currency\" TO \"themis_kernel\";");
+        migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON \"kernel\".\"item_posting_group\" TO \"themis_kernel\";");
+        migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON \"kernel\".\"item\" TO \"themis_kernel\";");
+        migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON \"kernel\".\"item_company\" TO \"themis_kernel\";");
     }
 
     /// <summary>The starter units of the Specification's Reference data paragraph: code, name, dimension, decimals.</summary>

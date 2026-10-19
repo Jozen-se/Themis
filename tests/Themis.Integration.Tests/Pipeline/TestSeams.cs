@@ -2,8 +2,10 @@ using Themis.FixtureModule.Application;
 using Themis.FixtureModule.Contracts;
 using Themis.Kernel.Contracts.Commands;
 using Themis.Kernel.Contracts.Persistence;
+using Themis.Kernel.MasterData;
 using Themis.Kernel.Messaging;
 using Themis.Kernel.Posting;
+using Themis.Kernel.Primitives;
 
 namespace Themis.Integration.Tests.Pipeline;
 
@@ -16,6 +18,9 @@ internal sealed class PostingFailureSwitch
 {
     /// <summary>What the posting hook raises after the ledger writes; a test sets it before the command and resets it after.</summary>
     public FixtureFailure Failure { get; set; }
+
+    /// <summary>Runs on the command's unit of work after the ledger writes, for the RR-47 test that plants an unbalanced journal line and lets the deferred trigger fail the commit.</summary>
+    public Func<IUnitOfWork, Guid, CancellationToken, Task>? AfterLedgerWrites { get; set; }
 }
 
 /// <summary>
@@ -37,6 +42,11 @@ internal sealed class TestPostingHook : IPostingHook
 
     public async Task AfterLedgerWritesAsync(IUnitOfWork unitOfWork, Guid documentId, ICommandContext context, CancellationToken cancellationToken)
     {
+        if (_switch.AfterLedgerWrites is { } afterLedgerWrites)
+        {
+            await afterLedgerWrites(unitOfWork, documentId, cancellationToken);
+        }
+
         FixtureFailure failure = _switch.Failure;
         if (failure is FixtureFailure.ThrowAfterWrite or FixtureFailure.SerializationFailureOnFirstAttempt)
         {
@@ -55,4 +65,16 @@ internal sealed class TestOutboxRelaySeam : IOutboxRelaySeam
 
     public Task AfterClaimAsync(IReadOnlyList<Guid> eventIds, CancellationToken cancellationToken) =>
         AfterClaim is { } afterClaim ? afterClaim(eventIds, cancellationToken) : Task.CompletedTask;
+}
+
+/// <summary>
+/// The item create seam of the RR-45 test: holds the first ITEM.CREATE after its duplicate pre-check while a second
+/// create with the same number commits, so the first meets the unique index. Nothing set means nothing happens.
+/// </summary>
+internal sealed class TestItemCreateSeam : IItemCreateSeam
+{
+    public Func<Code, CancellationToken, Task>? AfterDuplicateCheck { get; set; }
+
+    public Task AfterDuplicateCheckAsync(Code itemNumber, CancellationToken cancellationToken) =>
+        AfterDuplicateCheck is { } afterDuplicateCheck ? afterDuplicateCheck(itemNumber, cancellationToken) : Task.CompletedTask;
 }

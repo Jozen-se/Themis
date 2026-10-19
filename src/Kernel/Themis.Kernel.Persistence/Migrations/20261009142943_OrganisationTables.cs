@@ -377,11 +377,15 @@ internal sealed partial class OrganisationTables : Migration
             unique: true,
             filter: "is_default");
 
-        // Explicit grants per table, declared once in the privilege matrix (I-14).
-        foreach (string statement in KernelPrivilegeMatrix.GrantsFor([.. KernelPrivilegeMatrix.OrganisationTables]))
-        {
-            migrationBuilder.Sql(statement);
-        }
+        // Explicit grants per table as literal text, fixed once merged (RR-39); the privilege matrix is the expected state the I-14 test checks.
+        migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON \"kernel\".\"installation\" TO \"themis_kernel\";");
+        migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON \"kernel\".\"party\" TO \"themis_kernel\";");
+        migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON \"kernel\".\"chart_of_accounts\" TO \"themis_kernel\";");
+        migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON \"kernel\".\"company\" TO \"themis_kernel\";");
+        migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON \"kernel\".\"site\" TO \"themis_kernel\";");
+        migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON \"kernel\".\"warehouse\" TO \"themis_kernel\";");
+        migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON \"kernel\".\"fiscal_year\" TO \"themis_kernel\";");
+        migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON \"kernel\".\"fiscal_period\" TO \"themis_kernel\";");
     }
 
     /// <inheritdoc />

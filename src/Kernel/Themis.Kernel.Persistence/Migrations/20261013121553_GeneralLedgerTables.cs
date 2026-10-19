@@ -142,13 +142,11 @@ internal sealed partial class GeneralLedgerTables : Migration
 
         // R-MD-02: no two rules with the same role and the same key values overlap in time, empty keys compared as a value
         // (Specification, Effective dating). Needs btree_gist for the equality operators inside a GiST index.
-        migrationBuilder.Sql(GeneralLedgerModel.NoOverlapConstraintSql);
+        migrationBuilder.Sql("ALTER TABLE kernel.posting_profile_rule ADD CONSTRAINT ex_posting_profile_rule_no_overlap EXCLUDE USING gist (company_id WITH =, account_role WITH =, coalesce(item_posting_group, '') WITH =, coalesce(party_posting_group, '') WITH =, coalesce(ship_to_scope, '') WITH =, coalesce(tax_code_id, '00000000-0000-0000-0000-000000000000'::uuid) WITH =, coalesce(reason_code, '') WITH =, daterange(valid_from, valid_to, '[)') WITH &&);");
 
-        // Explicit grants per table, declared once in the privilege matrix (I-14).
-        foreach (string statement in KernelPrivilegeMatrix.GrantsFor([.. KernelPrivilegeMatrix.GeneralLedgerTables]))
-        {
-            migrationBuilder.Sql(statement);
-        }
+        // Explicit grants per table as literal text, fixed once merged (RR-39); the privilege matrix is the expected state the I-14 test checks.
+        migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON \"kernel\".\"account\" TO \"themis_kernel\";");
+        migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON \"kernel\".\"posting_profile_rule\" TO \"themis_kernel\";");
     }
 
     /// <inheritdoc />

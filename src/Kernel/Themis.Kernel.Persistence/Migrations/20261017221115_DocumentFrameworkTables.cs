@@ -472,11 +472,13 @@ internal sealed partial class DocumentFrameworkTables : Migration
             principalColumn: "id",
             onDelete: ReferentialAction.Restrict);
 
-        // Explicit grants per table, declared once in the privilege matrix (I-14).
-        foreach (string statement in KernelPrivilegeMatrix.GrantsFor([.. KernelPrivilegeMatrix.DocumentTables]))
-        {
-            migrationBuilder.Sql(statement);
-        }
+        // Explicit grants per table as literal text, fixed once merged (RR-39); the privilege matrix is the expected state the I-14 test checks.
+        migrationBuilder.Sql("GRANT SELECT ON \"kernel\".\"document_type\" TO \"themis_kernel\";");
+        migrationBuilder.Sql("GRANT SELECT ON \"kernel\".\"document_transition\" TO \"themis_kernel\";");
+        migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON \"kernel\".\"document\" TO \"themis_kernel\";");
+        migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON \"kernel\".\"document_line\" TO \"themis_kernel\";");
+        migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON \"kernel\".\"inventory_adjustment\" TO \"themis_kernel\";");
+        migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON \"kernel\".\"number_series\" TO \"themis_kernel\";");
     }
 
     /// <inheritdoc />

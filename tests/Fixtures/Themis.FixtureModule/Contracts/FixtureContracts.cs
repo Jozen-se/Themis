@@ -31,6 +31,7 @@ public static class FixtureContracts
     [
         new CommandRoute<CreateCounter, CounterSnapshot>("/v1/fixture/counters"),
         new CommandRoute<TouchCounter, CounterSnapshot>("/v1/fixture/counters/{id}/touch"),
+        new CommandRoute<TouchPair, TouchPairSnapshot>("/v1/fixture/counters/touch-pair"),
     ];
 }
 
@@ -65,6 +66,16 @@ public sealed record CreateCounter(Guid CompanyId, long InitialValue, decimal Sa
 /// <summary>Adds to a counter; the row's version comes from If-Match (R-API-02). Id comes from the route; the scope from the row (IScopeResolver).</summary>
 [Command(FixtureContracts.TouchPermission)]
 public sealed record TouchCounter(Guid Id, long ExpectedVersion, long Increment, FixtureFailure Failure = FixtureFailure.None) : ICommand<CounterSnapshot>, IVersionedCommand;
+
+/// <summary>
+/// Adds to two counters in the given order through Entity Framework, waiting at the fixture barrier between the two
+/// writes on the first attempt (RR-40 test seam). Runs under FIXTURE.TOUCH; the scope is the first counter's.
+/// </summary>
+[Command(FixtureContracts.TouchPermission)]
+public sealed record TouchPair(Guid FirstId, Guid SecondId, long Increment) : ICommand<TouchPairSnapshot>;
+
+/// <summary>Both counters after a touch pair.</summary>
+public sealed record TouchPairSnapshot(CounterSnapshot First, CounterSnapshot Second);
 
 /// <summary>The counter after the command. Sample is a decimal, so the response proves D-37 (strings for decimals, numbers for integers).</summary>
 public sealed record CounterSnapshot(Guid Id, Guid CompanyId, Guid? SiteId, long Value, long Version, decimal Sample, bool Posted) : IVersionedResult;

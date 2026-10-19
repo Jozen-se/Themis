@@ -19,6 +19,16 @@ namespace Themis.Kernel.MasterData;
 /// </summary>
 internal sealed class CreateItemHandler : ICommandHandler<CreateItem, ItemView>
 {
+    public const string ItemNumberDuplicateCode = "item_number_duplicate";
+    public const string ItemNumberIndex = "ux_item_item_number";
+
+    private readonly IItemCreateSeam _seam;
+
+    public CreateItemHandler(IItemCreateSeam seam)
+    {
+        _seam = seam;
+    }
+
     public const string ItemType = "ITEM";
     public const string ItemCompanyType = "ITEM_COMPANY";
     public const string ItemEntity = "Item";
@@ -30,11 +40,15 @@ internal sealed class CreateItemHandler : ICommandHandler<CreateItem, ItemView>
         ArgumentNullException.ThrowIfNull(context);
         IUnitOfWork unitOfWork = context.UnitOfWork;
 
-        // R-MD-05: the item number is unique per installation; Code is already uppercase, so the comparison is too.
+        // R-MD-05: the item number is unique per installation; Code is already uppercase, so the comparison is too. Two
+        // commands racing past this check meet the unique index ux_item_item_number, which the pipeline maps to the
+        // same rejection (RR-45, UniqueConstraintRule in KernelMasterDataServices).
         if (await ItemStore.ItemNumberExistsAsync(unitOfWork, command.ItemNumber, cancellationToken))
         {
-            return Error.Rule("R-MD-05", "item_number_duplicate", $"Item number {command.ItemNumber} already exists.");
+            return Error.Rule("R-MD-05", ItemNumberDuplicateCode, $"Item number {command.ItemNumber} already exists.");
         }
+
+        await _seam.AfterDuplicateCheckAsync(command.ItemNumber, cancellationToken);
 
         int? unitDecimals = await ItemStore.UnitDecimalsAsync(unitOfWork, command.BaseUnit, cancellationToken);
         if (unitDecimals is null)
@@ -168,7 +182,20 @@ internal sealed class CreateItemValidator : ICommandValidator<CreateItem>
         {
             yield return Error.Validation("min_order_qty_not_positive", "Minimum order quantity is above zero.");
         }
+
+        // RR-46: every quantity fits numeric(20,6), the column that stores it (Specification, Data types).
+        foreach ((string field, decimal? value) in new (string, decimal?)[] { ("netWeightKg", command.NetWeightKg), ("salesMultiple", command.SalesMultiple), ("minOrderQty", command.MinOrderQty) })
+        {
+            if (value is { } quantity && !DecimalBounds.FitsNumeric(quantity, QuantityPrecision, CreateItemHandler.QuantityScale))
+            {
+                yield return Error.Validation(ValueOutOfRangeCode, $"{field} holds at most {QuantityPrecision - CreateItemHandler.QuantityScale} digits before the decimal point.", details: new Dictionary<string, string>(StringComparer.Ordinal) { ["field"] = field });
+            }
+        }
     }
+
+    /// <summary>The precision of a quantity column, numeric(20,6) (Specification, Data types).</summary>
+    public const int QuantityPrecision = 20;
+    public const string ValueOutOfRangeCode = "value_out_of_range";
 }
 
 /// <summary>GET item by id in a company (ITEM.READ): the row's absence in that company is a 404 (step 5 brief).</summary>

@@ -23,6 +23,11 @@ internal static class FixtureModuleServices
         services.AddScoped<ICommandHandler<TouchCounter, CounterSnapshot>, TouchCounterHandler>();
         // Build Brief, Authorisation: a command on an existing record takes its scope from the record.
         services.AddScoped<IScopeResolver<TouchCounter>, CounterScopeResolver>();
+        // RR-40: the touch pair through Entity Framework and its barrier (docs/development/test-seams.md).
+        services.AddSingleton<FixtureBarrier>();
+        services.AddSingleton<ITrackedCounterStore, EntityFrameworkCounterStore>();
+        services.AddScoped<ICommandHandler<TouchPair, TouchPairSnapshot>, TouchPairHandler>();
+        services.AddScoped<IScopeResolver<TouchPair>, TouchPairScopeResolver>();
         services.AddSingleton<ICommandValidator<CreateCounter>, CreateCounterValidator>();
         return services;
     }

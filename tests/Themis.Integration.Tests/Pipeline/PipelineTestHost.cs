@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using Themis.FixtureModule;
+using Themis.FixtureModule.Application;
 using Themis.FixtureModule.Contracts;
 using Themis.Kernel.Contracts.Documents;
 using Themis.Kernel.Contracts.MasterData;
@@ -75,6 +76,12 @@ internal sealed class PipelineTestHost : IAsyncDisposable
 
     public TestOutboxRelaySeam RelaySeam => Services.GetRequiredService<TestOutboxRelaySeam>();
 
+    public TestItemCreateSeam ItemCreateSeam => Services.GetRequiredService<TestItemCreateSeam>();
+
+    public PostingFailureSwitch PostingFailures => Services.GetRequiredService<PostingFailureSwitch>();
+
+    public FixtureBarrier Barrier => Services.GetRequiredService<FixtureBarrier>();
+
     public OutboxRelayPass Relay => Services.GetRequiredService<OutboxRelayPass>();
 
     /// <summary>Starts the host against the fixture's database, or against <paramref name="database"/> on the same server when named.</summary>
@@ -104,6 +111,8 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         builder.Services.AddSingleton<IPostingHook, TestPostingHook>();
         builder.Services.AddSingleton<TestOutboxRelaySeam>();
         builder.Services.AddSingleton<IOutboxRelaySeam>(provider => provider.GetRequiredService<TestOutboxRelaySeam>());
+        builder.Services.AddSingleton<TestItemCreateSeam>();
+        builder.Services.AddSingleton<IItemCreateSeam>(provider => provider.GetRequiredService<TestItemCreateSeam>());
         builder.Services.AddKernelOrganisation();
         builder.Services.AddKernelMasterData();
         builder.Services.AddKernelPosting();

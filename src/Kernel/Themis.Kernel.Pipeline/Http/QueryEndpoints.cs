@@ -14,7 +14,8 @@ namespace Themis.Kernel.Pipeline.Http;
 
 /// <summary>
 /// Maps a query to <c>GET {pattern}</c> (P-04). Route values and query string parameters become the query's JSON
-/// members (route values win), the query is bound with the API's JSON options and handed to the dispatcher.
+/// members (route values win; a repeated query string key is a 400, RR-56), the query is bound with the API's JSON
+/// options and handed to the dispatcher.
 /// </summary>
 internal static class QueryEndpoints
 {
@@ -61,6 +62,12 @@ internal static class QueryEndpoints
         JsonObject members = [];
         foreach ((string key, Microsoft.Extensions.Primitives.StringValues values) in http.Request.Query)
         {
+            // RR-56: a key given twice is refused instead of its values being joined silently.
+            if (values.Count > 1)
+            {
+                return ProblemDetailsBody.Http(StatusCodes.Status400BadRequest, "query_parameter_repeated", null, $"The query string parameter '{key}' appears more than once.", correlationId);
+            }
+
             members[JsonNamingPolicy.CamelCase.ConvertName(key)] = values.ToString();
         }
 

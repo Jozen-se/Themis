@@ -74,9 +74,18 @@ internal sealed class OrganisationReader : IOrganisationReader
             cancellationToken);
 
         // R-LED-04: a date outside every fiscal year has no period to post into.
-        return rows.Count == 0
-            ? Error.Rule("R-LED-04", "fiscal_period_not_found", $"No fiscal period of the company covers {businessDate}.")
-            : rows[0];
+        if (rows.Count == 0)
+        {
+            return Error.Rule("R-LED-04", "fiscal_period_not_found", $"No fiscal period of the company covers {businessDate}.");
+        }
+
+        // RR-44: the exclusion constraint ex_fiscal_period_no_overlap keeps a company's periods disjoint, so exactly one row covers a date; more is a defect, never a guess.
+        if (rows.Count > 1)
+        {
+            throw new InvalidOperationException($"{rows.Count} fiscal periods of company {companyId} cover {businessDate}; periods must not overlap (RR-44).");
+        }
+
+        return rows[0];
     }
 
     private static CompanyInfo ReadCompany(DbDataReader reader) => ReadCompany(reader, offset: 0);

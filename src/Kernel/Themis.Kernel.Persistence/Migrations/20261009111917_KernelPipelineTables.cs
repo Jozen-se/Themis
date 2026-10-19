@@ -95,12 +95,13 @@ internal sealed partial class KernelPipelineTables : Migration
             column: "occurred_at",
             filter: "published_at IS NULL");
 
-        // Explicit grants per table, declared once in the privilege matrix (I-14). No default privileges exist
-        // (brief, Database model), so a table without these statements is unreachable for themis_kernel.
-        foreach (string statement in KernelPrivilegeMatrix.GrantsFor("idempotency_record", "audit_event", "outbox_event"))
-        {
-            migrationBuilder.Sql(statement);
-        }
+        // Explicit grants per table as literal text, fixed once merged (RR-39); the privilege matrix is the expected state the
+        // I-14 test checks. No default privileges exist (brief, Database model), so a table without these statements is
+        // unreachable for themis_kernel.
+        migrationBuilder.Sql("GRANT SELECT, INSERT, DELETE ON \"kernel\".\"idempotency_record\" TO \"themis_kernel\";");
+        migrationBuilder.Sql("GRANT SELECT, INSERT ON \"kernel\".\"audit_event\" TO \"themis_kernel\";");
+        migrationBuilder.Sql("GRANT SELECT, INSERT ON \"kernel\".\"outbox_event\" TO \"themis_kernel\";");
+        migrationBuilder.Sql("GRANT UPDATE (\"published_at\", \"attempts\") ON \"kernel\".\"outbox_event\" TO \"themis_kernel\";");
     }
 
     /// <inheritdoc />

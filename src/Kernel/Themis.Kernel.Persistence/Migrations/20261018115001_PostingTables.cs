@@ -508,13 +508,14 @@ internal sealed partial class PostingTables : Migration
             .Annotation("Npgsql:NullsDistinct", false);
 
         // D-51: required from now on, untouched before; stays NOT VALID (R-AUD-01).
-        migrationBuilder.Sql(LedgerModel.AuditCommandIdCheckSql);
+        migrationBuilder.Sql("ALTER TABLE kernel.audit_event ADD CONSTRAINT ck_audit_event_command_id CHECK (command_id IS NOT NULL) NOT VALID;");
 
-        // Explicit grants per table, declared once in the privilege matrix (I-14).
-        foreach (string statement in KernelPrivilegeMatrix.GrantsFor([.. KernelPrivilegeMatrix.LedgerTables]))
-        {
-            migrationBuilder.Sql(statement);
-        }
+        // Explicit grants per table as literal text, fixed once merged (RR-39); the privilege matrix is the expected state the I-14 test checks.
+        migrationBuilder.Sql("GRANT SELECT, INSERT ON \"kernel\".\"journal_entry\" TO \"themis_kernel\";");
+        migrationBuilder.Sql("GRANT SELECT, INSERT ON \"kernel\".\"journal_line\" TO \"themis_kernel\";");
+        migrationBuilder.Sql("GRANT SELECT, INSERT ON \"kernel\".\"inventory_entry\" TO \"themis_kernel\";");
+        migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON \"kernel\".\"item_cost_state\" TO \"themis_kernel\";");
+        migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON \"kernel\".\"stock_balance\" TO \"themis_kernel\";");
     }
 
     /// <inheritdoc />
