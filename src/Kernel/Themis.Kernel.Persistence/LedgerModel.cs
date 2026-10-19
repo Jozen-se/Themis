@@ -21,12 +21,8 @@ internal static class LedgerModel
 {
     private const int CodeLength = 40;
 
-    /// <summary>
-    /// D-51: the command id is required for every audit event written from step 8 on. The check is added NOT VALID, so
-    /// it binds every row written after it and never touches the events migrations and seeders wrote before; it stays
-    /// NOT VALID, since validating it would need those rows changed (R-AUD-01).
-    /// </summary>
-    public const string AuditCommandIdCheckSql = "ALTER TABLE kernel.audit_event ADD CONSTRAINT ck_audit_event_command_id CHECK (command_id IS NOT NULL) NOT VALID;";
+    // D-51: the NOT VALID check that requires command_id on every audit event written from step 8 on is created by the posting
+    // migration as literal SQL (RR-39); it stays NOT VALID so the events written before it stay as they are (R-AUD-01).
 
     public static void Configure(ModelBuilder modelBuilder)
     {
@@ -193,6 +189,8 @@ internal static class LedgerModel
                 table.HasCheckConstraint("ck_stock_balance_stock_status", "stock_status IN ('Available', 'Blocked')");
                 table.HasCheckConstraint("ck_stock_balance_lot_id", "lot_id IS NULL");
                 table.HasCheckConstraint("ck_stock_balance_reserved", "reserved_base >= 0");
+                // RR-47 (I-03, R-INV-03): the database backstop for negative stock; relaxed only if per-warehouse negative stock is ever allowed (D-09).
+                table.HasCheckConstraint("ck_stock_balance_on_hand", "on_hand_base >= 0");
             });
         });
     }

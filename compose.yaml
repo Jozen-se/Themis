@@ -1,5 +1,5 @@
 # Local development stack: PostgreSQL (system of record, D-04) and Keycloak (OpenID Connect provider, D-12).
-# The application itself runs with `dotnet run --project src/Host/Themis.Host` against this stack.
+# The application itself runs with `dotnet run --project src/Themis.Host` against this stack.
 # Credentials here are development defaults; see db/bootstrap/01-roles.sql and docs/development.md.
 
 name: themis

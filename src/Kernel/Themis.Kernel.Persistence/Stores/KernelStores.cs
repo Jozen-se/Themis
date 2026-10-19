@@ -44,6 +44,13 @@ internal sealed class KernelIdempotencyStore : IIdempotencyStore
         await context.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task DeleteAsync(IKernelUnitOfWork unitOfWork, UserId userId, IdempotencyKey key, CancellationToken cancellationToken)
+    {
+        // RR-42: themis_kernel holds DELETE on idempotency records for exactly this (privilege matrix, R-API-01).
+        await unitOfWork.ExecuteAsync(DatabaseRole.Kernel, "DELETE FROM kernel.idempotency_record WHERE user_id = @user AND key = @key",
+            new Dictionary<string, object?> { ["user"] = userId.Value, ["key"] = key.Value }, cancellationToken);
+    }
+
     private sealed record StoredResponse(int StatusCode, string ContentType, string Body, long? Version);
 }
 

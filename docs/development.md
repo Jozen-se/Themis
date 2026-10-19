@@ -76,10 +76,59 @@ Migrations live in `src/Kernel/Themis.Kernel.Persistence/Migrations` and are gen
 dotnet ef migrations add <Name> --project src/Kernel/Themis.Kernel.Persistence --startup-project src/Kernel/Themis.Kernel.Persistence --output-dir Migrations
 ```
 
-Make the generated classes `internal sealed` (ARCH-07), declare the new tables or views in `KernelPrivilegeMatrix` and end
-`Up()` with the loop over `KernelPrivilegeMatrix.GrantsFor(...)`, as the first migration does (a view-only migration
-such as step 10's carries raw SQL and no model change). The privilege matrix
-test (I-14) fails on any grant the matrix does not declare, and the migrations history table carries no grants at all.
+Make the generated classes `internal sealed` (ARCH-07). A migration's SQL is fixed once it is merged (Build Brief,
+Migrations; RR-39): every statement it emits is literal text in the migration file, never a call into code that can
+change later. Grants are written out per table or view (copy the statements `GrantSql` renders for the new
+`KernelPrivilegeMatrix` entries, which stay the expected state the I-14 test compares the database with), constraints
+and views are literal SQL, and a later change to a grant, a constraint or a view goes in a new migration. Two tests
+keep this honest:
+
+- **Golden scripts** (`db/migrations/golden/<migration>.sql`, `MigrationGoldenScriptTests`): each migration's script,
+  generated on its own from the migration before it with `IMigrator.GenerateScript` (not idempotent, no database),
+  equals its committed file, with the EF product version and the line endings normalised. A new migration adds its
+  file with `THEMIS_GOLDEN_RECORD=1 dotnet test --project tests/Themis.Kernel.Tests --filter-class
+  Themis.Kernel.Tests.Migrations.MigrationGoldenScriptTests`; a changed script of a merged migration, also one caused
+  by a provider or EF upgrade, needs the owner's review before the file is updated.
+- **Drift dumps** (`db/migrations/drift/<tag>.sql`, `MigrationDriftTests`): a schema-only `pg_dump` with ACLs of a
+  database built by the tag's own `Themis.Migrator`, followed by the data that run wrote (the rows the migrations
+  seed, the system catalogues the migrator applies, the migration history) as INSERT statements, since the head
+  migrator's seeders need the system user the migrations create. The audit events of that run are left out: they carry
+  no command id, which the audit check constraint refuses on a restore. The test restores it into a bare database,
+  runs the head migrator on it and compares the PostgreSQL catalog (tables, columns, constraints, indexes, views,
+  functions, triggers, ownership, grants, comments) with a database built from scratch; the one pg_dump round-trip
+  artefact, CHECK lists stored with per-element casts after a restore, is normalised before the comparison. When a
+  milestone tag is cut, build a database with that tag's migrator (bootstrap first, no fixture) and commit
+  `pg_dump --schema-only` followed by `pg_dump --data-only --column-inserts --exclude-table-data=kernel.audit_event`,
+  with the psql `\restrict` guard lines removed so the file runs through Npgsql (db/migrations/README.md has the
+  commands).
+
+Milestone 2 step 1 adds the hardening migration (`HardeningBackstops`): the no-overlap exclusion constraint on
+fiscal periods (RR-44; it stops with a message on a database that already holds overlapping periods), the CHECK that
+keeps stock on hand at or above 0 (RR-47, I-03) and the deferred constraint triggers that reject at commit a journal
+entry with fewer than two lines or out of balance (RR-47, I-01). The trigger function is SECURITY DEFINER with a fixed
+search path and nobody, PUBLIC and its owner included, holds EXECUTE on it; a test asserts that no role holds EXECUTE
+on any kernel or reporting function outside extensions. The triggers raise SQLSTATE 23514 with constraint name
+`ct_journal_entry_balanced`, which the pipeline neither retries nor maps; they are backstops behind code that checks
+first, and a commit they refuse is a 500 with the SQLSTATE in the log, no idempotency record and the key free for the
+retry.
+
+The migrator's exit codes:
+
+| Code | Meaning |
+|---|---|
+| 0 | Up to date, or everything applied and seeded |
+| 1 | Usage error: no connection string, or an unknown fixture name |
+| 2 | Connected as another role than `themis_migrator` (D-41) |
+| 3 | PostgreSQL is not reachable |
+| 4 | The identity fixture violates segregation of duties (R-SEC-02) |
+| 5 | The general ledger fixture violates the posting profile rules (R-PP-04, R-PP-06, or an account outside the chart or not Active) |
+| 6 | The database holds outbox rows written before the D-50 envelope and must be recreated before the step 7 migration |
+| 7 | The document type catalogue in code breaks a registry rule |
+| 8 | PostgreSQL refused a statement; the SQLSTATE and message are printed (RR-48), for example `P0001` from the overlap check of RR-44 |
+
+A run is not one transaction: each migration applies in its own transaction and each seeder commits on its own, so
+a failure leaves the steps before it applied. Every step is safe to re-run: the migrations history skips applied
+migrations and the seeders insert only what is missing, so the same command is repeated once the cause is resolved.
 
 The host never applies migrations. Its configuration comes from `appsettings.json`, `appsettings.Development.json`
 and the environment; the connection string key is `ConnectionStrings:Themis` (environment variable
@@ -133,6 +182,23 @@ container runtime it is skipped; set `THEMIS_TEST_KEYCLOAK` to the base URL of a
 `THEMIS_TEST_REQUIRE_KEYCLOAK=true` (as CI does) to fail instead of skipping.
 
 ## The command pipeline
+
+The order of a command's checks since milestone 2 step 1 (RR-51): 401 without a signed-in subject, 400 without an
+`Idempotency-Key`, then inside the transaction the subject's user row (403), the validators (400; pure, run on every
+attempt, never stored), the scope (404 for a missing record, 403 `scope_undeclared`) and the authorisation (403),
+then the advisory lock and the idempotency record. An expired idempotency record counts as absent: it is deleted in
+the command's transaction under the advisory lock and the key runs as new; a 412, a failure or a D-41 retry rolls the
+delete back (RR-42; the purge of all expired records comes with the settings step). Inside the handler's savepoint,
+a unique violation (23505) of a constraint a capability registered as a `UniqueConstraintRule` becomes that rule's
+rejection (in milestone 1 `ux_item_item_number` to R-MD-05 `item_number_duplicate`), and a numeric overflow (22003)
+becomes a 422 under R-DOC-01 with code `amount_out_of_range`; both are stored as the key's result, any other database
+failure stays a 500 (RR-45, RR-46). The retry check of D-41 reads SQLSTATE 40001 and 40P01 wherever they sit in the
+exception chain, so a deadlock Entity Framework wraps in a `DbUpdateException` is retried too (RR-40). Validators
+also refuse any quantity, base quantity, entered cost or quantity times entered cost outside the range of its column
+with 400 `value_out_of_range` (RR-46). A caller's `X-Correlation-Id` is accepted only as one value of at most 128
+ASCII letters, digits, dots, dashes, underscores and colons; anything else is replaced and the replacement logged at
+warning, and the command id stays the trusted audit link (RR-53, D-51). A query string key given twice is a 400
+`query_parameter_repeated` (RR-56).
 
 Every command goes through `Themis.Kernel.Pipeline` (brief, One command, one transaction):
 

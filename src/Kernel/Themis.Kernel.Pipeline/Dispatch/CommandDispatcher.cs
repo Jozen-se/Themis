@@ -1,4 +1,3 @@
-using System.Data.Common;
 using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
@@ -18,31 +17,35 @@ namespace Themis.Kernel.Pipeline.Dispatch;
 /// <summary>
 /// Runs one command through the kernel pipeline (brief, One command, one transaction):
 /// <list type="number">
-/// <item>A signed-in subject (401) and an Idempotency-Key (400); validation by the command's validators.</item>
+/// <item>A signed-in subject (401) and an Idempotency-Key (400).</item>
 /// <item>One connection as themis_app, one transaction; every statement switches to its owning role (D-41, R-DB-01).</item>
 /// <item>Inside the transaction, before any business statement (Build Brief, Authorisation): the subject's User row
-/// becomes the principal (403 subject_unknown, user_disabled), the command names its scope from its own data or
-/// from the record it loads (403 scope_undeclared), and the principal must hold the permission TYPE.COMMAND
-/// through an assignment covering that scope and valid on the company's business date (403 permission_missing,
-/// out_of_scope); all under R-SEC-01, none of them stored.</item>
+/// becomes the principal (403 subject_unknown, user_disabled); then the command's validators run (400, pure, never
+/// stored; after the user so that an unknown subject learns nothing from a validation answer, RR-51); then the
+/// command names its scope from its own data or from the record it loads (404, 403 scope_undeclared), and the
+/// principal must hold the permission TYPE.COMMAND through an assignment covering that scope and valid on the
+/// company's business date (403 permission_missing, out_of_scope); all under R-SEC-01, none of them stored.</item>
 /// <item>A transaction-scoped advisory lock on (user, idempotency key): a concurrent duplicate fails to take it and
 /// gets 409 at once, without waiting on the first request (R-API-01).</item>
-/// <item>A stored record with the same request hash is replayed; a different hash is rejected (R-API-01, R-API-04).</item>
+/// <item>A stored record with the same request hash is replayed; a different hash is rejected (R-API-01, R-API-04).
+/// A record whose expiry has passed counts as absent: it is deleted under the same advisory lock and the key is
+/// processed as new; a failure, a 412 or a retry rolls the delete back with the rest (RR-42).</item>
 /// <item>The handler runs inside a savepoint. A rejection rolls back to the savepoint, so the business writes
-/// disappear while the transaction stays open to store the rejection as the key's result (R-API-03). Not stored:
+/// disappear while the transaction stays open to store the rejection as the key's result (R-API-03). A unique
+/// violation of a registered business-key constraint (RR-45) and a numeric overflow (RR-46) raised inside the
+/// handler are rejections too, mapped and stored the same way; any other database failure is an error. Not stored:
 /// authorisation and validation outcomes, the 409 duplicate, a missing If-Match (428) and a stale version (412),
 /// so a retry with the fresh version runs afresh (R-API-02; owner's conditions on pull request 5).</item>
 /// <item>On success the buffered audit events and outbox rows are written as themis_kernel (R-AUD-01, D-44); the
 /// pipeline fills the envelope's command name and correlation id (D-50).</item>
-/// <item>Only SQLSTATE 40001 and 40P01 restart the whole pipeline, authorisation included, at most twice, each retry
-/// counted (D-41). Any other exception rolls everything back and stores nothing.</item>
+/// <item>Only SQLSTATE 40001 and 40P01, wherever they sit in the exception chain (RR-40), restart the whole pipeline,
+/// authorisation included, at most twice, each retry counted (D-41). Any other exception rolls everything back and
+/// stores nothing.</item>
 /// </list>
 /// </summary>
 internal sealed partial class CommandDispatcher : ICommandDispatcher
 {
     private const string BusinessSavepoint = "business";
-    private const string SerializationFailure = "40001";
-    private const string DeadlockDetected = "40P01";
 
     private readonly IServiceProvider _services;
     private readonly ICurrentSubject _currentSubject;
@@ -54,6 +57,7 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
     private readonly TimeProvider _clock;
     private readonly PipelineTelemetry _telemetry;
     private readonly KernelPipelineOptions _options;
+    private readonly IReadOnlyList<UniqueConstraintRule> _uniqueRules;
     private readonly ILogger<CommandDispatcher> _logger;
 
     public CommandDispatcher(
@@ -67,6 +71,7 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
         TimeProvider clock,
         PipelineTelemetry telemetry,
         IOptions<KernelPipelineOptions> options,
+        IEnumerable<UniqueConstraintRule> uniqueRules,
         ILogger<CommandDispatcher> logger)
     {
         _services = services;
@@ -79,6 +84,7 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
         _clock = clock;
         _telemetry = telemetry;
         _options = options.Value;
+        _uniqueRules = [.. uniqueRules];
         _logger = logger;
     }
 
@@ -129,24 +135,19 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
             return ProblemDetailsBody.Http(StatusCodes.Status400BadRequest, "idempotency_key_required", "R-API-01", "Every command carries an Idempotency-Key header.", correlationId);
         }
 
-        // Validators run before any statement; their outcome is never stored (R-API-03).
-        List<Error> validationErrors = [.. _services.GetServices<ICommandValidator<TCommand>>().SelectMany(validator => validator.Validate(command))];
-        if (validationErrors.Count > 0)
-        {
-            return ProblemDetailsBody.ToResponse(validationErrors, correlationId);
-        }
-
         for (int attempt = 1; ; attempt++)
         {
             try
             {
                 return await AttemptAsync<TCommand, TResult>(command, correlationId, metadata, subject, idempotencyKey, cancellationToken);
             }
-            catch (DbException exception) when (IsRetryable(exception) && attempt < KernelPipelineOptions.MaxAttempts)
+            catch (Exception exception) when (DatabaseErrors.IsRetryable(exception) && attempt < KernelPipelineOptions.MaxAttempts)
             {
-                // D-41: the whole command restarts in a new transaction; nothing of the failed attempt survives.
-                _telemetry.Retries.Add(1, new KeyValuePair<string, object?>("command", metadata.Name), new KeyValuePair<string, object?>("sqlstate", exception.SqlState));
-                LogRetrying(_logger, exception, metadata.Name, attempt, exception.SqlState);
+                // D-41: the whole command restarts in a new transaction; nothing of the failed attempt survives. The SQLSTATE
+                // is read wherever it sits in the chain, since Entity Framework wraps the provider's exception (RR-40).
+                string? sqlState = DatabaseErrors.FindSqlState(exception);
+                _telemetry.Retries.Add(1, new KeyValuePair<string, object?>("command", metadata.Name), new KeyValuePair<string, object?>("sqlstate", sqlState));
+                LogRetrying(_logger, exception, metadata.Name, attempt, sqlState);
             }
         }
     }
@@ -172,6 +173,15 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
         Principal principal = resolved.Value;
         using IDisposable? userScope = _logger.BeginScope(new Dictionary<string, object> { ["UserId"] = principal.UserId.ToString() });
         Activity.Current?.SetTag("themis.user_id", principal.UserId.ToString());
+
+        // RR-51: validators run after the user is known and before any business statement; they are pure, run on every
+        // attempt (D-41) and their outcome is never stored (R-API-03).
+        List<Error> validationErrors = [.. _services.GetServices<ICommandValidator<TCommand>>().SelectMany(validator => validator.Validate(command))];
+        if (validationErrors.Count > 0)
+        {
+            await unitOfWork.RollbackAsync(cancellationToken);
+            return ProblemDetailsBody.ToResponse(validationErrors, correlationId);
+        }
 
         // D-47: the command names its scope from its own data or the record it loads; a missing record is a 404.
         Result<RequestScope> scope = await ScopeSources.ResolveAsync(command, unitOfWork, _services, cancellationToken);
@@ -200,6 +210,15 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
         }
 
         StoredIdempotencyRecord? stored = await _idempotency.FindAsync(unitOfWork, principal.UserId, idempotencyKey, cancellationToken);
+        if (stored is not null && stored.ExpiresAt <= now)
+        {
+            // RR-42: an expired record counts as absent. It is removed here, under the advisory lock and in this transaction,
+            // and the key is processed as new; a rejection that is not stored, a failure or a retry rolls the removal back.
+            await _idempotency.DeleteAsync(unitOfWork, principal.UserId, idempotencyKey, cancellationToken);
+            LogExpiredRecordRemoved(_logger, metadata.Name);
+            stored = null;
+        }
+
         if (stored is not null)
         {
             await unitOfWork.RollbackAsync(cancellationToken);
@@ -217,7 +236,19 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
         ICommandHandler<TCommand, TResult> handler = _services.GetRequiredService<ICommandHandler<TCommand, TResult>>();
 
         await unitOfWork.SavepointAsync(BusinessSavepoint, cancellationToken);
-        Result<TResult> result = await handler.HandleAsync(command, context, cancellationToken);
+        Result<TResult> result;
+        try
+        {
+            result = await handler.HandleAsync(command, context, cancellationToken);
+        }
+        catch (Exception exception) when (DatabaseErrors.MapRejection(exception, _uniqueRules) is { } mapped)
+        {
+            // RR-45 and RR-46: a unique violation of a mapped business key, or a numeric overflow, raised inside the handler
+            // is the command's rejection, not an error. Caught around the handler only, never around the commit; the
+            // rollback to the savepoint below clears the aborted state and the rejection is stored like any other.
+            LogMappedDatabaseRejection(_logger, metadata.Name, mapped.Exception.SqlState, mapped.Exception.ConstraintName, mapped.Error.Code, mapped.Error.RuleId);
+            result = Result<TResult>.Failure([mapped.Error]);
+        }
 
         CommandResponse response;
         if (result.IsSuccess)
@@ -264,7 +295,11 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
     [LoggerMessage(Level = LogLevel.Warning, Message = "Command {CommandName} attempt {Attempt} failed with SQLSTATE {SqlState}; retrying the whole command (D-41).")]
     private static partial void LogRetrying(ILogger logger, Exception exception, string commandName, int attempt, string? sqlState);
 
-    private static bool IsRetryable(DbException exception) => exception.SqlState is SerializationFailure or DeadlockDetected;
+    [LoggerMessage(Level = LogLevel.Information, Message = "Command {CommandName} found an expired idempotency record for its key; the record is removed and the key processed as new (RR-42).")]
+    private static partial void LogExpiredRecordRemoved(ILogger logger, string commandName);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Command {CommandName} hit SQLSTATE {SqlState} on {Constraint} inside the handler, mapped to {Code} ({RuleId}) and stored as its rejection (RR-45, RR-46).")]
+    private static partial void LogMappedDatabaseRejection(ILogger logger, string commandName, string sqlState, string? constraint, string code, string? ruleId);
 
     private static string Outcome(CommandResponse response) => response.Replayed ? "replayed" : response.IsSuccess ? "success" : "rejected";
 }

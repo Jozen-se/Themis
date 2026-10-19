@@ -2968,6 +2968,8 @@ namespace Themis.Kernel.Persistence.Migrations
                         {
                             t.HasCheckConstraint("ck_stock_balance_lot_id", "lot_id IS NULL");
 
+                            t.HasCheckConstraint("ck_stock_balance_on_hand", "on_hand_base >= 0");
+
                             t.HasCheckConstraint("ck_stock_balance_reserved", "reserved_base >= 0");
 
                             t.HasCheckConstraint("ck_stock_balance_stock_status", "stock_status IN ('Available', 'Blocked')");

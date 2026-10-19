@@ -12,6 +12,9 @@ public interface IIdempotencyStore
     Task<StoredIdempotencyRecord?> FindAsync(IKernelUnitOfWork unitOfWork, UserId userId, IdempotencyKey key, CancellationToken cancellationToken);
 
     Task AddAsync(IKernelUnitOfWork unitOfWork, StoredIdempotencyRecord record, CancellationToken cancellationToken);
+
+    /// <summary>Removes an expired record so that its key is processed as new (RR-42); in the command's transaction, so a failure rolls the removal back with the rest.</summary>
+    Task DeleteAsync(IKernelUnitOfWork unitOfWork, UserId userId, IdempotencyKey key, CancellationToken cancellationToken);
 }
 
 /// <summary>One audit event to write (R-AUD-01).</summary>

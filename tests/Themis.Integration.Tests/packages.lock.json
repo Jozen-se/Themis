@@ -336,6 +336,8 @@
       "themis.fixturemodule": {
         "type": "Project",
         "dependencies": {
+          "Microsoft.EntityFrameworkCore": "[10.0.13, )",
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
           "Themis.Kernel.Contracts": "[1.0.0, )",
           "Themis.Kernel.Primitives": "[1.0.0, )"
         }
@@ -397,6 +399,7 @@
         "type": "Project",
         "dependencies": {
           "Microsoft.AspNetCore.OpenApi": "[10.0.13, )",
+          "Npgsql": "[10.0.3, )",
           "Themis.Kernel.Contracts": "[1.0.0, )",
           "Themis.Kernel.Primitives": "[1.0.0, )"
         }

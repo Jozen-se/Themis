@@ -24,7 +24,9 @@ namespace Themis.Migrator;
 /// unreachable, 4 the fixture violates segregation of duties (R-SEC-02), 5 the fixture violates the posting profile
 /// rules (R-PP-04, R-PP-06, or an account outside the company's chart or not Active), 6 the database holds outbox
 /// rows written before the event envelope of D-50 and must be recreated before the step 7 migration, 7 the
-/// document type catalogue in code breaks a registry rule.
+/// document type catalogue in code breaks a registry rule, 8 PostgreSQL refused a statement (reported with its
+/// SQLSTATE and message, RR-48). A run is not one transaction: each migration and each seeder commits on its own,
+/// and every step is safe to re-run.
 /// </summary>
 public static class Program
 {
@@ -149,11 +151,32 @@ public static class Program
 
             return 0;
         }
+        catch (Exception exception) when (FindPostgresError(exception) is { } postgres)
+        {
+            // RR-48: a database error is reported with its SQLSTATE and message under its own exit code; the run is not one
+            // transaction, every step is safe to re-run (docs/development.md, Migrator and host).
+            Console.Error.WriteLine($"PostgreSQL error {postgres.SqlState}: {postgres.MessageText}{(postgres.Detail is { } detail ? $" {detail}" : string.Empty)}");
+            return 8;
+        }
         catch (NpgsqlException exception)
         {
             Console.Error.WriteLine($"PostgreSQL is not reachable: {exception.Message}");
             return 3;
         }
+    }
+
+    /// <summary>The PostgreSQL error in the chain, also when Entity Framework wraps it (RR-40, RR-48).</summary>
+    private static PostgresException? FindPostgresError(Exception exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is PostgresException postgres)
+            {
+                return postgres;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>The name of the step 7 migration that adds the D-50 envelope columns.</summary>

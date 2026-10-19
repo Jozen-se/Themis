@@ -5,7 +5,7 @@ kernel with organisation, parties, items, documents and immutable ledgers, then 
 through a first financial close. C# on .NET 10, PostgreSQL, a modular monolith with enforced module boundaries.
 Apache-2.0.
 
-Status: milestone 1 complete (steps 1 to 11): the walking skeleton posts inventory adjustments through the kernel pipeline into immutable ledgers with the role model, idempotency, audit and outbox events, the outbox relay and the first reporting view; every acceptance criterion maps to a passing test in [`docs/milestones/milestone-1.md`](docs/milestones/milestone-1.md), and property-based runs over random command sequences keep the invariants true after every command (D-27). Milestone 2 is not released yet.
+Status: milestone 2 (kernel complete) step 1, hardening from the code review of 2026-10-18: frozen migration SQL with golden scripts and a drift test against the `milestone-1` tag (RR-39), retry on wrapped database errors (RR-40), a zero-test guard in CI (RR-41), expired idempotency records treated as absent (RR-42), non-overlapping fiscal periods (RR-44), unique-key races as rule rejections (RR-45), value bounds (RR-46), database backstops for stock and journal balance (RR-47), migrator diagnostics (RR-48) and the smaller fixes RR-49 to RR-53 and RR-56. Milestone 1 is complete (tag `milestone-1`, acceptance map in [`docs/milestones/milestone-1.md`](docs/milestones/milestone-1.md)); the rest of the milestone 2 step plan is not released yet.
 
 ## Documents
 

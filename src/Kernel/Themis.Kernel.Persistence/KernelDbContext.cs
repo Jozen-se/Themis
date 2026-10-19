@@ -121,7 +121,7 @@ internal sealed class KernelDbContext : DbContext
             entity.ToTable("audit_event");
             entity.HasKey(e => e.Id).HasName("pk_audit_event");
             entity.Property(e => e.Id).HasColumnName("id");
-            // D-51: required from step 8 on by a NOT VALID check added in raw SQL (LedgerModel.AuditCommandIdCheckSql), so earlier rows stay as written.
+            // D-51: required from step 8 on by a NOT VALID check added in raw SQL (the posting migration, RR-39), so earlier rows stay as written.
             entity.Property(e => e.CommandId).HasColumnName("command_id");
             entity.Property(e => e.OccurredAt).HasColumnName("occurred_at");
             entity.Property(e => e.UserId).HasColumnName("user_id");

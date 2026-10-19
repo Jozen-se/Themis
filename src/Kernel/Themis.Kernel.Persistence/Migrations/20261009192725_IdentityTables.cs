@@ -316,11 +316,13 @@ internal sealed partial class IdentityTables : Migration
             principalColumn: "id",
             onDelete: ReferentialAction.Restrict);
 
-        // Explicit grants per table, declared once in the privilege matrix (I-14).
-        foreach (string statement in KernelPrivilegeMatrix.GrantsFor([.. KernelPrivilegeMatrix.IdentityTables]))
-        {
-            migrationBuilder.Sql(statement);
-        }
+        // Explicit grants per table as literal text, fixed once merged (RR-39); the privilege matrix is the expected state the I-14 test checks.
+        migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON \"kernel\".\"user_account\" TO \"themis_kernel\";");
+        migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON \"kernel\".\"permission\" TO \"themis_kernel\";");
+        migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON \"kernel\".\"role\" TO \"themis_kernel\";");
+        migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON \"kernel\".\"role_permission\" TO \"themis_kernel\";");
+        migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON \"kernel\".\"role_assignment\" TO \"themis_kernel\";");
+        migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON \"kernel\".\"sod_conflict\" TO \"themis_kernel\";");
     }
 
     /// <inheritdoc />

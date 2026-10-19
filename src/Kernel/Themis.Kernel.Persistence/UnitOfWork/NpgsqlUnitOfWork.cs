@@ -118,8 +118,17 @@ internal sealed class NpgsqlUnitOfWork : IKernelUnitOfWork
 
     public async Task CommitAsync(CancellationToken cancellationToken)
     {
-        await _transaction.CommitAsync(cancellationToken);
-        _completed = true;
+        // RR-47: a commit that fails (a deferred constraint trigger, a lost connection) ends the transaction on the server
+        // side too, so the unit of work counts as completed either way and disposal never tries to roll back a finished
+        // transaction and hide the commit's error.
+        try
+        {
+            await _transaction.CommitAsync(cancellationToken);
+        }
+        finally
+        {
+            _completed = true;
+        }
     }
 
     public async Task RollbackAsync(CancellationToken cancellationToken)

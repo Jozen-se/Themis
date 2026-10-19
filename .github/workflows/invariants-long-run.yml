@@ -32,10 +32,10 @@ jobs:
     timeout-minutes: 360
     steps:
       - name: Check out
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up .NET (version from global.json)
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: global.json
 
@@ -51,9 +51,13 @@ jobs:
           THEMIS_PROPERTY_SEED: ${{ inputs.seed }}
         run: dotnet test --project tests/Themis.Integration.Tests/Themis.Integration.Tests.csproj --configuration Release --no-build --filter-trait "Category=Invariant" --report-xunit-trx --results-directory TestResults/invariant-long-run
 
+      - name: The property runs executed at least one test (RR-41)
+        if: always()
+        run: .github/scripts/require-tests.sh TestResults/invariant-long-run
+
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: invariant-long-run-results
           path: TestResults/

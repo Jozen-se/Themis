@@ -5,7 +5,8 @@
     Repository layout). It proves the module boundary rules on a real assembly: it references Themis.Kernel.Primitives
     and Themis.Kernel.Contracts and nothing else of Themis, and its namespaces follow the module template
     (Contracts, Domain, Application, Infrastructure, Api). Its commands exercise the kernel command pipeline end to
-    end, failure modes included. Never shipped; never referenced by the host.
+    end, failure modes included, among them a real deadlock through Entity Framework's SaveChanges (RR-40). Never
+    shipped; never referenced by the host.
   -->
 
   <PropertyGroup>
@@ -14,6 +15,11 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
   </ItemGroup>
 
   <ItemGroup>

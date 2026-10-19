@@ -21,7 +21,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Check out with the full history
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -34,7 +34,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Check out
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: The check fails an unsigned commit and passes signed, bot and merge commits
         run: .github/scripts/dco-check-selftest.sh
