@@ -15,6 +15,7 @@ using Themis.FixtureModule.Contracts;
 using Themis.Kernel.Contracts.Documents;
 using Themis.Kernel.Contracts.MasterData;
 using Themis.Kernel.Contracts.Organisation;
+using Themis.Kernel.Contracts.Settings;
 using Themis.Kernel.Documents;
 using Themis.Kernel.Identity;
 using Themis.Kernel.MasterData;
@@ -25,6 +26,7 @@ using Themis.Kernel.Pipeline;
 using Themis.Kernel.Pipeline.Http;
 using Themis.Kernel.Pipeline.Telemetry;
 using Themis.Kernel.Posting;
+using Themis.Kernel.Settings;
 
 namespace Themis.Integration.Tests.Pipeline;
 
@@ -84,6 +86,15 @@ internal sealed class PipelineTestHost : IAsyncDisposable
 
     public OutboxRelayPass Relay => Services.GetRequiredService<OutboxRelayPass>();
 
+    /// <summary>Expired idempotency records removed by the purge, from the counter themis.idempotency.purged (milestone 2 step 2).</summary>
+    public long Purged { get; private set; }
+
+    public IdempotencyPurgePass Purge => Services.GetRequiredService<IdempotencyPurgePass>();
+
+    public TestSettingDefinitionSeam SettingSeam => Services.GetRequiredService<TestSettingDefinitionSeam>();
+
+    public TestSettingWriteSeam SettingWriteSeam => Services.GetRequiredService<TestSettingWriteSeam>();
+
     /// <summary>Starts the host against the fixture's database, or against <paramref name="database"/> on the same server when named.</summary>
     public static async Task<PipelineTestHost> StartAsync(PostgresFixture db, string? database = null)
     {
@@ -99,8 +110,9 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         builder.Configuration["Identity:Audience"] = TestTokens.Audience;
         builder.Configuration["Identity:TestIssuer:Issuer"] = TestTokens.Issuer;
         builder.Configuration["Identity:TestIssuer:SigningKey"] = TestTokens.SigningKeyBase64;
-        // Step 9: the tests call the relay's pass directly and never wait on the timer.
+        // Step 9: the tests call the relay's pass directly and never wait on the timer; the same for the purge (milestone 2 step 2).
         builder.Configuration["Outbox:Relay:Enabled"] = "false";
+        builder.Configuration["Idempotency:Purge:Enabled"] = "false";
 
         builder.Services.AddKernelPersistence(applicationConnectionString);
         builder.Services.AddKernelPipeline();
@@ -113,7 +125,12 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         builder.Services.AddSingleton<IOutboxRelaySeam>(provider => provider.GetRequiredService<TestOutboxRelaySeam>());
         builder.Services.AddSingleton<TestItemCreateSeam>();
         builder.Services.AddSingleton<IItemCreateSeam>(provider => provider.GetRequiredService<TestItemCreateSeam>());
+        builder.Services.AddSingleton<TestSettingDefinitionSeam>();
+        builder.Services.AddSingleton<ISettingDefinitionSeam>(provider => provider.GetRequiredService<TestSettingDefinitionSeam>());
+        builder.Services.AddSingleton<TestSettingWriteSeam>();
+        builder.Services.AddSingleton<ISettingWriteSeam>(provider => provider.GetRequiredService<TestSettingWriteSeam>());
         builder.Services.AddKernelOrganisation();
+        builder.Services.AddKernelSettings();
         builder.Services.AddKernelMasterData();
         builder.Services.AddKernelPosting();
         builder.Services.AddKernelDocuments();
@@ -132,13 +149,15 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         app.MapQuery<GetItemByNumber, ItemView>(MasterDataRoutes.ItemByNumber);
         app.MapCommandRoutes(DocumentRoutes.Commands);
         app.MapQuery<GetInventoryAdjustment, InventoryAdjustmentView>(DocumentRoutes.InventoryAdjustment);
+        app.MapCommandRoutes(SettingRoutes.Commands);
+        app.MapQuery<GetSetting, SettingReadView>(SettingRoutes.Setting);
         app.MapOpenApi();
         await app.StartAsync();
 
         PipelineTestHost host = new(app, app.GetTestClient(), logs, new MeterListener(), db, superuserConnectionString);
         host._meterListener.InstrumentPublished = (instrument, listener) =>
         {
-            if ((instrument.Meter.Name == PipelineTelemetry.SourceName && instrument.Name == "themis.command.retries") || instrument.Meter.Name == OutboxRelayTelemetry.MeterName)
+            if ((instrument.Meter.Name == PipelineTelemetry.SourceName && instrument.Name == "themis.command.retries") || instrument.Meter.Name == OutboxRelayTelemetry.MeterName || instrument.Meter.Name == IdempotencyPurgeTelemetry.MeterName)
             {
                 listener.EnableMeasurementEvents(instrument);
             }
@@ -163,6 +182,9 @@ internal sealed class PipelineTestHost : IAsyncDisposable
                     break;
                 case OutboxRelayTelemetry.OldestPendingAgeName:
                     host.OldestPendingAge = value;
+                    break;
+                case IdempotencyPurgeTelemetry.PurgedName:
+                    host.Purged += value;
                     break;
                 default:
                     break;

@@ -22,6 +22,7 @@
     <ProjectReference Include="../Kernel/Themis.Kernel.Posting/Themis.Kernel.Posting.csproj" />
     <ProjectReference Include="../Kernel/Themis.Kernel.Messaging/Themis.Kernel.Messaging.csproj" />
     <ProjectReference Include="../Kernel/Themis.Kernel.Identity/Themis.Kernel.Identity.csproj" />
+    <ProjectReference Include="../Kernel/Themis.Kernel.Settings/Themis.Kernel.Settings.csproj" />
   </ItemGroup>
 
   <ItemGroup>

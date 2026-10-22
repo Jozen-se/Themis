@@ -11,7 +11,7 @@ using Themis.Kernel.Persistence;
 namespace Themis.Kernel.Persistence.Migrations
 {
     [DbContext(typeof(KernelDbContext))]
-    internal sealed partial class KernelDbContextModelSnapshot : ModelSnapshot
+    partial class KernelDbContextModelSnapshot : ModelSnapshot
     {
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
@@ -2976,6 +2976,216 @@ namespace Themis.Kernel.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Themis.Kernel.Persistence.Entities.Settings.SettingDefinitionRow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AllowedValues")
+                        .HasColumnType("text")
+                        .HasColumnName("allowed_values");
+
+                    b.Property<string>("Backing")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("backing");
+
+                    b.Property<string>("ColumnName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("column_name");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DecisionId")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("decision_id");
+
+                    b.Property<string>("DefaultValue")
+                        .HasColumnType("text")
+                        .HasColumnName("default_value");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("HistoryBearing")
+                        .HasColumnType("boolean")
+                        .HasColumnName("history_bearing");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("key");
+
+                    b.Property<string>("Levels")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("levels");
+
+                    b.Property<string>("LockedReason")
+                        .HasColumnType("text")
+                        .HasColumnName("locked_reason");
+
+                    b.Property<string>("Max")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("max");
+
+                    b.Property<string>("Min")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("min");
+
+                    b.Property<string>("Phase")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("phase");
+
+                    b.Property<string>("PlannedLevels")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("planned_levels");
+
+                    b.Property<bool>("Retired")
+                        .HasColumnType("boolean")
+                        .HasColumnName("retired");
+
+                    b.Property<string>("RuleId")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("rule_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("ValueType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("value_type");
+
+                    b.HasKey("Id")
+                        .HasName("pk_setting_definition");
+
+                    b.HasAlternateKey("Key")
+                        .HasName("ak_setting_definition_key");
+
+                    b.HasIndex("Key")
+                        .IsUnique()
+                        .HasDatabaseName("ux_setting_definition_key");
+
+                    b.ToTable("setting_definition", "kernel", t =>
+                        {
+                            t.HasCheckConstraint("ck_setting_definition_backing", "backing IN ('Setting', 'Column', 'Data', 'Planned')");
+
+                            t.HasCheckConstraint("ck_setting_definition_value_type", "value_type IN ('Integer', 'Decimal', 'Boolean', 'Code', 'Duration')");
+                        });
+                });
+
+            modelBuilder.Entity("Themis.Kernel.Persistence.Entities.Settings.SettingValueRow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CommandId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("command_id");
+
+                    b.Property<Guid?>("CompanyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("company_id");
+
+                    b.Property<string>("DefinitionKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("definition_key");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Level")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("level");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at");
+
+                    b.Property<Guid>("RecordedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recorded_by");
+
+                    b.Property<Guid?>("SiteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("site_id");
+
+                    b.Property<DateOnly?>("ValidFrom")
+                        .HasColumnType("date")
+                        .HasColumnName("valid_from");
+
+                    b.Property<string>("Value")
+                        .HasColumnType("text")
+                        .HasColumnName("value");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("warehouse_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_setting_value");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("RecordedBy");
+
+                    b.HasIndex("SiteId", "CompanyId");
+
+                    b.HasIndex("WarehouseId", "CompanyId");
+
+                    b.HasIndex("DefinitionKey", "Level", "CompanyId", "SiteId", "WarehouseId", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("ux_setting_value_slot_version");
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("DefinitionKey", "Level", "CompanyId", "SiteId", "WarehouseId", "Version"), false);
+
+                    b.ToTable("setting_value", "kernel", t =>
+                        {
+                            t.HasCheckConstraint("ck_setting_value_kind", "kind IN ('Set', 'Cleared')");
+
+                            t.HasCheckConstraint("ck_setting_value_level", "level IN ('Installation', 'Company', 'Site', 'Warehouse')");
+
+                            t.HasCheckConstraint("ck_setting_value_target", "(level = 'Installation' AND company_id IS NULL AND site_id IS NULL AND warehouse_id IS NULL) OR (level = 'Company' AND company_id IS NOT NULL AND site_id IS NULL AND warehouse_id IS NULL) OR (level = 'Site' AND company_id IS NOT NULL AND site_id IS NOT NULL AND warehouse_id IS NULL) OR (level = 'Warehouse' AND company_id IS NOT NULL AND site_id IS NULL AND warehouse_id IS NOT NULL)");
+
+                            t.HasCheckConstraint("ck_setting_value_value", "(kind = 'Set' AND value IS NOT NULL) OR (kind = 'Cleared' AND value IS NULL)");
+
+                            t.HasCheckConstraint("ck_setting_value_version", "version >= 1");
+                        });
+                });
+
             modelBuilder.Entity("Themis.Kernel.Persistence.Entities.AuditEvent", b =>
                 {
                     b.HasOne("Themis.Kernel.Persistence.Entities.Identity.UserAccount", null)
@@ -3489,6 +3699,44 @@ namespace Themis.Kernel.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_stock_balance_warehouse_company");
+                });
+
+            modelBuilder.Entity("Themis.Kernel.Persistence.Entities.Settings.SettingValueRow", b =>
+                {
+                    b.HasOne("Themis.Kernel.Persistence.Entities.Organisation.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_setting_value_company");
+
+                    b.HasOne("Themis.Kernel.Persistence.Entities.Settings.SettingDefinitionRow", null)
+                        .WithMany()
+                        .HasForeignKey("DefinitionKey")
+                        .HasPrincipalKey("Key")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_setting_value_definition");
+
+                    b.HasOne("Themis.Kernel.Persistence.Entities.Identity.UserAccount", null)
+                        .WithMany()
+                        .HasForeignKey("RecordedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_setting_value_recorded_by");
+
+                    b.HasOne("Themis.Kernel.Persistence.Entities.Organisation.Site", null)
+                        .WithMany()
+                        .HasForeignKey("SiteId", "CompanyId")
+                        .HasPrincipalKey("Id", "CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_setting_value_site_company");
+
+                    b.HasOne("Themis.Kernel.Persistence.Entities.Organisation.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId", "CompanyId")
+                        .HasPrincipalKey("Id", "CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_setting_value_warehouse_company");
                 });
 #pragma warning restore 612, 618
         }

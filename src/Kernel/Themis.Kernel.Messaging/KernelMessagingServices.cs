@@ -23,6 +23,12 @@ internal static class KernelMessagingServices
         services.AddSingleton<OutboxRelayTelemetry>();
         services.AddSingleton<OutboxRelayPass>();
         services.AddSingleton<IOutboxRelay>(provider => provider.GetRequiredService<OutboxRelayPass>());
+        // Milestone 2 step 2 (RR-42, D-58): the purge of expired idempotency records, beside the relay and like it outside the pipeline.
+        services.AddOptions<IdempotencyPurgeOptions>().Bind(configuration.GetSection(IdempotencyPurgeOptions.SectionName)).ValidateOnStart();
+        services.AddSingleton<IValidateOptions<IdempotencyPurgeOptions>, IdempotencyPurgeOptionsValidator>();
+        services.AddSingleton<IdempotencyPurgeTelemetry>();
+        services.AddSingleton<IdempotencyPurgePass>();
+        services.AddSingleton<IIdempotencyPurge>(provider => provider.GetRequiredService<IdempotencyPurgePass>());
         return services;
     }
 }

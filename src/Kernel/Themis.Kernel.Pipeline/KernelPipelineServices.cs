@@ -14,14 +14,8 @@ namespace Themis.Kernel.Pipeline;
 /// <summary>Registers the command pipeline. Called by the composition root only; persistence is registered separately.</summary>
 internal static class KernelPipelineServices
 {
-    public static IServiceCollection AddKernelPipeline(this IServiceCollection services, Action<KernelPipelineOptions>? configure = null)
+    public static IServiceCollection AddKernelPipeline(this IServiceCollection services)
     {
-        services.AddOptions<KernelPipelineOptions>();
-        if (configure is not null)
-        {
-            services.Configure(configure);
-        }
-
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<PipelineTelemetry>();
 

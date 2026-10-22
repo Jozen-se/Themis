@@ -2,10 +2,12 @@ using Themis.FixtureModule.Application;
 using Themis.FixtureModule.Contracts;
 using Themis.Kernel.Contracts.Commands;
 using Themis.Kernel.Contracts.Persistence;
+using Themis.Kernel.Contracts.Settings;
 using Themis.Kernel.MasterData;
 using Themis.Kernel.Messaging;
 using Themis.Kernel.Posting;
 using Themis.Kernel.Primitives;
+using Themis.Kernel.Settings;
 
 namespace Themis.Integration.Tests.Pipeline;
 
@@ -77,4 +79,27 @@ internal sealed class TestItemCreateSeam : IItemCreateSeam
 
     public Task AfterDuplicateCheckAsync(Code itemNumber, CancellationToken cancellationToken) =>
         AfterDuplicateCheck is { } afterDuplicateCheck ? afterDuplicateCheck(itemNumber, cancellationToken) : Task.CompletedTask;
+}
+
+/// <summary>
+/// The definitions beside the catalogue for the settings tests (milestone 2 step 2; docs/development/test-seams.md): a
+/// history-bearing definition, since none of the milestone 2 definitions carries valid_from. A test adds its definition
+/// here and writes the matching row to kernel.setting_definition as the migrator before the first command.
+/// </summary>
+internal sealed class TestSettingDefinitionSeam : ISettingDefinitionSeam
+{
+    private readonly List<SettingDefinition> _definitions = [];
+
+    public IReadOnlyList<SettingDefinition> Definitions => _definitions;
+
+    public void Add(SettingDefinition definition) => _definitions.Add(definition);
+}
+
+/// <summary>The pause point of the settings race test (milestone 2 step 2; R-API-02, RR-45): a test sets the delegate; nothing happens otherwise.</summary>
+internal sealed class TestSettingWriteSeam : ISettingWriteSeam
+{
+    public Func<string, SettingLevel, CancellationToken, Task>? AfterVersionCheck { get; set; }
+
+    public Task AfterVersionCheckAsync(string key, SettingLevel level, CancellationToken cancellationToken) =>
+        AfterVersionCheck is { } hook ? hook(key, level, cancellationToken) : Task.CompletedTask;
 }

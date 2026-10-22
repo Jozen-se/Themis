@@ -5,6 +5,7 @@ using Themis.Host;
 
 namespace Themis.Kernel.Tests;
 
+[Collection(HostTestGroup.Name)]
 [Trait("Category", "Unit")]
 public sealed class HostSmokeTests : IDisposable
 {
@@ -116,6 +117,20 @@ public sealed class HostSmokeTests : IDisposable
         Exception failure = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
 
         Assert.Contains($"Outbox:Relay:{option}", failure.ToString(), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("BatchSize", "0")]
+    [InlineData("Interval", "00:00:00")]
+    public void Invalid_purge_options_stop_the_host_at_start_also_with_the_purge_disabled(string option, string value)
+    {
+        // Milestone 2 step 2 (RR-42): Idempotency:Purge:* are validated at every host start, enabled or not, like the relay's.
+        using WebApplicationFactory<Program> factory = new WebApplicationFactory<Program>()
+            .WithWebHostBuilder(builder => builder.UseEnvironment("Testing").UseSetting("Idempotency:Purge:Enabled", "false").UseSetting($"Idempotency:Purge:{option}", value));
+
+        Exception failure = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
+
+        Assert.Contains($"Idempotency:Purge:{option}", failure.ToString(), StringComparison.Ordinal);
     }
 
     public void Dispose() => _factory.Dispose();

@@ -10,6 +10,7 @@ using Themis.Kernel.Pipeline.Http;
 namespace Themis.Kernel.Tests.Identity;
 
 /// <summary>The host's identity wiring: the test issuer is refused outside Development and Test (step 4 brief, acceptance 9); an unscoped endpoint cannot be mapped (D-47).</summary>
+[Collection(HostTestGroup.Name)]
 [Trait("Category", "Unit")]
 public sealed class HostIdentityTests
 {

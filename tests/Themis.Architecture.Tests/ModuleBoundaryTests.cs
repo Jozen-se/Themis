@@ -23,7 +23,7 @@ public sealed class ModuleBoundaryTests : IClassFixture<ArchitectureFixture>
             "Themis.Host", "Themis.Migrator", "Themis.FixtureModule",
             "Themis.Kernel.Primitives", "Themis.Kernel.Contracts", "Themis.Kernel.Pipeline", "Themis.Kernel.Persistence",
             "Themis.Kernel.Organisation", "Themis.Kernel.MasterData", "Themis.Kernel.Documents", "Themis.Kernel.Posting",
-            "Themis.Kernel.Messaging", "Themis.Kernel.Identity",
+            "Themis.Kernel.Messaging", "Themis.Kernel.Identity", "Themis.Kernel.Settings",
         ];
         foreach (string name in expected)
         {
@@ -32,7 +32,7 @@ public sealed class ModuleBoundaryTests : IClassFixture<ArchitectureFixture>
 
         Assert.DoesNotContain(_architecture.ProductionAssemblyNames, name => name.EndsWith("Tests", StringComparison.Ordinal));
         Assert.Equal(["Themis.FixtureModule"], ThemisArchitectureRules.ModuleRoots(_architecture.Production));
-        Assert.Equal(["Documents", "Identity", "MasterData", "Messaging", "Organisation", "Persistence", "Pipeline", "Posting"], ThemisArchitectureRules.KernelCapabilities(_architecture.Production));
+        Assert.Equal(["Documents", "Identity", "MasterData", "Messaging", "Organisation", "Persistence", "Pipeline", "Posting", "Settings"], ThemisArchitectureRules.KernelCapabilities(_architecture.Production));
     }
 
     [Fact]

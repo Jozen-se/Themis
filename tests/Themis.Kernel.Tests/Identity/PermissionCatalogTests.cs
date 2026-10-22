@@ -61,8 +61,9 @@ public sealed class PermissionCatalogTests
     {
         Assert.All(PermissionCatalog.Definition.Permissions, permission => Assert.True(PermissionCodes.IsValid(permission.Code)));
         Assert.Equal(PermissionCatalog.Definition.Permissions.Count, PermissionCatalog.Definition.Permissions.Select(p => p.Code).Distinct(StringComparer.Ordinal).Count());
-        Assert.Equal(PermissionRiskLevel.Sensitive, PermissionCatalog.Definition.Permissions.Single(p => p.Code == "INVENTORY_ADJUSTMENT.POST").RiskLevel);
-        Assert.All(PermissionCatalog.Definition.Permissions.Where(p => p.Code != "INVENTORY_ADJUSTMENT.POST"), p => Assert.Equal(PermissionRiskLevel.Normal, p.RiskLevel));
+        // Step 4 brief: INVENTORY_ADJUSTMENT.POST is Sensitive; milestone 2 step 2: SETTING.SET and SETTING.CLEAR are too; the rest Normal.
+        string[] sensitive = ["INVENTORY_ADJUSTMENT.POST", "SETTING.SET", "SETTING.CLEAR"];
+        Assert.All(PermissionCatalog.Definition.Permissions, p => Assert.Equal(sensitive.Contains(p.Code) ? PermissionRiskLevel.Sensitive : PermissionRiskLevel.Normal, p.RiskLevel));
 
         Assert.Equal(
             [("ACCOUNT.MAINTAIN", "MANUAL_JOURNAL.POST"), ("CUSTOMER.SET_CREDIT_LIMIT", "SALES_ORDER.APPROVE_CREDIT"), ("FISCAL_PERIOD.REOPEN", "MANUAL_JOURNAL.POST")],

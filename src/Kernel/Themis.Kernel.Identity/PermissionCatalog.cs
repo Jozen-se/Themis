@@ -21,6 +21,9 @@ internal static class PermissionCatalog
     public const string InventoryAdjustmentPost = "INVENTORY_ADJUSTMENT.POST";
     public const string InventoryAdjustmentDiscard = "INVENTORY_ADJUSTMENT.DISCARD";
     public const string InventoryAdjustmentRead = "INVENTORY_ADJUSTMENT.READ";
+    public const string SettingSet = "SETTING.SET";
+    public const string SettingClear = "SETTING.CLEAR";
+    public const string SettingRead = "SETTING.READ";
 
     // The specification's v1 conflict pairs name these commands of later steps and phases; they are pairs, not permissions, until their commands exist.
     public const string CustomerSetCreditLimit = "CUSTOMER.SET_CREDIT_LIMIT";
@@ -40,6 +43,11 @@ internal static class PermissionCatalog
             new(InventoryAdjustmentPost, PermissionRiskLevel.Sensitive),
             new(InventoryAdjustmentDiscard, PermissionRiskLevel.Normal),
             new(InventoryAdjustmentRead, PermissionRiskLevel.Normal),
+            // Step 2 brief (milestone 2): SETTING.SET and SETTING.CLEAR are Sensitive; an installation value is changed by a holder
+            // with a company-wide assignment in any company (RR-52), so access reviews treat them as installation-wide.
+            new(SettingSet, PermissionRiskLevel.Sensitive),
+            new(SettingClear, PermissionRiskLevel.Sensitive),
+            new(SettingRead, PermissionRiskLevel.Normal),
         ],
         [
             // The specification's example conflict pairs for v1 (R-SEC-02), each stored with its codes in order.

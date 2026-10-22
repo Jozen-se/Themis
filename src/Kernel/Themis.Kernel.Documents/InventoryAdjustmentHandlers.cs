@@ -6,6 +6,7 @@ using Themis.Kernel.Contracts.Organisation;
 using Themis.Kernel.Contracts.Persistence;
 using Themis.Kernel.Contracts.Queries;
 using Themis.Kernel.Contracts.Security;
+using Themis.Kernel.Contracts.Settings;
 using Themis.Kernel.Primitives;
 
 namespace Themis.Kernel.Documents;
@@ -22,6 +23,19 @@ internal static class InventoryAdjustmentDrafts
     public const string NotFound = "inventory_adjustment_not_found";
     public const string NotDraft = "document_not_draft";
     public const string VersionStale = "version_stale";
+    public const string LineLimitExceeded = "line_limit_exceeded";
+
+    /// <summary>
+    /// RR-54: more lines than the effective document.max_lines at the installation or the company is a 400, read inside the
+    /// transaction so the rejection is stored as the key's result, like an unknown reference; it is not R-SET-01.
+    /// </summary>
+    public static async Task<Error?> LineLimitErrorAsync(ISettingsReader settings, IUnitOfWork unitOfWork, Guid companyId, int lineCount, CancellationToken cancellationToken)
+    {
+        int limit = await settings.GetIntegerAsync(unitOfWork, SettingKeys.DocumentMaxLines, SettingTarget.ForCompany(companyId), cancellationToken);
+        return lineCount > limit
+            ? Error.Validation(LineLimitExceeded, $"A document holds at most {limit} lines here; {lineCount} were given.", details: new Dictionary<string, string>(StringComparer.Ordinal) { ["field"] = "lines", ["limit"] = limit.ToString(System.Globalization.CultureInfo.InvariantCulture) })
+            : null;
+    }
 
     public static Error NotFoundError(Guid id) => Error.NotFound(NotFound, $"Inventory adjustment {id} does not exist.");
 
@@ -134,11 +148,13 @@ internal sealed class CreateInventoryAdjustmentHandler : ICommandHandler<CreateI
 {
     private readonly IDocumentStateMachine _stateMachine;
     private readonly IOrganisationReader _organisation;
+    private readonly ISettingsReader _settings;
 
-    public CreateInventoryAdjustmentHandler(IDocumentStateMachine stateMachine, IOrganisationReader organisation)
+    public CreateInventoryAdjustmentHandler(IDocumentStateMachine stateMachine, IOrganisationReader organisation, ISettingsReader settings)
     {
         _stateMachine = stateMachine;
         _organisation = organisation;
+        _settings = settings;
     }
 
     public async Task<Result<InventoryAdjustmentView>> HandleAsync(CreateInventoryAdjustment command, ICommandContext context, CancellationToken cancellationToken)
@@ -158,6 +174,11 @@ internal sealed class CreateInventoryAdjustmentHandler : ICommandHandler<CreateI
         if (company is null)
         {
             return Error.Validation("company_unknown", $"Company {command.CompanyId} does not exist.");
+        }
+
+        if (await InventoryAdjustmentDrafts.LineLimitErrorAsync(_settings, unitOfWork, command.CompanyId, command.Lines?.Count ?? 0, cancellationToken) is { } overLimit)
+        {
+            return overLimit;
         }
 
         Result<Guid?> warehouse = await InventoryAdjustmentDrafts.ResolveHeaderWarehouseAsync(unitOfWork, command.CompanyId, command.WarehouseId, cancellationToken);
@@ -223,10 +244,12 @@ internal sealed class CreateInventoryAdjustmentHandler : ICommandHandler<CreateI
 internal sealed class UpdateInventoryAdjustmentHandler : ICommandHandler<UpdateInventoryAdjustment, InventoryAdjustmentView>
 {
     private readonly IDocumentStateMachine _stateMachine;
+    private readonly ISettingsReader _settings;
 
-    public UpdateInventoryAdjustmentHandler(IDocumentStateMachine stateMachine)
+    public UpdateInventoryAdjustmentHandler(IDocumentStateMachine stateMachine, ISettingsReader settings)
     {
         _stateMachine = stateMachine;
+        _settings = settings;
     }
 
     public async Task<Result<InventoryAdjustmentView>> HandleAsync(UpdateInventoryAdjustment command, ICommandContext context, CancellationToken cancellationToken)
@@ -256,6 +279,11 @@ internal sealed class UpdateInventoryAdjustmentHandler : ICommandHandler<UpdateI
         if (InventoryAdjustmentDrafts.VersionCheck(before, command.ExpectedVersion) is { } stale)
         {
             return stale;
+        }
+
+        if (await InventoryAdjustmentDrafts.LineLimitErrorAsync(_settings, unitOfWork, before.CompanyId, command.Lines?.Count ?? 0, cancellationToken) is { } overLimit)
+        {
+            return overLimit;
         }
 
         Result<Guid?> warehouse = await InventoryAdjustmentDrafts.ResolveHeaderWarehouseAsync(unitOfWork, before.CompanyId, command.WarehouseId, cancellationToken);

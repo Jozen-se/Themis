@@ -12,6 +12,7 @@ using Themis.Kernel.Persistence;
 using Themis.Kernel.Persistence.Seeding;
 using Themis.Kernel.Posting;
 using Themis.Kernel.Primitives;
+using Themis.Kernel.Settings;
 
 namespace Themis.Migrator;
 
@@ -26,7 +27,8 @@ namespace Themis.Migrator;
 /// rows written before the event envelope of D-50 and must be recreated before the step 7 migration, 7 the
 /// document type catalogue in code breaks a registry rule, 8 PostgreSQL refused a statement (reported with its
 /// SQLSTATE and message, RR-48). A run is not one transaction: each migration and each seeder commits on its own,
-/// and every step is safe to re-run.
+/// and every step is safe to re-run. The settings catalogue (D-58) is written on every run; a stored value outside a
+/// tightened range and a definition that left the catalogue are printed as warnings and never changed.
 /// </summary>
 public static class Program
 {
@@ -108,6 +110,15 @@ public static class Program
             }
 
             Console.WriteLine($"Document type registry: {registry.Value} row(s) inserted or updated, the rest already present.");
+
+            // D-58: the settings catalogue is system data too, written from the code catalogue on every run; stored values a
+            // tightened range left behind and definitions that left the catalogue are reported, never changed or deleted.
+            SettingCatalogReport settings = await SettingDefinitionSeeder.ApplyCatalogueAsync(connectionString, SettingCatalog.Definitions, SettingValueFormat.IsValid, now, WellKnownUsers.System, CancellationToken.None);
+            Console.WriteLine($"Settings catalogue: {settings.Changed} row(s) inserted or updated, {settings.Retired} retired, the rest already present.");
+            foreach (string warning in settings.Warnings)
+            {
+                Console.WriteLine($"Settings catalogue warning: {warning}");
+            }
 
             if (!string.IsNullOrWhiteSpace(fixture))
             {

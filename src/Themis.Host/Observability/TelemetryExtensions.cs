@@ -58,6 +58,7 @@ internal static class TelemetryExtensions
                 metrics.AddRuntimeInstrumentation();
                 metrics.AddMeter(PipelineTelemetry.SourceName);
                 metrics.AddMeter(OutboxRelayTelemetry.MeterName);
+                metrics.AddMeter(IdempotencyPurgeTelemetry.MeterName);
                 if (otlpEnabled)
                 {
                     metrics.AddOtlpExporter();

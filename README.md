@@ -5,7 +5,7 @@ kernel with organisation, parties, items, documents and immutable ledgers, then 
 through a first financial close. C# on .NET 10, PostgreSQL, a modular monolith with enforced module boundaries.
 Apache-2.0.
 
-Status: milestone 2 (kernel complete) step 1, hardening from the code review of 2026-10-18: frozen migration SQL with golden scripts and a drift test against the `milestone-1` tag (RR-39), retry on wrapped database errors (RR-40), a zero-test guard in CI (RR-41), expired idempotency records treated as absent (RR-42), non-overlapping fiscal periods (RR-44), unique-key races as rule rejections (RR-45), value bounds (RR-46), database backstops for stock and journal balance (RR-47), migrator diagnostics (RR-48) and the smaller fixes RR-49 to RR-53 and RR-56. Milestone 1 is complete (tag `milestone-1`, acceptance map in [`docs/milestones/milestone-1.md`](docs/milestones/milestone-1.md)); the rest of the milestone 2 step plan is not released yet.
+Status: milestone 2 (kernel complete) step 2, the settings framework (RR-12, D-58, R-SET-01): a catalogue of every configurable default in code, written to the database by the migrator; insert-only values at installation, company, site and warehouse level with SETTING.SET, SETTING.CLEAR and SETTING.READ under If-Match; the idempotency retention as the first setting (D-45 ends) with the purge of expired records as a host loop (RR-42); the document line limit (RR-54); negative stock defined and locked (D-09). Step 1 (hardening from the code review of 2026-10-18) is merged. Milestone 1 is complete (tag `milestone-1`, acceptance map in [`docs/milestones/milestone-1.md`](docs/milestones/milestone-1.md)); steps 3 to 14 of milestone 2 are not released yet.
 
 ## Documents
 

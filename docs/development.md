@@ -188,7 +188,7 @@ The order of a command's checks since milestone 2 step 1 (RR-51): 401 without a 
 attempt, never stored), the scope (404 for a missing record, 403 `scope_undeclared`) and the authorisation (403),
 then the advisory lock and the idempotency record. An expired idempotency record counts as absent: it is deleted in
 the command's transaction under the advisory lock and the key runs as new; a 412, a failure or a D-41 retry rolls the
-delete back (RR-42; the purge of all expired records comes with the settings step). Inside the handler's savepoint,
+delete back (RR-42; the host's purge removes the rest, see Settings). Inside the handler's savepoint,
 a unique violation (23505) of a constraint a capability registered as a `UniqueConstraintRule` becomes that rule's
 rejection (in milestone 1 `ux_item_item_number` to R-MD-05 `item_number_duplicate`), and a numeric overflow (22003)
 becomes a 422 under R-DOC-01 with code `amount_out_of_range`; both are stored as the key's result, any other database
@@ -551,6 +551,76 @@ oldest first, run two passes concurrently with the first held after its claim, f
 that a rolled-back command leaves no event; the host tests prove the loop and the option validation. Not in step 9:
 external delivery, a broker or webhooks, the D-50 delivery terms, a counter of retried events, LISTEN/NOTIFY wake-up,
 the reporting view (step 10) and property-based runs (step 11).
+
+## Settings
+
+Milestone 2 step 2 brings the settings framework (RR-12, P-11; D-58; Phase 0 Specification, Settings entities):
+every configurable default of the Foundation's classification list lives in one catalogue, nothing reads a
+configurable default from code, and the idempotency retention is the first setting, which ends D-45.
+
+The catalogue (`SettingCatalog`, `Themis.Kernel.Settings`) follows the `PermissionCatalog` pattern: one definition
+per configurable default with its key, value type, documented default, validation (min, max, allowed values), the
+levels a value may be written at, whether the caller dates its values, the lock, the backing (Setting, Column, Data or
+Planned with its phase and the levels that phase adds) and the rule and decision that make it a default. The
+architecture test `SettingCatalogCoverageTests` reads the Foundation's list and the specification's milestone 2
+definitions from the snapshots and holds the catalogue to them in both directions. `Themis.Migrator` writes the
+catalogue to `kernel.setting_definition` on every run through `SettingDefinitionSeeder`, as it writes the document
+type registry (D-40): a missing row is inserted, a differing one aligned, each with an audit event under the system
+user; a stored value that a tightened range left outside its definition is printed as a warning and never changed,
+and a definition that left the catalogue is marked retired and printed, never deleted, because values reference it.
+The kernel role only reads the table.
+
+Values live in `kernel.setting_value`, insert-only: SETTING.SET inserts a Set row and SETTING.CLEAR a Cleared row,
+each with the slot's next version (a slot is a definition, a level and the company, site or warehouse the level
+needs; a check ties the target columns to the level and composite foreign keys keep a site or warehouse inside its
+company). The kernel role holds SELECT and INSERT and no UPDATE or DELETE, which the privilege matrix test proves
+(R-SET-01, I-14). Both commands are Sensitive and require If-Match with the slot's current version, 0 for a slot
+with no rows yet (R-API-02: 412 when stale, 428 when missing); a write that loses a concurrent race on the unique
+version index `ux_setting_value_slot_version` gets the same 412 through a `UniqueConstraintRule` of kind
+PreconditionFailed (RR-45), and like every 412 it is not stored as the key's result. An Installation value declares
+installation scope (RR-52), so a holder of SETTING.SET with a company-wide assignment in any company changes
+installation values for every company; access reviews treat SETTING.SET and SETTING.CLEAR as installation-wide. A
+company, site or warehouse value declares its company (and site). Rejections: a value of the wrong type or outside
+its validation, an unknown key, a target that does not fit the level and a valid_from on a plain definition are 400;
+a locked definition, a level the definition does not allow, and SET or CLEAR on a definition backed by a column, data
+or a planned feature are 422 under R-SET-01. CLEAR on a slot with no rows is a 400. Each write has one audit event
+(entity `SettingValue`) and one outbox event `SETTING_CHANGED` (aggregate type `SETTING`, the company empty for an
+Installation value) carrying key, level, target, previous and new value (D-44, D-50). SETTING.READ returns the
+effective value at a target with its source (a level, the default or a column) and the current version of each
+allowed level at that target.
+
+The reader (`SettingsReader`, `ISettingsReader` in Contracts) runs inside the caller's transaction: for one
+definition, level and target, a plain definition takes the row with the highest version; a history-bearing one the
+row with the latest valid_from on or before the business date, ties going to the highest version (R-TIME-01, in the
+company's time zone; installation values use the requesting company's date, or the UTC date without a company). A
+Cleared row means no value at that level. The effective value is the first found at the warehouse, then its site
+(completed from the warehouse row when not given), then its company, then installation, then the definition's
+default; a level the definition does not allow is skipped; a Column-backed definition reads its entity's column. No
+cache across requests in v1 (D-41). The milestone 2 definitions: `idempotency.retention_days` (7, 1 to 90,
+installation only; stamped on the record at insert, so a change applies to records written after it),
+`document.max_lines` (1,000, 1 to 10,000, installation or company; inventory adjustment CREATE and UPDATE reject more
+lines with 400 `line_limit_exceeded`, stored as the key's result), `inventory.negative_stock_allowed` (false, company
+or warehouse, locked until a costing rule for negative quantities exists, D-09), and the Column-backed
+`company.rounding_mode` and `company.tax_rounding_level`, readable through SETTING.READ with source Column and changed
+only by COMPANY.UPDATE (milestone 2 step 3; D-10 stays open). Every other configurable default of the list is a Data
+or Planned definition.
+
+The purge of expired idempotency records (RR-42; R-AUD-01 as amended by D-58) is a pass beside the relay
+(`IdempotencyPurgePass`, `Themis.Kernel.Messaging`), run by the host's `IdempotencyPurgeHostedService` on a timer
+and like the relay outside the command pipeline: one short transaction as `themis_kernel`, which holds DELETE on the
+table for exactly this, deleting one bounded batch of records whose expiry has passed, so it never holds a long lock
+and never conflicts with the dispatcher's own removal of an expired record under the advisory lock. It writes no
+audit event; its Information log line and the counter `themis.idempotency.purged` on the meter
+`Themis.Kernel.Idempotency` are the record. After a full batch the next pass runs at once; after a partial or empty
+batch, or a failed pass (logged, the next pass retries), the loop waits the interval. The host options are
+`Idempotency:Purge:Enabled` (default true), `Idempotency:Purge:Interval` (default `00:05:00`) and
+`Idempotency:Purge:BatchSize` (default 1000), validated at every host start, enabled or not. The integration tests
+run with the purge disabled and call the pass directly.
+
+Test seams: the definition seam (`ISettingDefinitionSeam`) lets the integration tests add a history-bearing
+definition and one writable at every level beside the catalogue, and the write seam (`ISettingWriteSeam`) pauses a
+write after its version check for the race test (docs/development/test-seams.md). Not in step 2: unlocking negative
+stock, moving the rounding columns, any Planned definition's feature, a settings cache, COMPANY.UPDATE (step 3).
 
 ## Reporting
 

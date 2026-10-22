@@ -64,7 +64,10 @@ public sealed class SegregationOfDutiesTests
         Assert.DoesNotContain("INVENTORY_ADJUSTMENT.POST", preparer);
         Assert.DoesNotContain("ITEM.CREATE", preparer);
         Assert.Contains("ITEM.READ", preparer);
-        Assert.Equal(clerk.Where(p => p is not "INVENTORY_ADJUSTMENT.POST" and not "ITEM.CREATE").Order(), preparer.Order());
+        // Milestone 2 step 2: the settings administrator role is the clerk's too; the preparer holds none of it.
+        Assert.Superset(new HashSet<string> { "SETTING.SET", "SETTING.CLEAR", "SETTING.READ" }, clerk);
+        Assert.DoesNotContain(preparer, p => p.StartsWith("SETTING.", StringComparison.Ordinal));
+        Assert.Equal(clerk.Where(p => p is not "INVENTORY_ADJUSTMENT.POST" and not "ITEM.CREATE" && !p.StartsWith("SETTING.", StringComparison.Ordinal)).Order(), preparer.Order());
         Assert.All(fixture.Assignments, assignment => Assert.Null(assignment.SiteId));
         Assert.All(fixture.Assignments, assignment => Assert.Equal(Milestone1OrganisationFixture.CompanyId, assignment.CompanyId));
         Assert.All(fixture.Roles.SelectMany(role => role.Permissions), permission => Assert.True(PermissionCatalog.Contains(permission)));
