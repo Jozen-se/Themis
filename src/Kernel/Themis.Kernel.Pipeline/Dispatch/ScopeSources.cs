@@ -20,10 +20,17 @@ internal static class ScopeSources
             return true;
         }
 
-        // Asked at mapping time on the root provider, so the registration is checked without resolving a scoped service.
-        Type resolverType = typeof(IScopeResolver<>).MakeGenericType(requestType);
+        return IsRegistered(typeof(IScopeResolver<>).MakeGenericType(requestType), services);
+    }
+
+    /// <summary>
+    /// Whether a service is registered, asked at mapping time on the root provider, so the registration is checked
+    /// without resolving a scoped service. Shared by the scope check (D-47) and the settings reader check (D-58).
+    /// </summary>
+    public static bool IsRegistered(Type serviceType, IServiceProvider services)
+    {
         IServiceProviderIsService? registry = services.GetService<IServiceProviderIsService>();
-        return registry is not null ? registry.IsService(resolverType) : services.GetService(resolverType) is not null;
+        return registry is not null ? registry.IsService(serviceType) : services.GetService(serviceType) is not null;
     }
 
     /// <summary>Throws at mapping time for a command or query that names no scope; the host fails to start (fail closed).</summary>

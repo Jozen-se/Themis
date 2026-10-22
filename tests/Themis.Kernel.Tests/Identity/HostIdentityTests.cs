@@ -5,8 +5,10 @@ using Themis.Host;
 using Themis.Kernel.Contracts.Commands;
 using Themis.Kernel.Contracts.Queries;
 using Themis.Kernel.Contracts.Security;
+using Themis.Kernel.Organisation;
 using Themis.Kernel.Pipeline;
 using Themis.Kernel.Pipeline.Http;
+using Themis.Kernel.Settings;
 
 namespace Themis.Kernel.Tests.Identity;
 
@@ -98,6 +100,20 @@ public sealed class HostIdentityTests
         InvalidOperationException missing = Assert.Throws<InvalidOperationException>(() => app.MapCommand<ScopedCommand, string>("/scoped"));
 
         Assert.Contains("AddKernelSettings", missing.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void D_58_a_command_is_mapped_on_a_host_that_registers_the_settings_reader()
+    {
+        WebApplicationBuilder builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
+        builder.Services.AddKernelPipeline();
+        builder.Services.AddKernelOrganisation();
+        builder.Services.AddKernelSettings();
+        using WebApplication app = builder.Build();
+
+        IEndpointConventionBuilder mapped = app.MapCommand<ScopedCommand, string>("/scoped");
+
+        Assert.NotNull(mapped);
     }
 
     [Command("SCOPED.DO")]

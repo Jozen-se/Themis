@@ -49,17 +49,16 @@ internal static class CommandEndpoints
             .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
     }
 
-    /// <summary>Maps every route a module declares (ICommandRoute) through <see cref="MapCommand{TCommand, TResult}"/>.</summary>
+    /// <summary>D-58: a host that maps commands registers the settings reader, which stamps every idempotency record; checked at mapping time, like the scope (D-47).</summary>
     private static void RequireSettingsReader(IServiceProvider services)
     {
-        IServiceProviderIsService? registry = services.GetService<IServiceProviderIsService>();
-        bool registered = registry is not null ? registry.IsService(typeof(ISettingsReader)) : services.GetService<ISettingsReader>() is not null;
-        if (!registered)
+        if (!ScopeSources.IsRegistered(typeof(ISettingsReader), services))
         {
             throw new InvalidOperationException("A command is mapped but no ISettingsReader is registered: call AddKernelSettings() in the composition root; the pipeline reads idempotency.retention_days from it (D-58).");
         }
     }
 
+    /// <summary>Maps every route a module declares (ICommandRoute) through <see cref="MapCommand{TCommand, TResult}"/>.</summary>
     public static IEndpointRouteBuilder MapCommandRoutes(this IEndpointRouteBuilder routes, IEnumerable<ICommandRoute> commandRoutes)
     {
         RouteMapper mapper = new(routes);
