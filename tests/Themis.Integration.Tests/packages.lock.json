@@ -414,6 +414,13 @@
       "themis.kernel.primitives": {
         "type": "Project"
       },
+      "themis.kernel.settings": {
+        "type": "Project",
+        "dependencies": {
+          "Themis.Kernel.Contracts": "[1.0.0, )",
+          "Themis.Kernel.Primitives": "[1.0.0, )"
+        }
+      },
       "themis.migrator": {
         "type": "Project",
         "dependencies": {
@@ -423,7 +430,8 @@
           "Themis.Kernel.MasterData": "[1.0.0, )",
           "Themis.Kernel.Organisation": "[1.0.0, )",
           "Themis.Kernel.Persistence": "[1.0.0, )",
-          "Themis.Kernel.Posting": "[1.0.0, )"
+          "Themis.Kernel.Posting": "[1.0.0, )",
+          "Themis.Kernel.Settings": "[1.0.0, )"
         }
       },
       "Microsoft.AspNetCore.Authentication.JwtBearer": {

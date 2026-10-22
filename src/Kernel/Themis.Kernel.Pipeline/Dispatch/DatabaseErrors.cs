@@ -91,7 +91,12 @@ internal static class DatabaseErrors
         if (postgres.SqlState == UniqueViolation && postgres.ConstraintName is { } constraint)
         {
             UniqueConstraintRule? rule = uniqueRules.FirstOrDefault(candidate => string.Equals(candidate.ConstraintName, constraint, StringComparison.Ordinal));
-            return rule is null ? null : (postgres, Error.Rule(rule.RuleId, rule.Code, rule.Message));
+            if (rule is null)
+            {
+                return null;
+            }
+
+            return (postgres, rule.Kind == ErrorKind.PreconditionFailed ? Error.PreconditionFailed(rule.Code, rule.Message, rule.RuleId) : Error.Rule(rule.RuleId, rule.Code, rule.Message));
         }
 
         if (postgres.SqlState == NumericValueOutOfRange)

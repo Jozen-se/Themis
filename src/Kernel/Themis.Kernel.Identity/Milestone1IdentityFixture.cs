@@ -19,10 +19,12 @@ internal static class Milestone1IdentityFixture
     public static Guid PreparerRoleId { get; } = Guid.Parse("00000000-0000-7000-8000-000000000301");
     public static Guid PosterRoleId { get; } = Guid.Parse("00000000-0000-7000-8000-000000000302");
     public static Guid ItemMaintainerRoleId { get; } = Guid.Parse("00000000-0000-7000-8000-000000000303");
+    public static Guid SettingsAdministratorRoleId { get; } = Guid.Parse("00000000-0000-7000-8000-000000000304");
     public static Guid ClerkPreparerAssignmentId { get; } = Guid.Parse("00000000-0000-7000-8000-000000000401");
     public static Guid ClerkPosterAssignmentId { get; } = Guid.Parse("00000000-0000-7000-8000-000000000402");
     public static Guid PreparerAssignmentId { get; } = Guid.Parse("00000000-0000-7000-8000-000000000403");
     public static Guid ClerkItemMaintainerAssignmentId { get; } = Guid.Parse("00000000-0000-7000-8000-000000000404");
+    public static Guid ClerkSettingsAdministratorAssignmentId { get; } = Guid.Parse("00000000-0000-7000-8000-000000000405");
 
     /// <summary>The Keycloak user ids of the realm export, which the provider issues as the <c>sub</c> claim.</summary>
     public const string ClerkSubject = "cccccccc-1111-4111-8111-cccccccccccc";
@@ -43,6 +45,9 @@ internal static class Milestone1IdentityFixture
 
     /// <summary>Posts adjustments: the Sensitive permission alone, so the two roles never collide (R-SEC-02).</summary>
     public const string PosterRoleCode = "INVENTORY_POSTER";
+
+    /// <summary>Administers settings (milestone 2 step 2): SETTING.SET, SETTING.CLEAR and SETTING.READ, held by the clerk only.</summary>
+    public const string SettingsAdministratorRoleCode = "SETTINGS_ADMINISTRATOR";
 
     /// <summary>Assignments start with the fixture's fiscal year and never end.</summary>
     public static BusinessDate ValidFrom { get; } = BusinessDate.Parse("2026-01-01");
@@ -72,11 +77,18 @@ internal static class Milestone1IdentityFixture
                 PermissionCatalog.ItemCreate,
                 PermissionCatalog.ItemRead,
             ]),
+            new RoleDefinition(SettingsAdministratorRoleId, Code.From(SettingsAdministratorRoleCode), "Settings administrator",
+            [
+                PermissionCatalog.SettingSet,
+                PermissionCatalog.SettingClear,
+                PermissionCatalog.SettingRead,
+            ]),
         ],
         [
             new RoleAssignmentDefinition(ClerkPreparerAssignmentId, ClerkId, PreparerRoleId, companyId, SiteId: null, ValidFrom, ValidTo: null),
             new RoleAssignmentDefinition(ClerkPosterAssignmentId, ClerkId, PosterRoleId, companyId, SiteId: null, ValidFrom, ValidTo: null),
             new RoleAssignmentDefinition(PreparerAssignmentId, PreparerId, PreparerRoleId, companyId, SiteId: null, ValidFrom, ValidTo: null),
             new RoleAssignmentDefinition(ClerkItemMaintainerAssignmentId, ClerkId, ItemMaintainerRoleId, companyId, SiteId: null, ValidFrom, ValidTo: null),
+            new RoleAssignmentDefinition(ClerkSettingsAdministratorAssignmentId, ClerkId, SettingsAdministratorRoleId, companyId, SiteId: null, ValidFrom, ValidTo: null),
         ]);
 }

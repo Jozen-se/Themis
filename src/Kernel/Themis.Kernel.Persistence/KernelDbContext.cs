@@ -5,6 +5,7 @@ using Themis.Kernel.Persistence.Entities.Identity;
 using Themis.Kernel.Persistence.Entities.MasterData;
 using Themis.Kernel.Persistence.Entities.Organisation;
 using Themis.Kernel.Persistence.Entities.Posting;
+using Themis.Kernel.Persistence.Entities.Settings;
 
 namespace Themis.Kernel.Persistence;
 
@@ -93,6 +94,10 @@ internal sealed class KernelDbContext : DbContext
 
     public DbSet<StockBalance> StockBalances => Set<StockBalance>();
 
+    public DbSet<SettingDefinitionRow> SettingDefinitions => Set<SettingDefinitionRow>();
+
+    public DbSet<SettingValueRow> SettingValues => Set<SettingValueRow>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);
@@ -102,6 +107,7 @@ internal sealed class KernelDbContext : DbContext
         GeneralLedgerModel.Configure(modelBuilder);
         DocumentModel.Configure(modelBuilder);
         LedgerModel.Configure(modelBuilder);
+        SettingsModel.Configure(modelBuilder);
 
         modelBuilder.Entity<IdempotencyRecord>(entity =>
         {

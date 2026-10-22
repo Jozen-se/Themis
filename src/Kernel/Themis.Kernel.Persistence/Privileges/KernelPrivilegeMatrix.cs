@@ -71,7 +71,15 @@ internal static class KernelPrivilegeMatrix
 
         // Reporting (milestone 1 step 10): the view runs with its owner's rights; the BI role reads it and nothing else (D-54, I-14).
         TableGrant.ReadOnly(Reporting, "stock_by_warehouse", ReportingRole),
+
+        // Settings (milestone 2 step 2, D-58): the definition catalogue is written by the migrator only; values are
+        // insert-only, with no UPDATE or DELETE for any role (R-SET-01).
+        TableGrant.ReadOnly(Kernel, "setting_definition", KernelRole),
+        TableGrant.AppendOnly(Kernel, "setting_value", KernelRole),
     ];
+
+    /// <summary>The tables the settings migration creates, in dependency order.</summary>
+    public static IReadOnlyList<string> SettingsTables { get; } = ["setting_definition", "setting_value"];
 
     /// <summary>The tables the organisation migration creates, in dependency order.</summary>
     public static IReadOnlyList<string> OrganisationTables { get; } =

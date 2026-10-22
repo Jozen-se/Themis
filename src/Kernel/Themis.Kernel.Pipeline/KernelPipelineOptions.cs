@@ -1,15 +1,12 @@
 namespace Themis.Kernel.Pipeline;
 
 /// <summary>
-/// Pipeline settings. The idempotency retention is the specification's default of 7 days (Phase 0 specification,
-/// IdempotencyRecord.expires_at). The owner approved a temporary exception to P-11: it stays a constant until the
-/// settings framework of review finding RR-12 exists, and moves there before Phase 0 is declared complete. A record
-/// whose expiry has passed counts as absent and is removed when its key is used again (RR-42); the purge of all
-/// expired records comes with the settings step.
+/// Pipeline settings that are code, not configuration: the retry bound of D-41. The idempotency retention is the
+/// setting idempotency.retention_days since milestone 2 step 2 (D-58; D-45 ended), read inside the command's
+/// transaction and stamped on the record at insert; a record whose expiry has passed counts as absent and is removed
+/// when its key is used again (RR-42), and the host's purge removes the rest (docs/development.md, Settings).
 /// </summary>
 internal sealed class KernelPipelineOptions
 {
     public const int MaxAttempts = 3;
-
-    public TimeSpan IdempotencyRetention { get; set; } = TimeSpan.FromDays(7);
 }

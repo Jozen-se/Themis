@@ -5,6 +5,7 @@ using Themis.Host.Observability;
 using Themis.Kernel.Contracts.Documents;
 using Themis.Kernel.Contracts.MasterData;
 using Themis.Kernel.Contracts.Organisation;
+using Themis.Kernel.Contracts.Settings;
 using Themis.Kernel.Documents;
 using Themis.Kernel.Identity;
 using Themis.Kernel.MasterData;
@@ -14,6 +15,7 @@ using Themis.Kernel.Persistence;
 using Themis.Kernel.Pipeline;
 using Themis.Kernel.Pipeline.Http;
 using Themis.Kernel.Posting;
+using Themis.Kernel.Settings;
 
 namespace Themis.Host;
 
@@ -46,6 +48,8 @@ public sealed class Program
         // D-12: bearer tokens from the configured OpenID Connect provider; the test issuer only in Development and Test.
         builder.Services.AddKernelIdentity(builder.Configuration, builder.Environment.EnvironmentName);
         builder.Services.AddKernelOrganisation();
+        // Milestone 2 step 2 (D-58): the settings catalogue, reader and commands; the pipeline reads the idempotency retention from it.
+        builder.Services.AddKernelSettings();
         builder.Services.AddKernelMasterData();
         builder.Services.AddKernelPosting();
         builder.Services.AddKernelDocuments();
@@ -54,6 +58,8 @@ public sealed class Program
         if (databaseConfigured)
         {
             builder.Services.AddHostedService<OutboxRelayHostedService>();
+            // Milestone 2 step 2 (RR-42, D-58): the purge of expired idempotency records, outside the command pipeline.
+            builder.Services.AddHostedService<IdempotencyPurgeHostedService>();
         }
 
         builder.Services.AddKernelOpenApi();
@@ -76,6 +82,8 @@ public sealed class Program
         app.MapQuery<GetItemByNumber, ItemView>(MasterDataRoutes.ItemByNumber);
         app.MapCommandRoutes(DocumentRoutes.Commands);
         app.MapQuery<GetInventoryAdjustment, InventoryAdjustmentView>(DocumentRoutes.InventoryAdjustment);
+        app.MapCommandRoutes(SettingRoutes.Commands);
+        app.MapQuery<GetSetting, SettingReadView>(SettingRoutes.Setting);
 
         if (app.Environment.IsDevelopment())
         {

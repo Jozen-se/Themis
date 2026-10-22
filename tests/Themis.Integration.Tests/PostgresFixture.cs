@@ -55,7 +55,7 @@ public sealed class PostgresFixture : IAsyncLifetime
     /// </summary>
     public async Task TruncateAsync(CancellationToken cancellationToken) =>
         await ExecuteAsMigratorAsync(
-            "TRUNCATE kernel.idempotency_record, kernel.outbox_event, kernel.journal_line, kernel.journal_entry, kernel.inventory_entry, kernel.stock_balance, kernel.item_cost_state, kernel.document_line, kernel.inventory_adjustment, kernel.document, kernel.item_company, kernel.item, fixture.counter; " +
+            "TRUNCATE kernel.idempotency_record, kernel.outbox_event, kernel.setting_value, kernel.journal_line, kernel.journal_entry, kernel.inventory_entry, kernel.stock_balance, kernel.item_cost_state, kernel.document_line, kernel.inventory_adjustment, kernel.document, kernel.item_company, kernel.item, fixture.counter; " +
             "DELETE FROM kernel.audit_event WHERE command_name NOT LIKE 'SYSTEM.%'; " +
             "UPDATE kernel.number_series SET next_number = 1, version = 1", cancellationToken);
 

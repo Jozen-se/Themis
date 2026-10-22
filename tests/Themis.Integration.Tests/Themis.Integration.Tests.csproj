@@ -28,6 +28,7 @@
     <ProjectReference Include="../../src/Kernel/Themis.Kernel.Persistence/Themis.Kernel.Persistence.csproj" />
     <ProjectReference Include="../../src/Kernel/Themis.Kernel.Pipeline/Themis.Kernel.Pipeline.csproj" />
     <ProjectReference Include="../../src/Kernel/Themis.Kernel.Identity/Themis.Kernel.Identity.csproj" />
+    <ProjectReference Include="../../src/Kernel/Themis.Kernel.Settings/Themis.Kernel.Settings.csproj" />
     <ProjectReference Include="../../src/Kernel/Themis.Kernel.Messaging/Themis.Kernel.Messaging.csproj" />
     <ProjectReference Include="../../src/Themis.Migrator/Themis.Migrator.csproj" />
     <ProjectReference Include="../Fixtures/Themis.FixtureModule/Themis.FixtureModule.csproj" />

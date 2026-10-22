@@ -1,8 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Themis.Kernel.Messaging: the outbox relay (step 9; D-53). The pass service only: the background loop that runs it
-    on a timer lives in Themis.Host, so this project needs no hosting package. The shared framework gives it options,
+    Themis.Kernel.Messaging: the outbox relay (step 9; D-53) and the purge of expired idempotency records (milestone 2
+    step 2; RR-42, D-58). The pass services only: the background loops that run them on a timer live in Themis.Host, so
+    this project needs no hosting package. The shared framework gives it options,
     configuration binding and logging, as Themis.Kernel.Pipeline uses it. No public types (ARCH-07).
   -->
 

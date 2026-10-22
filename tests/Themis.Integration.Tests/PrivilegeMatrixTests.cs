@@ -38,10 +38,10 @@ public sealed class PrivilegeMatrixTests
     }
 
     [Fact]
-    public void The_declared_matrix_covers_the_tables_and_views_of_the_eight_migrations_and_the_kernel_role_never_deletes_a_document_or_changes_a_ledger_entry()
+    public void The_declared_matrix_covers_the_tables_and_views_of_the_nine_migrations_and_the_kernel_role_never_deletes_a_document_or_changes_a_ledger_entry_or_a_setting_value()
     {
         Assert.Equal(
-            ["account", "audit_event", "chart_of_accounts", "company", "currency", "document", "document_line", "document_transition", "document_type", "fiscal_period", "fiscal_year", "idempotency_record", "installation", "inventory_adjustment", "inventory_entry", "item", "item_company", "item_cost_state", "item_posting_group", "journal_entry", "journal_line", "number_series", "outbox_event", "party", "permission", "posting_profile_rule", "role", "role_assignment", "role_permission", "site", "sod_conflict", "stock_balance", "stock_by_warehouse", "unit_of_measure", "user_account", "warehouse"],
+            ["account", "audit_event", "chart_of_accounts", "company", "currency", "document", "document_line", "document_transition", "document_type", "fiscal_period", "fiscal_year", "idempotency_record", "installation", "inventory_adjustment", "inventory_entry", "item", "item_company", "item_cost_state", "item_posting_group", "journal_entry", "journal_line", "number_series", "outbox_event", "party", "permission", "posting_profile_rule", "role", "role_assignment", "role_permission", "setting_definition", "setting_value", "site", "sod_conflict", "stock_balance", "stock_by_warehouse", "unit_of_measure", "user_account", "warehouse"],
             KernelPrivilegeMatrix.Declared.Select(grant => grant.Table).Order(StringComparer.Ordinal));
         // Step 10 (D-54): the reporting view is the one entry for themis_reporting, SELECT only; everything else belongs to the kernel role.
         Assert.All(KernelPrivilegeMatrix.Declared.Where(grant => grant.Schema == "kernel"), grant => Assert.Equal("themis_kernel", grant.Role));
@@ -54,6 +54,9 @@ public sealed class PrivilegeMatrixTests
         // I-11, R-LED-01, R-LED-06: the ledger tables are insert-only for the kernel role; the caches are updated in place (Specification, Caches).
         Assert.All(KernelPrivilegeMatrix.Declared.Where(grant => grant.Table is "journal_entry" or "journal_line" or "inventory_entry"), grant => Assert.Equal([TablePrivilege.Select, TablePrivilege.Insert], grant.Privileges.Order()));
         Assert.All(KernelPrivilegeMatrix.Declared.Where(grant => grant.Table is "item_cost_state" or "stock_balance"), grant => Assert.DoesNotContain(TablePrivilege.Delete, grant.Privileges));
+        // R-SET-01, D-58: the settings catalogue is read-only for the kernel role; values are insert-only, no UPDATE or DELETE for any role.
+        Assert.Equal([TablePrivilege.Select], Assert.Single(KernelPrivilegeMatrix.Declared, grant => grant.Table == "setting_definition").Privileges.Order());
+        Assert.Equal([TablePrivilege.Select, TablePrivilege.Insert], Assert.Single(KernelPrivilegeMatrix.Declared, grant => grant.Table == "setting_value").Privileges.Order());
     }
 
     [Fact]

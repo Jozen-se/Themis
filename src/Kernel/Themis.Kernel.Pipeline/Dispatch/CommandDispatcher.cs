@@ -3,10 +3,10 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Themis.Kernel.Contracts.Commands;
 using Themis.Kernel.Contracts.Persistence;
 using Themis.Kernel.Contracts.Security;
+using Themis.Kernel.Contracts.Settings;
 using Themis.Kernel.Pipeline.Http;
 using Themis.Kernel.Pipeline.Json;
 using Themis.Kernel.Pipeline.Telemetry;
@@ -56,7 +56,7 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
     private readonly IOutboxStore _outboxStore;
     private readonly TimeProvider _clock;
     private readonly PipelineTelemetry _telemetry;
-    private readonly KernelPipelineOptions _options;
+    private readonly ISettingsReader _settings;
     private readonly IReadOnlyList<UniqueConstraintRule> _uniqueRules;
     private readonly ILogger<CommandDispatcher> _logger;
 
@@ -70,7 +70,7 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
         IOutboxStore outboxStore,
         TimeProvider clock,
         PipelineTelemetry telemetry,
-        IOptions<KernelPipelineOptions> options,
+        ISettingsReader settings,
         IEnumerable<UniqueConstraintRule> uniqueRules,
         ILogger<CommandDispatcher> logger)
     {
@@ -83,7 +83,7 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
         _outboxStore = outboxStore;
         _clock = clock;
         _telemetry = telemetry;
-        _options = options.Value;
+        _settings = settings;
         _uniqueRules = [.. uniqueRules];
         _logger = logger;
     }
@@ -277,7 +277,10 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
             context.Discard();
         }
 
-        await _idempotency.AddAsync(unitOfWork, new StoredIdempotencyRecord(idempotencyKey, principal.UserId, metadata.Name, requestHash, response, now + _options.IdempotencyRetention), cancellationToken);
+        // R-API-01, D-58: the retention is the installation setting idempotency.retention_days, read in this transaction and
+        // stamped on the record; a later change of the setting leaves existing records as they are.
+        int retentionDays = await _settings.GetIntegerAsync(unitOfWork, SettingKeys.IdempotencyRetentionDays, SettingTarget.Installation, cancellationToken);
+        await _idempotency.AddAsync(unitOfWork, new StoredIdempotencyRecord(idempotencyKey, principal.UserId, metadata.Name, requestHash, response, now + TimeSpan.FromDays(retentionDays)), cancellationToken);
         await unitOfWork.CommitAsync(cancellationToken);
         return response;
     }
