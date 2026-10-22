@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Primitives;
 using Themis.Kernel.Contracts.Commands;
+using Themis.Kernel.Contracts.Settings;
 using Themis.Kernel.Pipeline.Dispatch;
 using Themis.Kernel.Pipeline.Json;
 using Themis.Kernel.Primitives;
@@ -32,6 +33,8 @@ internal static class CommandEndpoints
         CommandMetadata metadata = CommandMetadata.For(typeof(TCommand));
         // D-47: a command that names no scope cannot be mapped; the host fails to start instead of allowing it.
         ScopeSources.RequireDeclared(typeof(TCommand), routes.ServiceProvider);
+        // D-58: every command stamps its idempotency record from the settings; a host without the settings reader fails to start, not with a 500 later.
+        RequireSettingsReader(routes.ServiceProvider);
         // Endpoint names are global and a permission can be shared (the fixture module's commands stand in with the real ones' permissions), so the command type names the endpoint.
         return routes.MapPost(pattern, (HttpContext http, CancellationToken cancellationToken) => HandleAsync<TCommand, TResult>(http, metadata, cancellationToken))
             .WithName(typeof(TCommand).Name)
@@ -47,6 +50,16 @@ internal static class CommandEndpoints
     }
 
     /// <summary>Maps every route a module declares (ICommandRoute) through <see cref="MapCommand{TCommand, TResult}"/>.</summary>
+    private static void RequireSettingsReader(IServiceProvider services)
+    {
+        IServiceProviderIsService? registry = services.GetService<IServiceProviderIsService>();
+        bool registered = registry is not null ? registry.IsService(typeof(ISettingsReader)) : services.GetService<ISettingsReader>() is not null;
+        if (!registered)
+        {
+            throw new InvalidOperationException("A command is mapped but no ISettingsReader is registered: call AddKernelSettings() in the composition root; the pipeline reads idempotency.retention_days from it (D-58).");
+        }
+    }
+
     public static IEndpointRouteBuilder MapCommandRoutes(this IEndpointRouteBuilder routes, IEnumerable<ICommandRoute> commandRoutes)
     {
         RouteMapper mapper = new(routes);
