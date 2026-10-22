@@ -13,6 +13,7 @@ using Themis.Kernel.Organisation;
 using Themis.Kernel.Persistence;
 using Themis.Kernel.Pipeline;
 using Themis.Kernel.Pipeline.Http;
+using Themis.Kernel.Settings;
 
 namespace Themis.Integration.Tests.Identity;
 
@@ -79,6 +80,8 @@ public sealed class KeycloakSmokeTests
         builder.Services.AddKernelIdentity(builder.Configuration, builder.Environment.EnvironmentName);
         builder.Services.AddFixtureModule();
         builder.Services.AddKernelOrganisation();
+        // Milestone 2 step 2 (D-58): the pipeline reads the idempotency retention through the settings reader.
+        builder.Services.AddKernelSettings();
         builder.Services.AddProblemDetails();
         WebApplication app = builder.Build();
         app.UseExceptionHandler();
