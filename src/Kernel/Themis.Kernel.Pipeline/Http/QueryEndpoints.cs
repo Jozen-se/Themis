@@ -55,6 +55,13 @@ internal static class QueryEndpoints
         CorrelationId correlationId = CorrelationIdMiddleware.Of(http);
         CommandResponse response = await BindAndDispatchAsync<TQuery, TResult>(http, correlationId, cancellationToken);
 
+        if (response.StatusCode == StatusCodes.Status401Unauthorized)
+        {
+            // RR-71: the dispatcher's own 401 goes out through the shared writer, so it looks like the fallback's.
+            await Unauthorized.WriteAsync(http);
+            return;
+        }
+
         http.Response.StatusCode = response.StatusCode;
         http.Response.ContentType = response.ContentType + "; charset=utf-8";
         if (response.Version is { } version)

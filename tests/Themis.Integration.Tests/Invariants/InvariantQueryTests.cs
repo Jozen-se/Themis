@@ -259,6 +259,38 @@ public sealed partial class InvariantQueryTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RR_77_I_09_a_planted_number_whose_part_after_the_prefix_is_not_1_to_18_digits_is_reported_with_its_entry()
+    {
+        await InTransactionAsync(async (connection, scaffold) =>
+        {
+            Guid letters = await JournalEntryAsync(connection, scaffold, "JE2026-00A001");
+            IReadOnlyList<string> unparsable = await InvariantQueries.RowsAsync(connection, "I-09", Ct);
+            string row = Assert.Single(unparsable);
+            Assert.Contains("violation=number after the series prefix is not 1 to 18 digits", row, StringComparison.Ordinal);
+            Assert.Contains($"journal_entry_id={letters}; entry_number=JE2026-00A001", row, StringComparison.Ordinal);
+
+            // Nineteen digits would overflow the cast to bigint: reported, not an error.
+            Guid long19 = await JournalEntryAsync(connection, scaffold, "JE2026-1234567890123456789");
+            IReadOnlyList<string> tooLong = await InvariantQueries.RowsAsync(connection, "I-09", Ct);
+            Assert.Equal(2, tooLong.Count);
+            Assert.Contains(tooLong, line => line.Contains($"journal_entry_id={long19}; entry_number=JE2026-1234567890123456789", StringComparison.Ordinal));
+        });
+    }
+
+    [Fact]
+    public async Task RR_77_I_09_a_planted_journal_entry_number_outside_every_gapless_series_of_its_company_is_reported()
+    {
+        await InTransactionAsync(async (connection, scaffold) =>
+        {
+            Guid outside = await JournalEntryAsync(connection, scaffold, "XX-000001");
+            IReadOnlyList<string> rows = await InvariantQueries.RowsAsync(connection, "I-09", Ct);
+            string row = Assert.Single(rows);
+            Assert.Contains("violation=journal entry number matches no gapless series of its company", row, StringComparison.Ordinal);
+            Assert.Contains($"journal_entry_id={outside}; entry_number=XX-000001", row, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
     public async Task I_15_a_planted_item_with_stock_and_no_reported_row_and_a_company_total_without_a_ledger_balance_are_reported()
     {
         await InTransactionAsync(async (connection, scaffold) =>
