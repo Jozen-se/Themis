@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Review Remediation Register* (https://claude.ai/code/artifact/91610c8f-7465-46a7-9f48-0bf2c5171ede), revision 39, taken 2026-10-23.
+> **Snapshot** of the live document *Themis Review Remediation Register* (https://claude.ai/code/artifact/91610c8f-7465-46a7-9f48-0bf2c5171ede), revision 41, taken 2026-10-23.
 > Reference only: findings RR-xx and the owner's decision on each. Accepted items are already in the Foundation, the
 > Phase 0 Specification and the Build Brief, which win on any conflict. The live document is authoritative.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -131,7 +131,7 @@ Your full review of the kernel (copy of 2026-10-20, before milestone 2 step 2 me
 | RR-59 | (F-01) postgres:18 refuses to start: compose mounts the volume at the pre-18 path; CI misses it because Testcontainers mounts no volume | Mount the volume at /var/lib/postgresql; docs/development.md gains the Podman settings (DOCKER_HOST, Ryuk) | Interim fix | [Accept] |
 | RR-60 | (F-02) A zero or missing companyId returns 500: the request hash serialises the computed Scope getter, which throws before validation | Keep the computed scope out of the request hash; 400 company_required; an HTTP test with no company | Interim fix | [Accept] |
 | RR-61 | (F-03) An invalid date such as 2026-02-30 returns 500 | The JSON converter turns every parse failure into a 400 | Interim fix | [Accept] |
-| RR-62 | (F-04) The role stays themis_kernel after the dispatcher's kernel calls, and handlers see the raw connection (R-DB-01) | Reset the role after kernel store calls; stop exposing the connection to modules before Phase 1 | Milestone 2 step 2b | [Accept] |
+| RR-62 | (F-04) The role stays themis_kernel after the dispatcher's kernel calls, and handlers see the raw connection (R-DB-01) | Reset the role after kernel store calls; stop exposing the connection to modules before Phase 1. Owner, 2026-10-23: a module gets the connection only from one method that switches to its role first; that counts as no longer exposed | Milestone 2 step 2b | [Accept] |
 | RR-63 | (F-05) Ledger and audit tables are insert-only through grants alone; the owner role can still change them, so I-14's "no role" is not literally true | Blocking triggers on journal_entry, journal_line, inventory_entry, audit_event and setting_value; I-14 reworded (D-60) | Milestone 2 step 2b | [Accept] |
 | RR-64 | (F-06) themis_kernel can write the permission catalogue and the SoD pairs, although no command does | Both read-only for the kernel, as document_type; the SoD pair grant returns with the step 13 commands | Milestone 2 step 2b | [Accept] |
 | RR-65 | (F-07) The bootstrap creates LOGIN roles with the password themis | The role script carries no password; a separate psql step sets the passwords from variables and fails without them; development and test placeholders stay in development-only configuration; real values are managed outside the coder's work | Interim fix | [Accept] |
@@ -146,7 +146,7 @@ Your full review of the kernel (copy of 2026-10-20, before milestone 2 step 2 me
 | RR-74 | (F-16) The company rounding mode is loaded, but costing always uses HalfAwayFromZero | Costing follows the company's rounding mode before COMPANY.UPDATE can change it | Milestone 2 step 3 | [Accept] |
 | RR-75 | (F-17) Costing multiplies before it divides and can overflow decimal at column limits | Safe operation order, with the posting service contract (RR-55) | Milestone 2 step 9 | [Accept] |
 | RR-76 | (F-18) Posting profile rules are read twice per line while locks are held | Each rule resolved once per posting | Milestone 2 step 9 | [Accept] |
-| RR-77 | (F-19) I-06 and I-15 sum by the INVENTORY line tag, not by account; I-09 skips numbers it cannot parse | I-09 reports an unparsable number as a violation (step 2b); summing by account is settled when manual journals can post lines without the tag (step 11) | Milestone 2 steps 2b and 11 | [Accept] |
+| RR-77 | (F-19) I-06 and I-15 sum by the INVENTORY line tag, not by account; I-09 skips numbers it cannot parse | I-09 reports an unparsable number as a violation, and also a journal entry number that matches no gapless series (owner, 2026-10-23) (step 2b); summing by account is settled when manual journals can post lines without the tag (step 11) | Milestone 2 steps 2b and 11 | [Accept] |
 | RR-78 | (F-20) One golden script lacks statement terminators | Golden scripts are compared, never replayed; no change | None | [Reject] |
 | RR-79 | (F-21) Compose publishes Postgres and Keycloak on all interfaces with known passwords | Ports bound to 127.0.0.1; development values only | Interim fix | [Accept] |
 | RR-80 | (F-22) DELETE on idempotency records is granted table-wide | Only the purge and the expired-record branch delete; revisit with row-level security | None | [Reject] |
