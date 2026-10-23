@@ -63,14 +63,39 @@ public sealed class PostgresFixture : IAsyncLifetime
     public int MigratorExitCode { get; private set; } = -1;
 
     /// <summary>
-    /// Removes every row the pipeline tests wrote, the ledgers and caches of step 8 included (the migrator, not the kernel role, may truncate them), so each test class starts from empty tables; the seeded rows stay,
+    /// Removes every row the pipeline tests wrote, the ledgers and caches of step 8 included, through the cleanup seam
+    /// (the D-60 triggers refuse even the table owner), so each test class starts from empty tables; the seeded rows stay,
     /// and the seeded number series are wound back to their first number (version 1) since numbering tests advance them.
     /// </summary>
     public async Task TruncateAsync(CancellationToken cancellationToken) =>
-        await ExecuteAsMigratorAsync(
+        await CleanupAsync(
             "TRUNCATE kernel.idempotency_record, kernel.outbox_event, kernel.setting_value, kernel.journal_line, kernel.journal_entry, kernel.inventory_entry, kernel.stock_balance, kernel.item_cost_state, kernel.document_line, kernel.inventory_adjustment, kernel.document, kernel.item_company, kernel.item, fixture.counter; " +
             "DELETE FROM kernel.audit_event WHERE command_name NOT LIKE 'SYSTEM.%'; " +
             "UPDATE kernel.number_series SET next_number = 1, version = 1", cancellationToken);
+
+    /// <summary>
+    /// The test cleanup seam of milestone 2 step 2b (docs/development/test-seams.md; D-60): runs the statements as the
+    /// superuser in one explicit transaction after <c>SET LOCAL session_replication_role = replica</c>, so the D-60
+    /// triggers, which a superuser stays outside of, do not fire on the test's own cleanup. Foreign key triggers do not
+    /// fire either, so the statements must keep the references whole themselves. Production code never sets
+    /// session_replication_role (an architecture test checks src), and no role but a superuser may (pg_parameter_acl).
+    /// </summary>
+    public async Task CleanupAsync(string sql, CancellationToken cancellationToken)
+    {
+        await using NpgsqlConnection connection = await OpenAsync(SuperuserConnectionString, cancellationToken);
+        await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using (NpgsqlCommand replica = new("SET LOCAL session_replication_role = replica", connection, transaction))
+        {
+            await replica.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await using (NpgsqlCommand command = new(sql, connection, transaction))
+        {
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
 
     /// <summary>A database with nothing in it, not even the bootstrap, for the drift test that restores a schema dump into it (RR-39); the caller drops it.</summary>
     public async Task<string> CreateBareDatabaseAsync() => await CreateDatabaseAsync(SuperuserConnectionString);
