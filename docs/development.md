@@ -2,7 +2,7 @@
 
 ## Toolchain
 
-- .NET SDK as pinned in `global.json` (10.0.112 or a later patch of the 10.0.1xx band, D-06).
+- .NET SDK as pinned in `global.json` (10.0.113 or a later patch of the 10.0.1xx band, D-06).
 - Docker or Podman with a compose plugin, for the local stack and for the integration tests, which start PostgreSQL
   through Testcontainers. Podman needs two optional settings; see Podman below.
 - No other tools: the licence scanner is a local dotnet tool restored by `dotnet tool restore`.
