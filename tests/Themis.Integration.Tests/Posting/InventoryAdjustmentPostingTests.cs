@@ -592,7 +592,7 @@ public sealed class InventoryAdjustmentPostingTests : IAsyncLifetime
         string fresh = await _db.CreateEmptyDatabaseAsync(Ct);
         try
         {
-            string migrator = new NpgsqlConnectionStringBuilder(fresh) { Username = "themis_migrator", Password = "themis" }.ConnectionString;
+            string migrator = new NpgsqlConnectionStringBuilder(fresh) { Username = "themis_migrator", Password = PostgresFixture.TestRolePassword }.ConnectionString;
             // The database as step 7 left it, with one audit row of the old shape.
             await using (KernelDbContext context = KernelDbContextFactory.ForMigrations(migrator))
             {

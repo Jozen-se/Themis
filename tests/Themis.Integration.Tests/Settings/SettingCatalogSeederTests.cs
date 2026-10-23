@@ -30,7 +30,7 @@ public sealed class SettingCatalogSeederTests
         string database = await _db.CreateSeededDatabaseAsync(Ct);
         try
         {
-            string migrator = new NpgsqlConnectionStringBuilder(database) { Username = "themis_migrator", Password = "themis" }.ConnectionString;
+            string migrator = new NpgsqlConnectionStringBuilder(database) { Username = "themis_migrator", Password = PostgresFixture.TestRolePassword }.ConnectionString;
             await using NpgsqlConnection connection = await PostgresFixture.OpenAsync(database, Ct);
 
             Assert.Equal((long)SettingCatalog.Definitions.Count, await ScalarAsync(connection, "SELECT count(*) FROM kernel.setting_definition"));

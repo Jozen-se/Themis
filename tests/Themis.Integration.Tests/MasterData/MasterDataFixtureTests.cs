@@ -90,7 +90,7 @@ public sealed class MasterDataFixtureTests
         string fresh = await _db.CreateEmptyDatabaseAsync(Ct);
         try
         {
-            string migrator = new NpgsqlConnectionStringBuilder(fresh) { Username = "themis_migrator", Password = "themis" }.ConnectionString;
+            string migrator = new NpgsqlConnectionStringBuilder(fresh) { Username = "themis_migrator", Password = PostgresFixture.TestRolePassword }.ConnectionString;
             Assert.Equal(0, await Themis.Migrator.Program.Main(["--connection", migrator]));
 
             await using NpgsqlConnection connection = await PostgresFixture.OpenAsync(fresh, Ct);

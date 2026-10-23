@@ -5,10 +5,11 @@
 -- R-LED-06 (no UPDATE or DELETE on ledger and audit tables), invariant I-14, proven by
 -- tests/Themis.Integration.Tests/DatabaseRoleModelTests.cs and PrivilegeMatrixTests.cs, which run this file.
 --
--- Run once per database as a superuser. Docker Compose and Podman Compose apply it from /docker-entrypoint-initdb.d on
--- the first start; the integration tests apply it to a fresh database. The script is idempotent.
--- Passwords below are development defaults for the local compose stack only. Production sets them with
--- ALTER ROLE ... PASSWORD from secrets supplied through the environment, never from this file.
+-- Run once per database as a superuser. Docker Compose and Podman Compose apply it on the first start through
+-- docker/postgres/initdb/10-themis-bootstrap.sh; the integration tests apply it to a fresh database. The script is
+-- idempotent and plain SQL, so the tests can run it through Npgsql.
+-- It sets no password (RR-65): the three LOGIN roles get theirs from 02-role-passwords.psql, which takes them from
+-- psql variables and fails without them. Real values are supplied outside the repository (Build Brief, Secrets).
 --
 -- Roles
 --   themis_migrator  LOGIN           Owns every schema, table and view. Used only by Themis.Migrator, which issues every
@@ -39,11 +40,11 @@
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'themis_migrator') THEN
-        CREATE ROLE themis_migrator LOGIN PASSWORD 'themis' NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE;
+        CREATE ROLE themis_migrator LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE;
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'themis_app') THEN
-        CREATE ROLE themis_app LOGIN PASSWORD 'themis' NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE;
+        CREATE ROLE themis_app LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE;
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'themis_kernel') THEN
@@ -51,7 +52,7 @@ BEGIN
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'themis_reporting') THEN
-        CREATE ROLE themis_reporting LOGIN PASSWORD 'themis' NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE;
+        CREATE ROLE themis_reporting LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE;
     END IF;
 END
 $$;

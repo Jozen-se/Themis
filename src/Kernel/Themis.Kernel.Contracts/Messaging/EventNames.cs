@@ -12,7 +12,7 @@ public static partial class EventNames
 {
     public const int DefaultSchemaVersion = 1;
 
-    [GeneratedRegex("^[A-Z][A-Z0-9_]{0,39}$")]
+    [GeneratedRegex("^[A-Z][A-Z0-9_]{0,39}\\z")]
     private static partial Regex CodePattern();
 
     public static string Generated(string typeCode, string verb)

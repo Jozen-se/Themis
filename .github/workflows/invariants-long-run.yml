@@ -1,10 +1,13 @@
 # A long property-based run of the invariant tests (milestone 1 step 11): the same random command sequences as the
-# pull request run, with many more sequences. Started by hand; a nightly schedule is added when the repository goes
-# public (owner's decision, D-42). THEMIS_PROPERTY_SEQUENCES and THEMIS_PROPERTY_SEED are read by
-# tests/Themis.Integration.Tests/Invariants/InvariantPropertyTests.cs.
+# pull request run, with many more sequences. It runs nightly now that the repository is public (D-42, RR-85), with
+# 5,000 sequences, and can still be started by hand with any count and seed. THEMIS_PROPERTY_SEQUENCES and
+# THEMIS_PROPERTY_SEED are read by tests/Themis.Integration.Tests/Invariants/InvariantPropertyTests.cs.
 name: Invariants long run
 
 on:
+  schedule:
+    # Nightly at 02:17 UTC, off the full hour (RR-85). A scheduled run has no inputs, so the job uses 5,000 sequences.
+    - cron: "17 2 * * *"
   workflow_dispatch:
     inputs:
       sequences:
@@ -27,8 +30,8 @@ env:
 
 jobs:
   long-run:
-    name: Property runs (${{ inputs.sequences }} sequences)
-    runs-on: ubuntu-latest
+    name: Property runs (${{ inputs.sequences || '5000' }} sequences)
+    runs-on: ubuntu-24.04
     timeout-minutes: 360
     steps:
       - name: Check out
@@ -47,7 +50,7 @@ jobs:
 
       - name: Property runs over the real pipeline (I-01, I-02, I-03, I-04, I-06, I-08, I-09, I-15)
         env:
-          THEMIS_PROPERTY_SEQUENCES: ${{ inputs.sequences }}
+          THEMIS_PROPERTY_SEQUENCES: ${{ inputs.sequences || '5000' }}
           THEMIS_PROPERTY_SEED: ${{ inputs.seed }}
         run: dotnet test --project tests/Themis.Integration.Tests/Themis.Integration.Tests.csproj --configuration Release --no-build --filter-trait "Category=Invariant" --report-xunit-trx --results-directory TestResults/invariant-long-run
 

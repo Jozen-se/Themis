@@ -1,6 +1,8 @@
 # Local development stack: PostgreSQL (system of record, D-04) and Keycloak (OpenID Connect provider, D-12).
 # The application itself runs with `dotnet run --project src/Themis.Host` against this stack.
-# Credentials here are development defaults; see db/bootstrap/01-roles.sql and docs/development.md.
+# Credentials here are development placeholders; ports are published on 127.0.0.1 only (RR-79). The role passwords
+# come from THEMIS_*_PASSWORD (defaults below) through docker/postgres/initdb/10-themis-bootstrap.sh and
+# db/bootstrap/02-role-passwords.psql (RR-65); see docs/development.md.
 
 name: themis
 
@@ -11,11 +13,16 @@ services:
       POSTGRES_DB: themis
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+      THEMIS_MIGRATOR_PASSWORD: ${THEMIS_MIGRATOR_PASSWORD:-themis}
+      THEMIS_APP_PASSWORD: ${THEMIS_APP_PASSWORD:-themis}
+      THEMIS_REPORTING_PASSWORD: ${THEMIS_REPORTING_PASSWORD:-themis}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./db/bootstrap:/docker-entrypoint-initdb.d:ro
+      # postgres:18 keeps its data in a versioned directory under /var/lib/postgresql (RR-59).
+      - postgres-data:/var/lib/postgresql
+      - ./db/bootstrap:/themis-bootstrap:ro
+      - ./docker/postgres/initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d themis"]
       interval: 5s
@@ -31,7 +38,7 @@ services:
       KC_HTTP_PORT: "8080"
       KC_HEALTH_ENABLED: "true"
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     volumes:
       - keycloak-data:/opt/keycloak/data
       - ./docker/keycloak/themis-realm.json:/opt/keycloak/data/import/themis-realm.json:ro

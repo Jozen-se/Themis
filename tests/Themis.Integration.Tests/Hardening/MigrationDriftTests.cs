@@ -120,7 +120,7 @@ public sealed partial class MigrationDriftTests
         }
     }
 
-    private static string Migrator(string connectionString) => new NpgsqlConnectionStringBuilder(connectionString) { Username = "themis_migrator", Password = "themis" }.ConnectionString;
+    private static string Migrator(string connectionString) => new NpgsqlConnectionStringBuilder(connectionString) { Username = "themis_migrator", Password = PostgresFixture.TestRolePassword }.ConnectionString;
 
     private static async Task<object?> ScalarAsync(string connectionString, string sql)
     {

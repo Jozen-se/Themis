@@ -18,7 +18,7 @@ public readonly partial record struct Code
 
     public string Value { get; }
 
-    [GeneratedRegex("^[A-Z0-9_-]{1,40}$")]
+    [GeneratedRegex("^[A-Z0-9_-]{1,40}\\z")]
     private static partial Regex Pattern();
 
     public static Code From(string value)

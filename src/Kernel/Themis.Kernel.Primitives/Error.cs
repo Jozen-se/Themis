@@ -50,10 +50,10 @@ public sealed partial record Error
 
     public IReadOnlyDictionary<string, string> Details { get; }
 
-    [GeneratedRegex("^[a-z][a-z0-9_]{0,62}$")]
+    [GeneratedRegex("^[a-z][a-z0-9_]{0,62}\\z")]
     private static partial Regex CodePattern();
 
-    [GeneratedRegex(@"^(?:R-[A-Z]{2,4}-\d{2}|[PDIE]-\d{2}|ARCH-\d{2})$")]
+    [GeneratedRegex(@"^(?:R-[A-Z]{2,4}-\d{2}|[PDIE]-\d{2}|ARCH-\d{2})\z")]
     private static partial Regex RuleIdPattern();
 
     public static Error Validation(string code, string message, string? ruleId = null, IReadOnlyDictionary<string, string>? details = null) =>

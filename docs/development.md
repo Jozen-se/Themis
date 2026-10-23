@@ -4,7 +4,7 @@
 
 - .NET SDK as pinned in `global.json` (10.0.112 or a later patch of the 10.0.1xx band, D-06).
 - Docker or Podman with a compose plugin, for the local stack and for the integration tests, which start PostgreSQL
-  through Testcontainers. With Podman, point `DOCKER_HOST` at the Podman socket.
+  through Testcontainers. Podman needs two optional settings; see Podman below.
 - No other tools: the licence scanner is a local dotnet tool restored by `dotnet tool restore`.
 
 ## The local stack
@@ -13,23 +13,52 @@
 
 | Service | Image | Port | Credentials (development only) |
 |---|---|---|---|
-| PostgreSQL | `postgres:18` | 5432 | superuser `postgres` / `postgres`, database `themis` |
-| Keycloak | `quay.io/keycloak/keycloak:26.8` | 8080 | admin console `admin` / `admin`; realm `themis`, client `themis-api` (secret `themis-dev-secret`), user `dev` / `dev` |
+| PostgreSQL | `postgres:18` | 127.0.0.1:5432 | superuser `postgres` / `postgres`, database `themis` |
+| Keycloak | `quay.io/keycloak/keycloak:26.8` | 127.0.0.1:8080 | admin console `admin` / `admin`; realm `themis`, client `themis-api` (secret `themis-dev-secret`), user `dev` / `dev` |
 
-On first start PostgreSQL runs `db/bootstrap/01-roles.sql`, which creates the roles and the `kernel` and
-`reporting` schemas, revokes every default and installs the `btree_gist` extension, which the no-overlap exclusion
-constraints on effective-dated rows need (R-MD-02; first used by `kernel.posting_profile_rule`). A hand-made database
-needs the same script run once as a superuser, or the general ledger migration fails on the missing extension. The roles:
+Both ports are published on the loopback interface only (RR-79), and every credential in the table is a development
+placeholder. The PostgreSQL volume is mounted at `/var/lib/postgresql`, the path `postgres:18` expects (RR-59).
+
+On first start PostgreSQL runs `docker/postgres/initdb/10-themis-bootstrap.sh` (that directory alone is the image's
+`/docker-entrypoint-initdb.d`; `db/bootstrap` is mounted read-only at `/themis-bootstrap`). The script runs two files:
+
+1. `db/bootstrap/01-roles.sql` creates the roles and the `kernel` and `reporting` schemas, revokes every default and
+   installs the `btree_gist` extension, which the no-overlap exclusion constraints on effective-dated rows need (R-MD-02;
+   first used by `kernel.posting_profile_rule`). It is plain SQL and sets no password (RR-65).
+2. `db/bootstrap/02-role-passwords.psql` (psql only, `ON_ERROR_STOP`) sets the three LOGIN passwords from the psql
+   variables `themis_migrator_password`, `themis_app_password` and `themis_reporting_password`. The compose script
+   fills them with `\getenv` from `THEMIS_MIGRATOR_PASSWORD`, `THEMIS_APP_PASSWORD` and `THEMIS_REPORTING_PASSWORD`,
+   which `compose.yaml` defaults to the placeholder `themis`, so no password appears on a command line. A missing
+   variable stops the bootstrap with a non-zero exit code and a message naming it.
+
+A hand-made database needs both files run once as a superuser, or the general ledger migration fails on the missing
+extension. A real installation supplies its own passwords through the same psql variables; choosing, storing and
+handing over those values happens outside the coder's work (Build Brief, Secrets). The integration tests run
+`01-roles.sql` through Npgsql and then set a test-only placeholder password with `ALTER ROLE`
+(`PostgresFixture.TestRolePassword`); CI's compose job proves the psql script. The roles:
 
 | Role | Login | Purpose |
 |---|---|---|
-| `themis_migrator` | yes, password `themis` | Owns schemas, tables and views; used only by `Themis.Migrator` |
-| `themis_app` | yes, password `themis` | The application's connection; no table privileges; `SET LOCAL ROLE` to a module role inside each transaction (R-DB-01, D-41) |
+| `themis_migrator` | yes, password from `themis_migrator_password` (`themis` in development) | Owns schemas, tables and views; used only by `Themis.Migrator` |
+| `themis_app` | yes, password from `themis_app_password` (`themis` in development) | The application's connection; no table privileges; `SET LOCAL ROLE` to a module role inside each transaction (R-DB-01, D-41) |
 | `themis_kernel` | no | The kernel's role; privileges only as granted explicitly by migrations |
-| `themis_reporting` | yes, password `themis` | BI tools; SELECT on `reporting` views only |
+| `themis_reporting` | yes, password from `themis_reporting_password` (`themis` in development) | BI tools; SELECT on `reporting` views only |
 | `themis_fixture` | no | Test-only module role, created by the integration tests |
 
-To reset the database, `docker compose down -v` removes the volume and the next start re-runs the bootstrap.
+PostgreSQL runs the init scripts only on an empty volume. To reset the database, or to switch an existing local stack
+to this bootstrap (it used `/var/lib/postgresql/data` and mounted `db/bootstrap` directly before milestone 2 step 2a),
+run `docker compose down -v`; the next start re-runs the bootstrap.
+
+### Podman
+
+`podman compose up -d` runs the same stack. Two optional settings help with rootless Podman:
+
+- `DOCKER_HOST` pointing at the Podman socket, for example
+  `export DOCKER_HOST=unix://$XDG_RUNTIME_DIR/podman/podman.sock`, so Testcontainers and docker-compatible tools
+  find Podman instead of a Docker daemon.
+- `TESTCONTAINERS_RYUK_DISABLED=true`, because the Ryuk clean-up container needs privileged access to the socket,
+  which rootless Podman does not give it; the integration tests then rely on their own disposal of the container.
+
 Keycloak uses its own file database in development; the realm is imported from `docker/keycloak/themis-realm.json`.
 
 ## Migrator and host

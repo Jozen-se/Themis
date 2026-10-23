@@ -15,22 +15,36 @@ The design lives in three documents; the code is built from them and never inven
 milestone). [`CLAUDE.md`](CLAUDE.md) carries the ground rules; [`docs/development.md`](docs/development.md) explains
 how to run the stack and the tests.
 
-## Pinned versions
+## Pinned components
 
-| Component | Version | Where pinned |
-|---|---|---|
-| .NET SDK | 10.0.112, roll forward to the latest patch of the 10.0.1xx band | `global.json` |
-| PostgreSQL | 18 (image `postgres:18`) | `compose.yaml`, `tests/Themis.Integration.Tests` |
-| Keycloak | 26.8 (image `quay.io/keycloak/keycloak:26.8`) | `compose.yaml` |
-| Npgsql | 10.0.3 | `Directory.Packages.props` |
-| Entity Framework Core and Npgsql.EntityFrameworkCore.PostgreSQL | 10.0.12 / 10.0.3 (migrations of the kernel data context, applied by `Themis.Migrator` only) | `Directory.Packages.props`, `.config/dotnet-tools.json` (dotnet-ef 10.0.12) |
-| Microsoft.AspNetCore.OpenApi and Scalar.AspNetCore | 10.0.12 / 2.17.14 (MIT); API description and reference page in development | `Directory.Packages.props` |
-| OpenTelemetry | 1.19.x | `Directory.Packages.props` |
-| xunit.v3 | 4.0.1 on the Microsoft.Testing.Platform runner | `Directory.Packages.props`, `global.json` |
-| TngTech.ArchUnitNET | 0.13.4 (Apache-2.0) | `Directory.Packages.props` |
-| Testcontainers.PostgreSql | 4.16.0 | `Directory.Packages.props` |
-| CsCheck (property-based invariant tests) | 4.9.1 (Apache-2.0) | `Directory.Packages.props` |
-| nuget-license (licence scan, D-38) | 4.0.18 | `.config/dotnet-tools.json` |
+Versions are not repeated here, so this page cannot fall behind them (RR-69). Every NuGet package version is held in
+one place, [`Directory.Packages.props`](Directory.Packages.props); the other components are pinned where the table
+says.
+
+| Component | Where pinned |
+|---|---|
+| .NET SDK (10.0.1xx band, D-06) | `global.json` |
+| PostgreSQL (image `postgres`, D-04) | `compose.yaml`, `tests/Themis.Integration.Tests/PostgresFixture.cs` |
+| Keycloak (image `quay.io/keycloak/keycloak`, D-12) | `compose.yaml`, `tests/Themis.Integration.Tests/Identity/KeycloakSmokeTests.cs` |
+| Local tools: `dotnet-ef` (migrations) and `nuget-license` (licence scan, D-38) | `.config/dotnet-tools.json` |
+| Every NuGet package below | `Directory.Packages.props` |
+
+The packages, by purpose:
+
+- Database: `Npgsql`, `Npgsql.EntityFrameworkCore.PostgreSQL`, `Microsoft.EntityFrameworkCore`,
+  `Microsoft.EntityFrameworkCore.Relational` and `Microsoft.EntityFrameworkCore.Design` (migrations of the kernel data
+  context, applied by Themis.Migrator only).
+- API: `Microsoft.AspNetCore.OpenApi`, `Scalar.AspNetCore` (MIT; the API reference page in development) and
+  `Microsoft.AspNetCore.Authentication.JwtBearer`.
+- Telemetry: `OpenTelemetry.Extensions.Hosting`, `OpenTelemetry.Exporter.Console`,
+  `OpenTelemetry.Exporter.OpenTelemetryProtocol`, `OpenTelemetry.Instrumentation.AspNetCore`,
+  `OpenTelemetry.Instrumentation.Http` and `OpenTelemetry.Instrumentation.Runtime`.
+- Tests: `xunit.v3` on the Microsoft.Testing.Platform runner, `Microsoft.AspNetCore.Mvc.Testing`,
+  `Microsoft.AspNetCore.TestHost`, `TngTech.ArchUnitNET` (Apache-2.0), `Testcontainers.PostgreSql`,
+  `Testcontainers.Keycloak` and `CsCheck` (Apache-2.0; property-based invariant tests).
+- Analysis: `Microsoft.CodeAnalysis.BannedApiAnalyzers`.
+
+An architecture test checks that every package this list names is in `Directory.Packages.props` (RR-69).
 
 Every package version is held in `Directory.Packages.props` and the committed `packages.lock.json` files; CI
 restores in locked mode. Dependabot updates the central file and the directly affected lock files only, so the

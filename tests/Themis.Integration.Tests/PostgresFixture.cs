@@ -14,6 +14,18 @@ public sealed class PostgresFixture : IAsyncLifetime
     private const string ConnectionEnvironmentVariable = "THEMIS_TEST_CONNECTION";
     private const string Image = "postgres:18";
 
+    /// <summary>
+    /// The test-only placeholder password of the three LOGIN roles. 01-roles.sql sets no password (RR-65), so the
+    /// fixture sets this one after every run of it; the psql script db/bootstrap/02-role-passwords.psql, which sets
+    /// real values from variables, is proven by CI's compose job instead.
+    /// </summary>
+    public const string TestRolePassword = "themis";
+
+    private const string TestRolePasswordsSql =
+        "ALTER ROLE themis_migrator PASSWORD '" + TestRolePassword + "'; " +
+        "ALTER ROLE themis_app PASSWORD '" + TestRolePassword + "'; " +
+        "ALTER ROLE themis_reporting PASSWORD '" + TestRolePassword + "';";
+
     private PostgreSqlContainer? _container;
 
     /// <summary>Superuser connection string, used only to set up and inspect the database.</summary>
@@ -34,6 +46,7 @@ public sealed class PostgresFixture : IAsyncLifetime
         }
 
         await ExecuteAsSuperuserAsync(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "db", "bootstrap", "01-roles.sql")), CancellationToken.None);
+        await ExecuteAsSuperuserAsync(TestRolePasswordsSql, CancellationToken.None);
         await ExecuteAsSuperuserAsync(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "fixture-bootstrap.sql")), CancellationToken.None);
 
         // Only Themis.Migrator applies migrations (brief, Migrations); the tests take the same path.
@@ -69,6 +82,8 @@ public sealed class PostgresFixture : IAsyncLifetime
         await using NpgsqlConnection connection = await OpenAsync(connectionString, cancellationToken);
         await using NpgsqlCommand bootstrap = new(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "db", "bootstrap", "01-roles.sql"), cancellationToken), connection);
         await bootstrap.ExecuteNonQueryAsync(cancellationToken);
+        await using NpgsqlCommand passwords = new(TestRolePasswordsSql, connection);
+        await passwords.ExecuteNonQueryAsync(cancellationToken);
         return connectionString;
     }
 
@@ -79,7 +94,7 @@ public sealed class PostgresFixture : IAsyncLifetime
     public async Task<string> CreateSeededDatabaseAsync(CancellationToken cancellationToken)
     {
         string connectionString = await CreateEmptyDatabaseAsync(cancellationToken);
-        string migrator = new NpgsqlConnectionStringBuilder(connectionString) { Username = "themis_migrator", Password = "themis" }.ConnectionString;
+        string migrator = new NpgsqlConnectionStringBuilder(connectionString) { Username = "themis_migrator", Password = TestRolePassword }.ConnectionString;
         int exitCode = await Themis.Migrator.Program.Main(["--connection", migrator, "--fixture", "milestone-1"]);
         if (exitCode != 0)
         {
@@ -138,9 +153,9 @@ public sealed class PostgresFixture : IAsyncLifetime
         }
     }
 
-    /// <summary>Connection string for a login role against the test database (development password).</summary>
+    /// <summary>Connection string for a login role against the test database (the test-only placeholder password).</summary>
     public string ConnectionStringFor(string role) =>
-        new NpgsqlConnectionStringBuilder(SuperuserConnectionString) { Username = role, Password = "themis" }.ConnectionString;
+        new NpgsqlConnectionStringBuilder(SuperuserConnectionString) { Username = role, Password = TestRolePassword }.ConnectionString;
 
     public static async Task<NpgsqlConnection> OpenAsync(string connectionString, CancellationToken cancellationToken)
     {

@@ -13,6 +13,8 @@ How to add a drift dump when a milestone tag is cut, from a checkout of the tag 
 ```bash
 psql "host=localhost user=postgres password=postgres dbname=postgres" -c 'CREATE DATABASE themis_tag'
 psql "host=localhost user=postgres password=postgres dbname=themis_tag" -f db/bootstrap/01-roles.sql
+# From milestone 2 step 2a the role script sets no password (RR-65); a tag that has the psql script needs it as well:
+psql "host=localhost user=postgres password=postgres dbname=themis_tag" -v ON_ERROR_STOP=1 -v themis_migrator_password=themis -v themis_app_password=themis -v themis_reporting_password=themis -f db/bootstrap/02-role-passwords.psql
 dotnet run --project src/Themis.Migrator -- --connection "Host=localhost;Database=themis_tag;Username=themis_migrator;Password=themis"
 { pg_dump "host=localhost user=postgres password=postgres dbname=themis_tag" --schema-only --no-sync; pg_dump "host=localhost user=postgres password=postgres dbname=themis_tag" --data-only --column-inserts --no-sync --exclude-table-data=kernel.audit_event; } | grep -v '^\\restrict\|^\\unrestrict' > db/migrations/drift/<tag>.sql
 ```

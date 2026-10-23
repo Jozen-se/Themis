@@ -89,7 +89,7 @@ public static partial class SettingKeys
 
     public const int MaxLength = 100;
 
-    [GeneratedRegex("^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$")]
+    [GeneratedRegex("^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+\\z")]
     private static partial Regex Pattern();
 
     /// <summary>Unique, dotted, lower case: an area, a dot, a name (Phase 0 Specification, SettingDefinition.key).</summary>
