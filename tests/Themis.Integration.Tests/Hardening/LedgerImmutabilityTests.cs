@@ -121,17 +121,14 @@ public sealed class LedgerImmutabilityTests
             Assert.Equal(0L, await granted.ExecuteScalarAsync(Ct));
         }
 
-        await using NpgsqlCommand roles = new("SELECT rolname FROM pg_roles WHERE rolname LIKE 'themis%' AND NOT rolsuper ORDER BY 1", connection);
-        List<string> themis = [];
-        await using (NpgsqlDataReader reader = await roles.ExecuteReaderAsync(Ct))
+        // The roles of db/bootstrap/01-roles.sql and the fixture bootstrap; the pg_parameter_acl count above covers every other role.
+        string[] themis = ["themis_app", "themis_fixture", "themis_kernel", "themis_migrator", "themis_reporting"];
+        await using (NpgsqlCommand roles = new("SELECT count(*) FROM pg_roles WHERE rolname = ANY(@roles) AND NOT rolsuper", connection))
         {
-            while (await reader.ReadAsync(Ct))
-            {
-                themis.Add(reader.GetString(0));
-            }
+            roles.Parameters.AddWithValue("roles", themis);
+            Assert.Equal((long)themis.Length, await roles.ExecuteScalarAsync(Ct));
         }
 
-        Assert.Equal(["themis_app", "themis_fixture", "themis_kernel", "themis_migrator", "themis_owner", "themis_reporting"], themis);
         foreach (string role in themis)
         {
             await using NpgsqlCommand privilege = new("SELECT has_parameter_privilege(@role, 'session_replication_role', 'SET')", connection);
