@@ -32,6 +32,7 @@ public static class FixtureContracts
         new CommandRoute<CreateCounter, CounterSnapshot>("/v1/fixture/counters"),
         new CommandRoute<TouchCounter, CounterSnapshot>("/v1/fixture/counters/{id}/touch"),
         new CommandRoute<TouchPair, TouchPairSnapshot>("/v1/fixture/counters/touch-pair"),
+        new CommandRoute<ProbeRoleReset, CounterSnapshot>("/v1/fixture/counters/{id}/probe-role"),
     ];
 }
 
@@ -54,6 +55,9 @@ public enum FixtureFailure
 
     /// <summary>The handler tries to insert into kernel.audit_event as themis_fixture: PostgreSQL refuses with 42501 (I-14, R-DB-01).</summary>
     WriteKernelTable,
+
+    /// <summary>The handler writes a sample past its numeric(20,4) column: PostgreSQL raises 22003, which outside the posting service is a 500 (RR-83).</summary>
+    NumericOverflowAfterWrite,
 }
 
 /// <summary>Creates a counter row in schema fixture for a company, optionally at a site; the scope is in the body (Build Brief, Authorisation).</summary>
@@ -73,6 +77,15 @@ public sealed record TouchCounter(Guid Id, long ExpectedVersion, long Increment,
 /// </summary>
 [Command(FixtureContracts.TouchPermission)]
 public sealed record TouchPair(Guid FirstId, Guid SecondId, long Increment) : ICommand<TouchPairSnapshot>;
+
+/// <summary>
+/// The RR-62 probe: takes the connection from IUnitOfWork.ForRoleAsync as themis_fixture, calls a kernel Contracts
+/// service (the settings reader), then reads the counter without switching again. Through raw ADO.NET the read runs
+/// as themis_app and is refused with 42501; through the fixture's Entity Framework context its interceptor switches
+/// first and the read succeeds. Runs under FIXTURE.TOUCH; the scope is the counter's.
+/// </summary>
+[Command(FixtureContracts.TouchPermission)]
+public sealed record ProbeRoleReset(Guid Id, bool ThroughEntityFramework) : ICommand<CounterSnapshot>;
 
 /// <summary>Both counters after a touch pair.</summary>
 public sealed record TouchPairSnapshot(CounterSnapshot First, CounterSnapshot Second);

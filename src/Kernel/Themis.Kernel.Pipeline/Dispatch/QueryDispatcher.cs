@@ -20,7 +20,8 @@ namespace Themis.Kernel.Pipeline.Dispatch;
 /// the end (R-DB-01): the subject's User row (403 subject_unknown, user_disabled), the query's scope from its own
 /// data or the record it names (403 scope_undeclared), and the permission TYPE.READ in that scope (403
 /// permission_missing, out_of_scope), all under R-SEC-01 and D-47; then the handler's result as JSON or problem
-/// details (R-API-03). No idempotency, audit or outbox: a query changes nothing.
+/// details (R-API-03). The role is reset to themis_app immediately before the scope resolver and the handler, as in
+/// the command dispatcher (RR-62). No idempotency, audit or outbox: a query changes nothing.
 /// </summary>
 internal sealed partial class QueryDispatcher : IQueryDispatcher
 {
@@ -98,6 +99,8 @@ internal sealed partial class QueryDispatcher : IQueryDispatcher
             Principal principal = resolved.Value;
             using IDisposable? userScope = _logger.BeginScope(new Dictionary<string, object> { ["UserId"] = principal.UserId.ToString() });
 
+            // RR-62: the scope resolver and the handler are module code, so each starts as themis_app.
+            await unitOfWork.ResetRoleAsync(cancellationToken);
             Result<RequestScope> scope = await ScopeSources.ResolveAsync(query, unitOfWork, _services, cancellationToken);
             if (scope.IsFailure)
             {
@@ -113,6 +116,7 @@ internal sealed partial class QueryDispatcher : IQueryDispatcher
             }
 
             IQueryHandler<TQuery, TResult> handler = _services.GetRequiredService<IQueryHandler<TQuery, TResult>>();
+            await unitOfWork.ResetRoleAsync(cancellationToken);
             Result<TResult> result = await handler.HandleAsync(query, new QueryContext(principal, unitOfWork), cancellationToken);
             if (!result.IsSuccess)
             {

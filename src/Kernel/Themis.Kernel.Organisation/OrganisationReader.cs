@@ -14,7 +14,17 @@ internal sealed class OrganisationReader : IOrganisationReader
 {
     private const string CompanyColumns = "id, code, legal_name, country_code, base_currency, time_zone, fiscal_year_start_month, rounding_mode, tax_rounding_level, status, version";
 
-    public async Task<CompanyInfo?> GetCompanyAsync(IUnitOfWork unitOfWork, Guid companyId, CancellationToken cancellationToken)
+    // RR-62: every read hands the connection back as themis_app on successful return.
+    public Task<CompanyInfo?> GetCompanyAsync(IUnitOfWork unitOfWork, Guid companyId, CancellationToken cancellationToken) =>
+        GetCompanyCoreAsync(unitOfWork, companyId, cancellationToken).ThenResetRoleAsync(unitOfWork, cancellationToken);
+
+    public Task<WarehouseInfo?> GetWarehouseAsync(IUnitOfWork unitOfWork, Guid warehouseId, CancellationToken cancellationToken) =>
+        GetWarehouseCoreAsync(unitOfWork, warehouseId, cancellationToken).ThenResetRoleAsync(unitOfWork, cancellationToken);
+
+    public Task<Result<FiscalPeriodInfo>> ResolveFiscalPeriodAsync(IUnitOfWork unitOfWork, Guid companyId, BusinessDate businessDate, CancellationToken cancellationToken) =>
+        ResolveFiscalPeriodCoreAsync(unitOfWork, companyId, businessDate, cancellationToken).ThenResetRoleAsync(unitOfWork, cancellationToken);
+
+    private static async Task<CompanyInfo?> GetCompanyCoreAsync(IUnitOfWork unitOfWork, Guid companyId, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(unitOfWork);
         IReadOnlyList<CompanyInfo> rows = await unitOfWork.QueryAsync(DatabaseRole.Kernel,
@@ -25,7 +35,7 @@ internal sealed class OrganisationReader : IOrganisationReader
         return rows.Count == 0 ? null : rows[0];
     }
 
-    public async Task<WarehouseInfo?> GetWarehouseAsync(IUnitOfWork unitOfWork, Guid warehouseId, CancellationToken cancellationToken)
+    private static async Task<WarehouseInfo?> GetWarehouseCoreAsync(IUnitOfWork unitOfWork, Guid warehouseId, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(unitOfWork);
         IReadOnlyList<WarehouseInfo> rows = await unitOfWork.QueryAsync(DatabaseRole.Kernel,
@@ -58,7 +68,7 @@ internal sealed class OrganisationReader : IOrganisationReader
         return BusinessDate.InZone(instant, company.TimeZone);
     }
 
-    public async Task<Result<FiscalPeriodInfo>> ResolveFiscalPeriodAsync(IUnitOfWork unitOfWork, Guid companyId, BusinessDate businessDate, CancellationToken cancellationToken)
+    private static async Task<Result<FiscalPeriodInfo>> ResolveFiscalPeriodCoreAsync(IUnitOfWork unitOfWork, Guid companyId, BusinessDate businessDate, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(unitOfWork);
         IReadOnlyList<FiscalPeriodInfo> rows = await unitOfWork.QueryAsync(DatabaseRole.Kernel,

@@ -10,7 +10,13 @@
     <ProjectReference Include="../Themis.Kernel.Primitives/Themis.Kernel.Primitives.csproj" />
   </ItemGroup>
 
+  <!-- RR-62: the kernel capabilities that implement Contracts services share the internal role reset (KernelServiceRole). -->
   <ItemGroup>
+    <InternalsVisibleTo Include="Themis.Kernel.Identity" />
+    <InternalsVisibleTo Include="Themis.Kernel.Organisation" />
+    <InternalsVisibleTo Include="Themis.Kernel.Settings" />
+    <InternalsVisibleTo Include="Themis.Kernel.Documents" />
+    <InternalsVisibleTo Include="Themis.Kernel.Posting" />
     <InternalsVisibleTo Include="Themis.Architecture.Tests" />
     <InternalsVisibleTo Include="Themis.Kernel.Tests" />
   </ItemGroup>

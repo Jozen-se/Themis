@@ -29,6 +29,10 @@ internal static class FixtureModuleServices
         services.AddScoped<ICommandHandler<TouchPair, TouchPairSnapshot>, TouchPairHandler>();
         services.AddScoped<IScopeResolver<TouchPair>, TouchPairScopeResolver>();
         services.AddSingleton<ICommandValidator<CreateCounter>, CreateCounterValidator>();
+        // RR-62: the role probe after a call into the kernel (docs/development/test-seams.md).
+        services.AddSingleton<IRoleProbeStore, RoleProbeStore>();
+        services.AddScoped<ICommandHandler<ProbeRoleReset, CounterSnapshot>, ProbeRoleResetHandler>();
+        services.AddScoped<IScopeResolver<ProbeRoleReset>, ProbeRoleResetScopeResolver>();
         return services;
     }
 }

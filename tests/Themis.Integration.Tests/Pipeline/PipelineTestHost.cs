@@ -12,9 +12,11 @@ using Npgsql;
 using Themis.FixtureModule;
 using Themis.FixtureModule.Application;
 using Themis.FixtureModule.Contracts;
+using Themis.Kernel.Contracts.Commands;
 using Themis.Kernel.Contracts.Documents;
 using Themis.Kernel.Contracts.MasterData;
 using Themis.Kernel.Contracts.Organisation;
+using Themis.Kernel.Contracts.Security;
 using Themis.Kernel.Contracts.Settings;
 using Themis.Kernel.Documents;
 using Themis.Kernel.Identity;
@@ -129,6 +131,10 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         builder.Services.AddSingleton<ISettingDefinitionSeam>(provider => provider.GetRequiredService<TestSettingDefinitionSeam>());
         builder.Services.AddSingleton<TestSettingWriteSeam>();
         builder.Services.AddSingleton<ISettingWriteSeam>(provider => provider.GetRequiredService<TestSettingWriteSeam>());
+        // RR-62: the dispatcher's role probe (docs/development/test-seams.md).
+        builder.Services.AddScoped<RoleProbeRecorder>();
+        builder.Services.AddScoped<IScopeResolver<RoleProbe>, RoleProbeScopeResolver>();
+        builder.Services.AddScoped<ICommandHandler<RoleProbe, RoleProbeResult>, RoleProbeHandler>();
         builder.Services.AddKernelOrganisation();
         builder.Services.AddKernelSettings();
         builder.Services.AddKernelMasterData();
@@ -143,6 +149,7 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         app.UseKernelRequestPipeline();
         app.UseAuthentication();
         app.MapCommandRoutes(FixtureContracts.Routes);
+        app.MapCommandRoutes(RoleProbeRoutes.Commands);
         app.MapQuery<GetCompany, CompanyInfo>(OrganisationRoutes.Company);
         app.MapCommandRoutes(MasterDataRoutes.Commands);
         app.MapQuery<GetItem, ItemView>(MasterDataRoutes.Item);

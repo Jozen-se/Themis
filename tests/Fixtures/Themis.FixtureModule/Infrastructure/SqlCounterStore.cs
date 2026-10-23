@@ -53,6 +53,12 @@ internal sealed class SqlCounterStore : ICounterStore
             null,
             cancellationToken);
 
+    public Task OverflowSampleAsync(IUnitOfWork unitOfWork, Guid id, CancellationToken cancellationToken) =>
+        unitOfWork.ExecuteAsync(Role,
+            $"UPDATE {Table} SET sample = sample * 1e20 + 1e17 WHERE id = @id",
+            new Dictionary<string, object?> { ["id"] = id },
+            cancellationToken);
+
     private static Counter Read(DbDataReader reader) =>
         new(reader.GetGuid(0), reader.GetGuid(1), reader.IsDBNull(2) ? null : reader.GetGuid(2), reader.GetInt64(3), reader.GetInt64(4), reader.GetDecimal(5), reader.GetBoolean(6));
 

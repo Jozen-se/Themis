@@ -60,7 +60,8 @@ public sealed class AccessControlTests : IAsyncLifetime
         Assert.Equal(AccessDenied.SubjectUnknown, system.Primary!.Code);
         Assert.All(new[] { unknown, disabled, system }, result => Assert.Equal("R-SEC-01", result.Primary!.RuleId));
         Assert.All(new[] { unknown, disabled, system }, result => Assert.Equal(ErrorKind.Forbidden, result.Primary!.Kind));
-        Assert.Equal("themis_kernel", DatabaseRoleOf(unitOfWork));
+        // The reads ran as themis_kernel (themis_app is refused on kernel.user_account); RR-62: the service hands the connection back as themis_app.
+        Assert.Equal("none", DatabaseRoleOf(unitOfWork));
     }
 
     [Fact]

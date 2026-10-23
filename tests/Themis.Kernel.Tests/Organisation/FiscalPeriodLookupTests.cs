@@ -29,8 +29,28 @@ public sealed class FiscalPeriodLookupTests
         Assert.Equal("fiscal_period_not_found", none.Primary!.Code);
     }
 
-    /// <summary>A unit of work that answers every query with fixed rows, read through a record-backed data reader.</summary>
-    private sealed class RowsUnitOfWork : IUnitOfWork
+    [Fact]
+    public async Task RR_62_the_period_lookup_resets_the_role_on_successful_return_and_never_after_a_throw()
+    {
+        OrganisationReader reader = new();
+        BusinessDate date = new(new DateOnly(2026, 6, 15));
+        object[] period = [Guid.NewGuid(), Guid.NewGuid(), 6, new DateOnly(2026, 6, 1), new DateOnly(2026, 6, 30), "Open"];
+
+        RowsUnitOfWork found = new([period]);
+        await reader.ResolveFiscalPeriodAsync(found, Guid.NewGuid(), date, CancellationToken.None);
+        RowsUnitOfWork missing = new([]);
+        await reader.ResolveFiscalPeriodAsync(missing, Guid.NewGuid(), date, CancellationToken.None);
+        RowsUnitOfWork defect = new([period, period]);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => reader.ResolveFiscalPeriodAsync(defect, Guid.NewGuid(), date, CancellationToken.None));
+
+        Assert.Equal((1, 1, 0), (found.Resets, missing.Resets, defect.Resets));
+    }
+
+    /// <summary>
+    /// A kernel unit of work that answers every query with fixed rows, read through a record-backed data reader, and
+    /// counts the role resets a kernel Contracts service makes on return (RR-62).
+    /// </summary>
+    private sealed class RowsUnitOfWork : IKernelUnitOfWork
     {
         private readonly object[][] _rows;
 
@@ -39,13 +59,33 @@ public sealed class FiscalPeriodLookupTests
             _rows = rows;
         }
 
+        public int Resets { get; private set; }
+
         public DatabaseRole? CurrentRole => null;
 
-        public DbConnection Connection => throw new NotSupportedException();
-
-        public DbTransaction Transaction => throw new NotSupportedException();
-
         public Task EnsureRoleAsync(DatabaseRole role, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task<UnitOfWorkConnection> ForRoleAsync(DatabaseRole role, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task ResetRoleAsync(CancellationToken cancellationToken)
+        {
+            Resets++;
+            return Task.CompletedTask;
+        }
+
+        public Task SavepointAsync(string name, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task RollbackToSavepointAsync(string name, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task ReleaseSavepointAsync(string name, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<bool> TryAdvisoryLockAsync(long key, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task CommitAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task RollbackAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
         public Task<int> ExecuteAsync(DatabaseRole role, string sql, IReadOnlyDictionary<string, object?>? parameters, CancellationToken cancellationToken) => Task.FromResult(0);
 

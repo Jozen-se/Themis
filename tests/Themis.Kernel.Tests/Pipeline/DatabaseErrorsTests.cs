@@ -53,14 +53,16 @@ public sealed class DatabaseErrorsTests
     }
 
     [Fact]
-    public void RR_46_a_numeric_overflow_maps_to_amount_out_of_range_under_R_DOC_01_and_a_trigger_backstop_never_maps()
+    public void RR_83_a_numeric_overflow_and_every_trigger_backstop_stay_errors_and_are_never_mapped()
     {
-        (PostgresException Exception, Error Error)? overflow = DatabaseErrors.MapRejection(Postgres("22003"), [ItemNumber]);
-
-        Assert.NotNull(overflow);
-        Assert.Equal(("R-DOC-01", "amount_out_of_range"), (overflow.Value.Error.RuleId, overflow.Value.Error.Code));
+        // RR-83: the dispatcher no longer maps 22003; the posting service turns its own overflow into its rejection.
+        Assert.Null(DatabaseErrors.MapRejection(Postgres("22003"), [ItemNumber]));
+        Assert.Null(DatabaseErrors.MapRejection(new DbUpdateException("wrapped", Postgres("22003")), [ItemNumber]));
         // RR-47: the deferred triggers raise 23514 with their own constraint name; never retried, never mapped.
         Assert.Null(DatabaseErrors.MapRejection(Postgres("23514", "ct_journal_entry_balanced"), [ItemNumber]));
+        // D-60: the immutability triggers raise 23514 too; never retried, never mapped.
+        Assert.Null(DatabaseErrors.MapRejection(Postgres("23514", "ct_journal_entry_immutable"), [ItemNumber]));
+        Assert.False(DatabaseErrors.IsRetryable(Postgres("23514", "ct_audit_event_immutable")));
         Assert.Null(DatabaseErrors.MapRejection(new InvalidOperationException("not a database error"), [ItemNumber]));
     }
 }

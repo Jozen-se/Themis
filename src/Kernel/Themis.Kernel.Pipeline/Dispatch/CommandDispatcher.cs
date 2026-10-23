@@ -18,7 +18,10 @@ namespace Themis.Kernel.Pipeline.Dispatch;
 /// Runs one command through the kernel pipeline (brief, One command, one transaction):
 /// <list type="number">
 /// <item>A signed-in subject (401) and an Idempotency-Key (400).</item>
-/// <item>One connection as themis_app, one transaction; every statement switches to its owning role (D-41, R-DB-01).</item>
+/// <item>One connection as themis_app, one transaction; every statement switches to its owning role (D-41, R-DB-01).
+/// Immediately before each call into module code (the scope resolver and the handler) the role is reset to
+/// themis_app, and the kernel Contracts services reset it on return, so a module statement that does not switch
+/// is refused (RR-62).</item>
 /// <item>Inside the transaction, before any business statement (Build Brief, Authorisation): the subject's User row
 /// becomes the principal (403 subject_unknown, user_disabled); then the command's validators run (400, pure, never
 /// stored; after the user so that an unknown subject learns nothing from a validation answer, RR-51); then the
@@ -32,8 +35,9 @@ namespace Themis.Kernel.Pipeline.Dispatch;
 /// processed as new; a failure, a 412 or a retry rolls the delete back with the rest (RR-42).</item>
 /// <item>The handler runs inside a savepoint. A rejection rolls back to the savepoint, so the business writes
 /// disappear while the transaction stays open to store the rejection as the key's result (R-API-03). A unique
-/// violation of a registered business-key constraint (RR-45) and a numeric overflow (RR-46) raised inside the
-/// handler are rejections too, mapped and stored the same way; any other database failure is an error. Not stored:
+/// violation of a registered business-key constraint (RR-45) raised inside the handler is a rejection too, mapped
+/// and stored the same way; any other database failure is an error, a numeric overflow outside the posting service
+/// included (RR-83). Not stored:
 /// authorisation and validation outcomes, the 409 duplicate, a missing If-Match (428) and a stale version (412),
 /// so a retry with the fresh version runs afresh (R-API-02; owner's conditions on pull request 5).</item>
 /// <item>On success the buffered audit events and outbox rows are written as themis_kernel (R-AUD-01, D-44); the
@@ -184,6 +188,8 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
         }
 
         // D-47: the command names its scope from its own data or the record it loads; a missing record is a 404.
+        // RR-62: the scope resolver is module code, so it starts as themis_app.
+        await unitOfWork.ResetRoleAsync(cancellationToken);
         Result<RequestScope> scope = await ScopeSources.ResolveAsync(command, unitOfWork, _services, cancellationToken);
         if (scope.IsFailure)
         {
@@ -235,6 +241,9 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
         CommandContext context = new(CommandId.New(), correlationId, principal, idempotencyKey, now, unitOfWork);
         ICommandHandler<TCommand, TResult> handler = _services.GetRequiredService<ICommandHandler<TCommand, TResult>>();
 
+        // RR-62: the handler is module code, so it starts as themis_app; the savepoint is taken after the reset, so a
+        // rollback to it restores themis_app too.
+        await unitOfWork.ResetRoleAsync(cancellationToken);
         await unitOfWork.SavepointAsync(BusinessSavepoint, cancellationToken);
         Result<TResult> result;
         try
@@ -243,8 +252,8 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
         }
         catch (Exception exception) when (DatabaseErrors.MapRejection(exception, _uniqueRules) is { } mapped)
         {
-            // RR-45 and RR-46: a unique violation of a mapped business key, or a numeric overflow, raised inside the handler
-            // is the command's rejection, not an error. Caught around the handler only, never around the commit; the
+            // RR-45: a unique violation of a mapped business key raised inside the handler is the command's rejection,
+            // not an error. Caught around the handler only, never around the commit; the
             // rollback to the savepoint below clears the aborted state and the rejection is stored like any other.
             LogMappedDatabaseRejection(_logger, metadata.Name, mapped.Exception.SqlState, mapped.Exception.ConstraintName, mapped.Error.Code, mapped.Error.RuleId);
             result = Result<TResult>.Failure([mapped.Error]);
@@ -301,7 +310,7 @@ internal sealed partial class CommandDispatcher : ICommandDispatcher
     [LoggerMessage(Level = LogLevel.Information, Message = "Command {CommandName} found an expired idempotency record for its key; the record is removed and the key processed as new (RR-42).")]
     private static partial void LogExpiredRecordRemoved(ILogger logger, string commandName);
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Command {CommandName} hit SQLSTATE {SqlState} on {Constraint} inside the handler, mapped to {Code} ({RuleId}) and stored as its rejection (RR-45, RR-46).")]
+    [LoggerMessage(Level = LogLevel.Information, Message = "Command {CommandName} hit SQLSTATE {SqlState} on {Constraint} inside the handler, mapped to {Code} ({RuleId}) and stored as its rejection (RR-45).")]
     private static partial void LogMappedDatabaseRejection(ILogger logger, string commandName, string sqlState, string? constraint, string code, string? ruleId);
 
     private static string Outcome(CommandResponse response) => response.Replayed ? "replayed" : response.IsSuccess ? "success" : "rejected";

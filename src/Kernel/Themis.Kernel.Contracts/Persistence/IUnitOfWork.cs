@@ -12,14 +12,16 @@ public interface IUnitOfWork
     /// <summary>The role the connection currently runs as; null before the first switch.</summary>
     DatabaseRole? CurrentRole { get; }
 
-    /// <summary>The shared connection, for a module's data context to enlist in with its transaction.</summary>
-    DbConnection Connection { get; }
-
-    /// <summary>The shared transaction, for a module's data context to enlist in.</summary>
-    DbTransaction Transaction { get; }
-
     /// <summary>Issues SET LOCAL ROLE when the current role differs (R-DB-01).</summary>
     Task EnsureRoleAsync(DatabaseRole role, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The shared connection and transaction, for a module's data context to enlist in, handed out only after the
+    /// connection switched to <paramref name="role"/> (RR-62, R-DB-01). The role holds until the next call into the
+    /// kernel, which hands the connection back as themis_app; a module's data context therefore switches again before
+    /// each statement through a command interceptor that calls <see cref="EnsureRoleAsync"/>.
+    /// </summary>
+    Task<UnitOfWorkConnection> ForRoleAsync(DatabaseRole role, CancellationToken cancellationToken);
 
     Task<int> ExecuteAsync(DatabaseRole role, string sql, IReadOnlyDictionary<string, object?>? parameters, CancellationToken cancellationToken);
 
@@ -34,6 +36,13 @@ public interface IUnitOfWork
 /// </summary>
 public interface IKernelUnitOfWork : IUnitOfWork, IAsyncDisposable
 {
+    /// <summary>
+    /// SET LOCAL ROLE NONE and forget the tracked role, so the connection runs as themis_app again (RR-62, R-DB-01).
+    /// Only on a healthy transaction: after a failed statement PostgreSQL answers 25P02, which would hide the
+    /// original SQLSTATE (40P01, 40001, 23505, 22003).
+    /// </summary>
+    Task ResetRoleAsync(CancellationToken cancellationToken);
+
     Task SavepointAsync(string name, CancellationToken cancellationToken);
 
     Task RollbackToSavepointAsync(string name, CancellationToken cancellationToken);
@@ -47,6 +56,9 @@ public interface IKernelUnitOfWork : IUnitOfWork, IAsyncDisposable
 
     Task RollbackAsync(CancellationToken cancellationToken);
 }
+
+/// <summary>The shared connection and transaction a module's data context enlists in (RR-62).</summary>
+public sealed record UnitOfWorkConnection(DbConnection Connection, DbTransaction Transaction);
 
 /// <summary>Opens the command's connection as themis_app and begins its transaction. Kernel use only.</summary>
 public interface IUnitOfWorkFactory

@@ -19,7 +19,11 @@ internal sealed class NumberSeriesService : INumberSeriesService
 {
     public const string SeriesMissing = "number_series_missing";
 
-    public async Task<Result<IReadOnlyList<NumberTaken>>> TakeAsync(IUnitOfWork unitOfWork, Guid companyId, IReadOnlyList<NumberRequest> requests, DateTimeOffset now, UserId takenBy, CancellationToken cancellationToken)
+    // RR-62: hands the connection back as themis_app on successful return.
+    public Task<Result<IReadOnlyList<NumberTaken>>> TakeAsync(IUnitOfWork unitOfWork, Guid companyId, IReadOnlyList<NumberRequest> requests, DateTimeOffset now, UserId takenBy, CancellationToken cancellationToken) =>
+        TakeCoreAsync(unitOfWork, companyId, requests, now, takenBy, cancellationToken).ThenResetRoleAsync(unitOfWork, cancellationToken);
+
+    private static async Task<Result<IReadOnlyList<NumberTaken>>> TakeCoreAsync(IUnitOfWork unitOfWork, Guid companyId, IReadOnlyList<NumberRequest> requests, DateTimeOffset now, UserId takenBy, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(unitOfWork);
         ArgumentNullException.ThrowIfNull(requests);
