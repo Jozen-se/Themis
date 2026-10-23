@@ -121,6 +121,20 @@ public sealed class SettingCatalogSeederTests
         }
     }
 
+    [Fact]
+    public async Task RR_95_the_key_of_a_setting_definition_has_one_unique_structure_the_alternate_key_and_no_duplicate_index()
+    {
+        await using NpgsqlConnection connection = await PostgresFixture.OpenAsync(_db.SuperuserConnectionString, Ct);
+
+        Assert.Equal(0L, await ScalarAsync(connection, "SELECT count(*) FROM pg_indexes WHERE schemaname = 'kernel' AND indexname = 'ux_setting_definition_key'"));
+        Assert.Equal(1L, await ScalarAsync(connection, "SELECT count(*) FROM pg_constraint WHERE conname = 'ak_setting_definition_key' AND contype = 'u'"));
+        // Exactly one unique index covers kernel.setting_definition.key alone: the one behind the alternate key.
+        Assert.Equal(1L, await ScalarAsync(connection,
+            "SELECT count(*) FROM pg_index i JOIN pg_class t ON t.oid = i.indrelid JOIN pg_namespace n ON n.oid = t.relnamespace " +
+            "JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = i.indkey[0] " +
+            "WHERE n.nspname = 'kernel' AND t.relname = 'setting_definition' AND i.indisunique AND i.indnatts = 1 AND a.attname = 'key'"));
+    }
+
     private static async Task<object?> ScalarAsync(NpgsqlConnection connection, string sql, params (string Name, object? Value)[] parameters)
     {
         await using NpgsqlCommand command = new(sql, connection);

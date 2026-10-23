@@ -63,7 +63,9 @@ jobs:
           # Over the compose network, so the server asks for the password (loopback inside the container may be trusted).
           docker run --rm --network themis_default -e PGPASSWORD="$THEMIS_APP_PASSWORD" postgres:18 psql --no-psqlrc -v ON_ERROR_STOP=1 -h postgres -U themis_app -d themis -c 'SELECT current_user'
           docker run --rm --network themis_default -e PGPASSWORD="$THEMIS_REPORTING_PASSWORD" postgres:18 psql --no-psqlrc -v ON_ERROR_STOP=1 -h postgres -U themis_reporting -d themis -c 'SELECT current_user'
-          if docker run --rm --network themis_default -e PGPASSWORD=wrong postgres:18 psql --no-psqlrc -h postgres -U themis_app -d themis -c 'SELECT 1'; then echo "themis_app logged in with a wrong password."; exit 1; fi
+          if refused=$(docker run --rm --network themis_default -e PGPASSWORD=wrong postgres:18 psql --no-psqlrc -h postgres -U themis_app -d themis -c 'SELECT 1' 2>&1); then echo "themis_app logged in with a wrong password."; exit 1; fi
+          echo "$refused"
+          if ! echo "$refused" | grep -q 'password authentication failed for user "themis_app"'; then echo "The wrong password was refused for another reason."; exit 1; fi
 
       - name: The password script stops on a missing variable and names it (RR-65)
         run: |

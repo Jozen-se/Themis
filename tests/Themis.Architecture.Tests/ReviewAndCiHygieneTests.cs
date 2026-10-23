@@ -44,6 +44,40 @@ public sealed partial class ReviewAndCiHygieneTests
     [GeneratedRegex(@"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|mailto:", RegexOptions.IgnoreCase)]
     private static partial Regex ContactAddress();
 
+    [GeneratedRegex(@"^\s*ports:\s*$", RegexOptions.Multiline)]
+    private static partial Regex PortsKey();
+
+    [GeneratedRegex(@"^\s*-\s*""?(?<binding>[^""\s]+)""?\s*$")]
+    private static partial Regex ListEntry();
+
+    [Fact]
+    public void RR_79_every_port_the_compose_stack_publishes_is_bound_to_127_0_0_1_only()
+    {
+        string[] bindings = [.. PublishedPorts(File.ReadAllLines(Path.Combine(RepositoryRoot(), "compose.yaml")))];
+
+        Assert.True(bindings.Length >= 2, $"compose.yaml publishes {bindings.Length} ports; Postgres and Keycloak are expected.");
+        Assert.All(bindings, binding => Assert.True(binding.StartsWith("127.0.0.1:", StringComparison.Ordinal), $"compose.yaml publishes {binding} beyond the loopback interface (RR-79)."));
+    }
+
+    [Fact]
+    public void RR_79_the_port_reader_reports_a_binding_on_all_interfaces()
+    {
+        string[] compose =
+        [
+            "services:",
+            "  postgres:",
+            "    ports:",
+            "      - \"127.0.0.1:5432:5432\"",
+            "  keycloak:",
+            "    ports:",
+            "      - \"8080:8080\"",
+            "    volumes:",
+            "      - keycloak-data:/opt/keycloak/data",
+        ];
+
+        Assert.Equal(["127.0.0.1:5432:5432", "8080:8080"], PublishedPorts(compose));
+    }
+
     [Fact]
     public void RR_104_every_workflow_job_runs_on_ubuntu_24_04_and_none_on_a_moving_label()
     {
@@ -183,6 +217,25 @@ public sealed partial class ReviewAndCiHygieneTests
         Assert.Contains("- [ ] Every conversation is resolved", template, StringComparison.Ordinal);
         Assert.DoesNotContain("Owner sign-off", template, StringComparison.Ordinal);
         Assert.DoesNotContain("explicit review", template, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>The entries of every ports: list of a compose file.</summary>
+    private static IEnumerable<string> PublishedPorts(string[] lines)
+    {
+        for (int i = 0; i < lines.Length; i++)
+        {
+            if (!PortsKey().IsMatch(lines[i]))
+            {
+                continue;
+            }
+
+            int indent = lines[i].Length - lines[i].TrimStart().Length;
+            while (i + 1 < lines.Length && lines[i + 1].Length - lines[i + 1].TrimStart().Length > indent && ListEntry().Match(lines[i + 1]) is { Success: true } entry)
+            {
+                i++;
+                yield return entry.Groups["binding"].Value;
+            }
+        }
     }
 
     /// <summary>The value of every run: key, a block scalar (| or >) with its indented lines included.</summary>

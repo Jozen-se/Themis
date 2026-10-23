@@ -26,6 +26,9 @@ public sealed class SettingScopeTests : IAsyncLifetime
     private static readonly Guid Site = Milestone1OrganisationFixture.SiteId;
     private static readonly Guid Warehouse = Milestone1OrganisationFixture.WarehouseId;
     private static readonly Guid OtherSite = Guid.Parse("00000000-0000-7000-8000-00000000a105");
+    private static readonly Guid OtherCompany = Guid.Parse("00000000-0000-7000-8000-00000000b104");
+    private static readonly Guid OtherCompanySite = Guid.Parse("00000000-0000-7000-8000-00000000b105");
+    private static readonly Guid OtherCompanyWarehouse = Guid.Parse("00000000-0000-7000-8000-00000000b106");
 
     private readonly PostgresFixture _db;
     private string _database = null!;
@@ -50,6 +53,17 @@ public sealed class SettingScopeTests : IAsyncLifetime
             "INSERT INTO kernel.site (id, company_id, code, name, created_at, created_by, updated_at, updated_by, version, extension) " +
             "VALUES (@id, @company, 'NORTH', 'North site', now(), @system, now(), @system, 1, '{}'::jsonb)",
             Ct, ("id", OtherSite), ("company", Company), ("system", Kernel.Contracts.Security.WellKnownUsers.System.Value));
+        // A second company with its own site and warehouse, for the targets that belong to another company than the body names.
+        string audit = "now(), @system, now(), @system";
+        await _host.ScalarAsync(
+            "INSERT INTO kernel.company (id, code, party_id, legal_name, organisation_number, country_code, base_currency, time_zone, fiscal_year_start_month, chart_of_accounts_id, rounding_mode, tax_rounding_level, status, created_at, created_by, updated_at, updated_by) " +
+            $"VALUES (@id, 'SE02', @party, 'Other company', '5555555556', 'SE', 'SEK', 'Europe/Stockholm', 1, @chart, 'HalfAwayFromZero', 'Line', 'Active', {audit})",
+            Ct, ("id", OtherCompany), ("party", Milestone1OrganisationFixture.CompanyPartyId), ("chart", Milestone1OrganisationFixture.ChartOfAccountsId), ("system", Kernel.Contracts.Security.WellKnownUsers.System.Value));
+        await _host.ScalarAsync($"INSERT INTO kernel.site (id, company_id, code, name, created_at, created_by, updated_at, updated_by) VALUES (@id, @company, 'MAIN', 'Other main', {audit})",
+            Ct, ("id", OtherCompanySite), ("company", OtherCompany), ("system", Kernel.Contracts.Security.WellKnownUsers.System.Value));
+        await _host.ScalarAsync($"INSERT INTO kernel.warehouse (id, site_id, company_id, code, name, is_default, status, created_at, created_by, updated_at, updated_by) VALUES (@id, @site, @company, 'MAIN', 'Other warehouse', true, 'Active', {audit})",
+            Ct, ("id", OtherCompanyWarehouse), ("site", OtherCompanySite), ("company", OtherCompany), ("system", Kernel.Contracts.Security.WellKnownUsers.System.Value));
+
         await AddSiteAdministratorAsync(MainSiteAdministratorSubject, Site);
         await AddSiteAdministratorAsync(OtherSiteAdministratorSubject, OtherSite);
     }
@@ -92,6 +106,42 @@ public sealed class SettingScopeTests : IAsyncLifetime
         CommandReply replay = await _host.PostAsync(Set, body, "scope-wh-unknown", ifMatch: "\"0\"", cancellationToken: Ct);
         Assert.Equal(400, replay.Status);
         Assert.True(replay.Replayed);
+    }
+
+    [Theory]
+    [InlineData("Site", "site_other_company")]
+    [InlineData("Warehouse", "warehouse_other_company")]
+    [InlineData("UnknownSite", "site_unknown")]
+    public async Task RR_102_D_63_a_site_or_warehouse_of_another_company_or_an_unknown_site_declares_the_bodys_company_and_is_a_400_stored_as_the_keys_result(string target, string code)
+    {
+        object body = target switch
+        {
+            "Site" => new { key = Key, level = "Site", value = "5", companyId = Company, siteId = OtherCompanySite },
+            "Warehouse" => new { key = Key, level = "Warehouse", value = "5", companyId = Company, warehouseId = OtherCompanyWarehouse },
+            _ => new { key = Key, level = "Site", value = "5", companyId = Company, siteId = Guid.NewGuid() },
+        };
+        string idempotencyKey = $"scope-foreign-{target}";
+
+        CommandReply refused = await _host.PostAsync(Set, body, idempotencyKey, ifMatch: "\"0\"", cancellationToken: Ct);
+        Assert.True(refused.Status == 400, refused.Body);
+        Assert.Equal(code, refused.Code);
+
+        CommandReply replay = await _host.PostAsync(Set, body, idempotencyKey, ifMatch: "\"0\"", cancellationToken: Ct);
+        Assert.Equal(400, replay.Status);
+        Assert.True(replay.Replayed);
+        Assert.Equal(0L, await _host.ScalarAsync("SELECT count(*) FROM kernel.setting_value WHERE definition_key = @key", Ct, ("key", Key)));
+    }
+
+    [Fact]
+    public async Task RR_102_D_63_SETTING_READ_of_an_unknown_warehouse_or_one_of_another_company_is_404()
+    {
+        CommandReply unknown = await _host.GetAsync($"/v1/kernel/settings/{Key}?companyId={Company}&warehouseId={Guid.NewGuid()}", cancellationToken: Ct);
+        Assert.Equal(404, unknown.Status);
+        Assert.Equal("warehouse_not_found", unknown.Code);
+
+        CommandReply foreign = await _host.GetAsync($"/v1/kernel/settings/{Key}?companyId={Company}&warehouseId={OtherCompanyWarehouse}", cancellationToken: Ct);
+        Assert.Equal(404, foreign.Status);
+        Assert.Equal("warehouse_not_found", foreign.Code);
     }
 
     [Fact]
