@@ -45,7 +45,7 @@ public sealed class SettingCommandTests : IAsyncLifetime
     private static object AtCompany(string key, string value) => new { key, level = "Company", companyId = Company, value };
 
     [Fact]
-    public async Task D_58_the_clerk_sets_an_installation_value_under_If_Match_0_with_one_audit_event_and_one_SETTING_CHANGED_event_and_a_replay_writes_nothing()
+    public async Task D_58_RR_101_the_settings_administrator_sets_an_installation_value_under_If_Match_0_with_one_audit_event_and_one_SETTING_CHANGED_event_and_a_replay_writes_nothing()
     {
         CommandReply reply = await _host.PostAsync(Set, Installation(Retention, "30"), "set-1", ifMatch: "\"0\"", correlationId: "corr-set-1", cancellationToken: Ct);
 
@@ -58,7 +58,7 @@ public sealed class SettingCommandTests : IAsyncLifetime
 
         Assert.Equal(1L, await _host.CountAsync("kernel.setting_value", Ct));
         Assert.Equal("30", await _host.ScalarAsync("SELECT value FROM kernel.setting_value WHERE id = @id", Ct, ("id", id)));
-        Assert.Equal(TestUsers.Clerk, await _host.ScalarAsync("SELECT recorded_by FROM kernel.setting_value WHERE id = @id", Ct, ("id", id)));
+        Assert.Equal(TestUsers.SettingsAdministrator, await _host.ScalarAsync("SELECT recorded_by FROM kernel.setting_value WHERE id = @id", Ct, ("id", id)));
 
         // R-AUD-01, D-44, D-50: one audit event for the row, one outbox event with the envelope and an empty company for an installation value.
         const string audit = "FROM kernel.audit_event WHERE command_name = 'SETTING.SET'";
@@ -173,7 +173,7 @@ public sealed class SettingCommandTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task A_value_of_the_wrong_type_or_outside_its_range_an_unknown_key_and_a_target_that_does_not_fit_the_level_are_400()
+    public async Task D_58_D_63_a_value_of_the_wrong_type_or_outside_its_range_an_unknown_key_and_a_target_that_does_not_fit_the_level_are_400()
     {
         CommandReply above = await _host.PostAsync(Set, Installation(Retention, "91"), "set-91", ifMatch: "\"0\"", cancellationToken: Ct);
         Assert.Equal(400, above.Status);
@@ -204,7 +204,7 @@ public sealed class SettingCommandTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task SETTING_CLEAR_inserts_a_Cleared_row_so_the_level_falls_through_and_clearing_an_empty_slot_is_400()
+    public async Task D_63_SETTING_CLEAR_inserts_a_Cleared_row_so_the_level_falls_through_and_clearing_an_empty_slot_is_400_setting_value_absent()
     {
         Assert.Equal(200, (await _host.PostAsync(Set, Installation(MaxLines, "50"), "set-ml", ifMatch: "\"0\"", cancellationToken: Ct)).Status);
         Assert.Equal(200, (await _host.PostAsync(Set, AtCompany(MaxLines, "20"), "set-ml-c", ifMatch: "\"0\"", cancellationToken: Ct)).Status);
@@ -233,10 +233,15 @@ public sealed class SettingCommandTests : IAsyncLifetime
         Assert.Equal(400, empty.Status);
         Assert.Equal("setting_value_absent", empty.Code);
         Assert.Equal(3L, await _host.CountAsync("kernel.setting_value", Ct));
+
+        // D-63: CLEAR of an unknown key is a 400, like SET of one.
+        CommandReply unknown = await _host.PostAsync(Clear, new { key = "nothing.here", level = "Installation" }, "clear-unknown", ifMatch: "\"0\"", cancellationToken: Ct);
+        Assert.Equal(400, unknown.Status);
+        Assert.Equal("setting_unknown", unknown.Code);
     }
 
     [Fact]
-    public async Task SETTING_READ_returns_the_default_the_column_value_and_the_definition_shape_and_an_unknown_key_is_404_while_the_preparer_may_read_but_not_write()
+    public async Task D_63_SETTING_READ_returns_the_default_the_column_value_and_the_definition_shape_an_unknown_key_is_404_and_the_preparer_may_neither_read_nor_write()
     {
         CommandReply retention = await _host.GetAsync($"/v1/kernel/settings/{Retention}", cancellationToken: Ct);
         Assert.Equal(200, retention.Status);
@@ -270,5 +275,47 @@ public sealed class SettingCommandTests : IAsyncLifetime
         Assert.Equal("permission_missing", forbidden.Code);
         CommandReply forbiddenRead = await _host.GetAsync($"/v1/kernel/settings/{Retention}", subject: TestUsers.PreparerSubject, cancellationToken: Ct);
         Assert.Equal(403, forbiddenRead.Status);
+    }
+
+    [Fact]
+    public async Task RR_98_D_63_SETTING_READ_of_the_Data_definition_security_sod_conflicts_answers_source_Data_with_the_SodConflict_rows_and_no_value_type()
+    {
+        CommandReply read = await _host.GetAsync("/v1/kernel/settings/security.sod_conflicts", cancellationToken: Ct);
+
+        Assert.True(read.Status == 200, read.Body);
+        Assert.Equal("Data", read.Json!["source"]!.GetValue<string>());
+        Assert.Equal("Data", read.Json["backing"]!.GetValue<string>());
+        Assert.Null(read.Json["valueType"]);
+        Assert.Null(read.Json["defaultValue"]);
+        Assert.Null(read.Json["value"]);
+        string[] pairs = [.. read.Json["conflictPairs"]!.AsArray().Select(pair => $"{pair!["permissionA"]!.GetValue<string>()}|{pair["permissionB"]!.GetValue<string>()}")];
+        Assert.Equal(await _host.ScalarAsync("SELECT count(*) FROM kernel.sod_conflict", Ct), (long)pairs.Length);
+        Assert.NotEmpty(pairs);
+        foreach (string pair in pairs)
+        {
+            string[] codes = pair.Split('|');
+            Assert.Equal(1L, await _host.ScalarAsync("SELECT count(*) FROM kernel.sod_conflict WHERE permission_a = @a AND permission_b = @b", Ct, ("a", codes[0]), ("b", codes[1])));
+        }
+
+        // A Planned definition has no value type either, and a definition that is not Data carries no pairs.
+        CommandReply planned = await _host.GetAsync($"/v1/kernel/settings/security.four_eyes_posting?companyId={Company}", cancellationToken: Ct);
+        Assert.True(planned.Status == 200, planned.Body);
+        Assert.Null(planned.Json!["valueType"]);
+        Assert.Equal("Default", planned.Json["source"]!.GetValue<string>());
+        Assert.Null(planned.Json["conflictPairs"]);
+    }
+
+    [Fact]
+    public async Task RR_98_D_63_the_OpenAPI_document_describes_the_conflict_pairs_of_SETTING_READ()
+    {
+        using HttpResponseMessage response = await _host.Client.GetAsync(new Uri("/openapi/v1.json", UriKind.Relative), Ct);
+        JsonNode schemas = JsonNode.Parse(await response.Content.ReadAsStringAsync(Ct))!["components"]!["schemas"]!;
+
+        JsonNode view = schemas["SettingReadView"]!["properties"]!;
+        Assert.NotNull(view["conflictPairs"]);
+        Assert.NotNull(view["valueType"]);
+        JsonNode pair = schemas["PermissionCodePair"]!["properties"]!;
+        Assert.NotNull(pair["permissionA"]);
+        Assert.NotNull(pair["permissionB"]);
     }
 }

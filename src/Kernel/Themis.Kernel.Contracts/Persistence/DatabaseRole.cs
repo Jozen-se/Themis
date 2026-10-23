@@ -17,7 +17,7 @@ public readonly partial record struct DatabaseRole
 
     public static DatabaseRole Kernel { get; } = new("themis_kernel");
 
-    [GeneratedRegex("^themis_[a-z][a-z0-9_]{0,40}$")]
+    [GeneratedRegex("^themis_[a-z][a-z0-9_]{0,40}\\z")]
     private static partial Regex Pattern();
 
     public static DatabaseRole From(string name) =>

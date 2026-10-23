@@ -1,5 +1,6 @@
 # Continuous integration (D-42). Required status checks on main: "Build and test" and "License scan".
-# Every pull request must be green here before review (CLAUDE.md, working model). Actions are pinned by commit SHA
+# Every pull request must be green here before review (CLAUDE.md, working model). Runners are pinned to
+# ubuntu-24.04; an upgrade is its own pull request (RR-104, Build Brief, CI runners). Actions are pinned by commit SHA
 # with the version as a comment, kept current by Dependabot (RR-50); a test category that executed no tests fails
 # the job (RR-41, .github/scripts/require-tests.sh).
 name: CI
@@ -26,7 +27,7 @@ env:
 jobs:
   build-and-test:
     name: Build and test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Check out
@@ -48,6 +49,39 @@ jobs:
 
       - name: Build (warnings are errors)
         run: dotnet build Themis.sln --configuration Release --no-restore
+
+      # RR-59, RR-65: the local stack itself, not only Testcontainers, starts on postgres:18 with its bootstrap, and
+      # the migrator runs against it. The passwords are CI placeholders, passed as the compose stack expects them.
+      - name: The compose stack starts and Themis.Migrator migrates it (RR-59, RR-65, RR-79)
+        env:
+          THEMIS_MIGRATOR_PASSWORD: ci-migrator-placeholder
+          THEMIS_APP_PASSWORD: ci-app-placeholder
+          THEMIS_REPORTING_PASSWORD: ci-reporting-placeholder
+        run: |
+          docker compose up -d --wait
+          dotnet run --project src/Themis.Migrator --configuration Release --no-build -- --connection "Host=127.0.0.1;Port=5432;Database=themis;Username=themis_migrator;Password=${THEMIS_MIGRATOR_PASSWORD}"
+          # Over the compose network, so the server asks for the password (loopback inside the container may be trusted).
+          docker run --rm --network themis_default -e PGPASSWORD="$THEMIS_APP_PASSWORD" postgres:18 psql --no-psqlrc -v ON_ERROR_STOP=1 -h postgres -U themis_app -d themis -c 'SELECT current_user'
+          docker run --rm --network themis_default -e PGPASSWORD="$THEMIS_REPORTING_PASSWORD" postgres:18 psql --no-psqlrc -v ON_ERROR_STOP=1 -h postgres -U themis_reporting -d themis -c 'SELECT current_user'
+          if refused=$(docker run --rm --network themis_default -e PGPASSWORD=wrong postgres:18 psql --no-psqlrc -h postgres -U themis_app -d themis -c 'SELECT 1' 2>&1); then echo "themis_app logged in with a wrong password."; exit 1; fi
+          echo "$refused"
+          if ! echo "$refused" | grep -q 'password authentication failed for user "themis_app"'; then echo "The wrong password was refused for another reason."; exit 1; fi
+
+      - name: The password script stops on a missing variable and names it (RR-65)
+        run: |
+          set +e
+          output=$(docker compose exec -T postgres psql --no-psqlrc -v ON_ERROR_STOP=1 -U postgres -d themis \
+            -v themis_migrator_password=unused -v themis_reporting_password=unused \
+            -f /themis-bootstrap/02-role-passwords.psql 2>&1)
+          status=$?
+          set -e
+          echo "$output"
+          if [ "$status" -eq 0 ]; then echo "02-role-passwords.psql succeeded without themis_app_password."; exit 1; fi
+          if ! echo "$output" | grep -q "themis_app_password is not set"; then echo "The failure does not name themis_app_password."; exit 1; fi
+
+      - name: Stop the compose stack
+        if: always()
+        run: docker compose down -v
 
       - name: Architecture tests (D-26)
         run: dotnet test --solution Themis.sln --configuration Release --no-build --filter-trait "Category=Architecture" --ignore-exit-code 8 --report-xunit-trx --results-directory TestResults/architecture
@@ -91,7 +125,7 @@ jobs:
 
   licence-scan:
     name: License scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Check out

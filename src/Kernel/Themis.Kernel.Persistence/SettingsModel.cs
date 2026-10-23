@@ -44,12 +44,17 @@ internal static class SettingsModel
             entity.Property(e => e.Retired).HasColumnName("retired");
             entity.Property(e => e.CreatedAt).HasColumnName("created_at");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
-            entity.HasIndex(e => e.Key).IsUnique().HasDatabaseName("ux_setting_definition_key");
+            // The alternate key is the key's one unique constraint; the duplicate index ux_setting_definition_key is dropped (RR-95).
             entity.HasAlternateKey(e => e.Key).HasName("ak_setting_definition_key");
             entity.ToTable(table =>
             {
                 table.HasCheckConstraint("ck_setting_definition_value_type", "value_type IN ('Integer', 'Decimal', 'Boolean', 'Code', 'Duration')");
                 table.HasCheckConstraint("ck_setting_definition_backing", "backing IN ('Setting', 'Column', 'Data', 'Planned')");
+                // D-63, RR-99: Setting and Column definitions have a value type; Data and Planned definitions have no value
+                // type, default, minimum, maximum or allowed values.
+                table.HasCheckConstraint("ck_setting_definition_shape",
+                    "(backing IN ('Setting', 'Column') AND value_type IS NOT NULL) OR " +
+                    "(backing IN ('Data', 'Planned') AND value_type IS NULL AND default_value IS NULL AND min IS NULL AND max IS NULL AND allowed_values IS NULL)");
             });
         });
 

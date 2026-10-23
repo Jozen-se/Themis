@@ -17,7 +17,7 @@ public readonly record struct SettingTarget(Guid? CompanyId = null, Guid? SiteId
     public static SettingTarget ForWarehouse(Guid companyId, Guid warehouseId, Guid? siteId = null) => new(companyId, siteId, warehouseId);
 }
 
-/// <summary>Where an effective value came from (Phase 0 Specification, SETTING.READ): a level, the definition's default, or an entity's column.</summary>
+/// <summary>Where an effective value came from (Phase 0 Specification, SETTING.READ): a level, the definition's default, an entity's column, or the rows of a Data definition's entity (D-63).</summary>
 public enum SettingSource
 {
     Default,
@@ -26,6 +26,7 @@ public enum SettingSource
     Company,
     Site,
     Warehouse,
+    Data,
 }
 
 /// <summary>The effective value of a setting at a target and where it came from; the value is the definition's text form.</summary>

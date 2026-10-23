@@ -10,7 +10,8 @@ internal sealed class SettingDefinitionRow
 
     public required string Key { get; init; }
 
-    public required string ValueType { get; set; }
+    /// <summary>Empty for Data and Planned definitions (D-63); a check holds the shape to the backing.</summary>
+    public string? ValueType { get; set; }
 
     public string? DefaultValue { get; set; }
 

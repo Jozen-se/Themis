@@ -22,6 +22,67 @@ public sealed partial class SettingCatalogCoverageTests
     [GeneratedRegex(@"(R-[A-Z0-9]{2,4}-\d{2}|RR-\d{2})")]
     private static partial Regex RuleToken();
 
+    /// <summary>
+    /// RR-97: the definition keys of this build. A rule ID check alone lets an extra key under a listed rule through
+    /// (a third R-MON-02 definition, say), so the keys are compared as well; a change to the catalogue changes this list.
+    /// </summary>
+    private static readonly string[] ExpectedKeys =
+    [
+        "company.rounding_mode", "company.tax_rounding_level", "document.discarded_draft_retention_days", "document.max_lines",
+        "document.over_delivery_tolerance_percent", "document.user_states", "fiscal_period.reopen_closed_allowed",
+        "idempotency.retention_days", "inventory.availability_components", "inventory.costing_method",
+        "inventory.negative_stock_allowed", "inventory.retroactive_cost_adjustment", "master_data.duplicate_check_fields",
+        "master_data.owner_roles", "payments.difference_tolerance", "sales.allocation_priority", "sales.credit_check_mode",
+        "sales.goods_issue_posting_point", "sales.invoice_grouping", "sales.partial_delivery_allowed", "sales.price_sources",
+        "sales.return_valuation", "security.four_eyes_posting", "security.sod_conflicts", "tax.determination",
+    ];
+
+    [Fact]
+    public void RR_97_the_catalogue_holds_exactly_the_expected_definition_keys()
+    {
+        (string[] missing, string[] extra) = CompareKeys(ExpectedKeys, SettingCatalog.Definitions.Select(definition => definition.Key));
+        Assert.True(missing.Length == 0 && extra.Length == 0, $"Catalogue keys differ from the expected list. Missing: {string.Join(", ", missing)}. Extra: {string.Join(", ", extra)} (RR-97).");
+    }
+
+    [Fact]
+    public void RR_97_the_key_comparison_reports_a_missing_and_an_extra_definition_key()
+    {
+        string[] catalogue = [.. ExpectedKeys.Where(key => key != "document.max_lines"), "sales.invented_default"];
+
+        (string[] missing, string[] extra) = CompareKeys(ExpectedKeys, catalogue);
+
+        Assert.Equal(["document.max_lines"], missing);
+        Assert.Equal(["sales.invented_default"], extra);
+    }
+
+    [Fact]
+    public void D_63_the_shape_check_refuses_a_Planned_definition_with_a_type_a_Data_definition_with_a_default_and_a_Setting_definition_without_a_type()
+    {
+        IReadOnlySet<SettingLevel> company = new HashSet<SettingLevel> { SettingLevel.Company };
+        SettingDefinition planned = new("test.planned", null, null, company, SettingBacking.Planned, "R-O2C-01", "A planned test definition.", Phase: "Phase 1");
+
+        Assert.True(planned.HasShapeOfItsBacking);
+        Assert.False((planned with { ValueType = SettingValueType.Code }).HasShapeOfItsBacking);
+        Assert.False((planned with { AllowedValues = ["Block"] }).HasShapeOfItsBacking);
+        Assert.False((planned with { Backing = SettingBacking.Data, DefaultValue = "A|B" }).HasShapeOfItsBacking);
+        Assert.False((planned with { Backing = SettingBacking.Setting, Phase = null }).HasShapeOfItsBacking);
+        Assert.True((planned with { Backing = SettingBacking.Setting, Phase = null, ValueType = SettingValueType.Integer }).HasShapeOfItsBacking);
+    }
+
+    [Fact]
+    public void D_62_security_four_eyes_posting_is_a_Planned_company_definition_for_step_13_with_the_document_type_as_planned_level()
+    {
+        SettingDefinition definition = SettingCatalog.Find("security.four_eyes_posting") ?? throw new InvalidOperationException("security.four_eyes_posting is missing.");
+        Assert.Equal(SettingBacking.Planned, definition.Backing);
+        Assert.Equal("R-SEC-03", definition.RuleId);
+        Assert.Equal("D-62", definition.DecisionId);
+        Assert.Equal([SettingLevel.Company], definition.Levels);
+        Assert.Equal("DocumentType", definition.PlannedLevels);
+        Assert.Contains("step 13", definition.Phase, StringComparison.Ordinal);
+        Assert.False(string.IsNullOrWhiteSpace(definition.Description));
+        Assert.True(definition.HasShapeOfItsBacking);
+    }
+
     [Fact]
     public void D_58_every_configurable_default_of_the_Foundation_list_is_in_the_catalogue_at_least_once_and_the_catalogue_holds_nothing_else()
     {
@@ -57,7 +118,7 @@ public sealed partial class SettingCatalogCoverageTests
     }
 
     [Fact]
-    public void Every_definition_is_well_formed_and_a_Planned_definition_names_its_phase_while_a_Column_backed_one_names_its_column()
+    public void D_63_every_definition_has_the_shape_of_its_backing_a_Planned_one_names_its_phase_and_a_Column_backed_one_its_column()
     {
         foreach (SettingDefinition definition in SettingCatalog.Definitions)
         {
@@ -68,9 +129,18 @@ public sealed partial class SettingCatalogCoverageTests
             Assert.Equal(definition.Backing == SettingBacking.Column, definition.ColumnName is not null);
             Assert.True(definition.PlannedLevels is null || definition.Backing == SettingBacking.Planned, $"{definition.Key} names planned levels without being Planned.");
             Assert.True(definition.LockedReason is null || definition.Backing == SettingBacking.Setting, $"{definition.Key} is locked but not a Setting.");
+            // D-63, RR-98, RR-99: Setting and Column carry a value type; Data and Planned carry no type, default or validation.
+            Assert.True(definition.HasShapeOfItsBacking, $"{definition.Key} ({definition.Backing}) does not have the shape of its backing (D-63).");
             // The default, where there is one, is a valid value of its own definition (a definition with an open decision has none, D-10).
             Assert.True(definition.DefaultValue is null || SettingValueFormat.IsValid(definition, definition.DefaultValue), $"{definition.Key}'s default '{definition.DefaultValue}' fails its own validation.");
         }
+    }
+
+    private static (string[] Missing, string[] Extra) CompareKeys(IEnumerable<string> expected, IEnumerable<string> actual)
+    {
+        HashSet<string> expectedSet = expected.ToHashSet(StringComparer.Ordinal);
+        HashSet<string> actualSet = actual.ToHashSet(StringComparer.Ordinal);
+        return ([.. expectedSet.Except(actualSet).Order(StringComparer.Ordinal)], [.. actualSet.Except(expectedSet).Order(StringComparer.Ordinal)]);
     }
 
     private static string Section(string markdown, string heading)

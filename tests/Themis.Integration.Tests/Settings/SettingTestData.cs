@@ -24,10 +24,14 @@ internal static class SettingTestData
     public static SettingDefinition HistoryDefinition { get; } = new(HistoryKey, SettingValueType.Integer, "0", AllLevels, SettingBacking.Setting, "R-API-01", "Test-only: a history-bearing definition at every level.", Min: "0", Max: "1000", HistoryBearing: true);
 
     /// <summary>Adds the two definitions to the host's seam and to kernel.setting_definition, beside the real catalogue.</summary>
-    public static async Task RegisterAsync(PipelineTestHost host, PostgresFixture db, CancellationToken cancellationToken)
+    public static Task RegisterAsync(PipelineTestHost host, PostgresFixture db, CancellationToken cancellationToken) =>
+        RegisterAsync(host, db.ConnectionStringFor("themis_migrator"), cancellationToken);
+
+    /// <summary>The same against another database on the server, named by its migrator connection string.</summary>
+    public static async Task RegisterAsync(PipelineTestHost host, string migratorConnectionString, CancellationToken cancellationToken)
     {
         host.SettingSeam.Add(AllLevelsDefinition);
         host.SettingSeam.Add(HistoryDefinition);
-        await SettingDefinitionSeeder.ApplyCatalogueAsync(db.ConnectionStringFor("themis_migrator"), [.. SettingCatalog.Definitions, AllLevelsDefinition, HistoryDefinition], SettingValueFormat.IsValid, TimeProvider.System.GetUtcNow(), WellKnownUsers.System, cancellationToken);
+        await SettingDefinitionSeeder.ApplyCatalogueAsync(migratorConnectionString, [.. SettingCatalog.Definitions, AllLevelsDefinition, HistoryDefinition], SettingValueFormat.IsValid, TimeProvider.System.GetUtcNow(), WellKnownUsers.System, cancellationToken);
     }
 }

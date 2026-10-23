@@ -15,7 +15,7 @@ public readonly partial record struct IdempotencyKey
 
     public string Value { get; }
 
-    [GeneratedRegex("^[A-Za-z0-9._:-]{1,128}$")]
+    [GeneratedRegex("^[A-Za-z0-9._:-]{1,128}\\z")]
     private static partial Regex Pattern();
 
     public static bool TryFrom(string? value, [NotNullWhen(true)] out IdempotencyKey key)

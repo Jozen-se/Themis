@@ -5,7 +5,7 @@ kernel with organisation, parties, items, documents and immutable ledgers, then 
 through a first financial close. C# on .NET 10, PostgreSQL, a modular monolith with enforced module boundaries.
 Apache-2.0.
 
-Status: milestone 2 (kernel complete) step 2, the settings framework (RR-12, D-58, R-SET-01): a catalogue of every configurable default in code, written to the database by the migrator; insert-only values at installation, company, site and warehouse level with SETTING.SET, SETTING.CLEAR and SETTING.READ under If-Match; the idempotency retention as the first setting (D-45 ends) with the purge of expired records as a host loop (RR-42); the document line limit (RR-54); negative stock defined and locked (D-09). Step 1 (hardening from the code review of 2026-10-18) is merged. Milestone 1 is complete (tag `milestone-1`, acceptance map in [`docs/milestones/milestone-1.md`](docs/milestones/milestone-1.md)); steps 3 to 14 of milestone 2 are not released yet.
+Status: milestone 2 (kernel complete) step 2a, the interim fix from the kernel review and the review of pull request 42: the local stack on PostgreSQL 18 with a bootstrap that carries no password, proven by a compose job in CI (RR-59, RR-65, RR-79); 400 instead of 500 for a missing company and unparsable input (RR-60, RR-61); the correlation id on a 500 (RR-72); patterns anchored with \z (RR-82); pinned runners, workflow hygiene, a nightly long run and SECURITY.md (RR-85, RR-104); documents that cannot drift (RR-69); the settings follow-ups of D-63 (Planned and Data definitions without type or default, SETTING.READ of the SodConflict rows, warehouse scope, a separate settings administrator, RR-95 to RR-102); the review files of D-59. Steps 1 and 2 are merged; step 2b (database defence in depth) follows. Milestone 1 is complete (tag `milestone-1`, acceptance map in [`docs/milestones/milestone-1.md`](docs/milestones/milestone-1.md)); steps 3 to 14 of milestone 2 are not released yet.
 
 ## Documents
 
@@ -15,22 +15,36 @@ The design lives in three documents; the code is built from them and never inven
 milestone). [`CLAUDE.md`](CLAUDE.md) carries the ground rules; [`docs/development.md`](docs/development.md) explains
 how to run the stack and the tests.
 
-## Pinned versions
+## Pinned components
 
-| Component | Version | Where pinned |
-|---|---|---|
-| .NET SDK | 10.0.112, roll forward to the latest patch of the 10.0.1xx band | `global.json` |
-| PostgreSQL | 18 (image `postgres:18`) | `compose.yaml`, `tests/Themis.Integration.Tests` |
-| Keycloak | 26.8 (image `quay.io/keycloak/keycloak:26.8`) | `compose.yaml` |
-| Npgsql | 10.0.3 | `Directory.Packages.props` |
-| Entity Framework Core and Npgsql.EntityFrameworkCore.PostgreSQL | 10.0.12 / 10.0.3 (migrations of the kernel data context, applied by `Themis.Migrator` only) | `Directory.Packages.props`, `.config/dotnet-tools.json` (dotnet-ef 10.0.12) |
-| Microsoft.AspNetCore.OpenApi and Scalar.AspNetCore | 10.0.12 / 2.17.14 (MIT); API description and reference page in development | `Directory.Packages.props` |
-| OpenTelemetry | 1.19.x | `Directory.Packages.props` |
-| xunit.v3 | 4.0.1 on the Microsoft.Testing.Platform runner | `Directory.Packages.props`, `global.json` |
-| TngTech.ArchUnitNET | 0.13.4 (Apache-2.0) | `Directory.Packages.props` |
-| Testcontainers.PostgreSql | 4.16.0 | `Directory.Packages.props` |
-| CsCheck (property-based invariant tests) | 4.9.1 (Apache-2.0) | `Directory.Packages.props` |
-| nuget-license (licence scan, D-38) | 4.0.18 | `.config/dotnet-tools.json` |
+Versions are not repeated here, so this page cannot fall behind them (RR-69). Every NuGet package version is held in
+one place, [`Directory.Packages.props`](Directory.Packages.props); the other components are pinned where the table
+says.
+
+| Component | Where pinned |
+|---|---|
+| .NET SDK (10.0.1xx band, D-06) | `global.json` |
+| PostgreSQL (image `postgres`, D-04) | `compose.yaml`, `tests/Themis.Integration.Tests/PostgresFixture.cs` |
+| Keycloak (image `quay.io/keycloak/keycloak`, D-12) | `compose.yaml`, `tests/Themis.Integration.Tests/Identity/KeycloakSmokeTests.cs` |
+| Local tools: `dotnet-ef` (migrations) and `nuget-license` (licence scan, D-38) | `.config/dotnet-tools.json` |
+| Every NuGet package below | `Directory.Packages.props` |
+
+The packages, by purpose:
+
+- Database: `Npgsql`, `Npgsql.EntityFrameworkCore.PostgreSQL`, `Microsoft.EntityFrameworkCore`,
+  `Microsoft.EntityFrameworkCore.Relational` and `Microsoft.EntityFrameworkCore.Design` (migrations of the kernel data
+  context, applied by Themis.Migrator only).
+- API: `Microsoft.AspNetCore.OpenApi`, `Scalar.AspNetCore` (MIT; the API reference page in development) and
+  `Microsoft.AspNetCore.Authentication.JwtBearer`.
+- Telemetry: `OpenTelemetry.Extensions.Hosting`, `OpenTelemetry.Exporter.Console`,
+  `OpenTelemetry.Exporter.OpenTelemetryProtocol`, `OpenTelemetry.Instrumentation.AspNetCore`,
+  `OpenTelemetry.Instrumentation.Http` and `OpenTelemetry.Instrumentation.Runtime`.
+- Tests: `xunit.v3` on the Microsoft.Testing.Platform runner, `Microsoft.AspNetCore.Mvc.Testing`,
+  `Microsoft.AspNetCore.TestHost`, `TngTech.ArchUnitNET` (Apache-2.0), `Testcontainers.PostgreSql`,
+  `Testcontainers.Keycloak` and `CsCheck` (Apache-2.0; property-based invariant tests).
+- Analysis: `Microsoft.CodeAnalysis.BannedApiAnalyzers`.
+
+An architecture test checks that every package this list names is in `Directory.Packages.props` (RR-69).
 
 Every package version is held in `Directory.Packages.props` and the committed `packages.lock.json` files; CI
 restores in locked mode. Dependabot updates the central file and the directly affected lock files only, so the

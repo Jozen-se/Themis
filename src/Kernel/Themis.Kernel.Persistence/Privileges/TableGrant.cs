@@ -19,7 +19,7 @@ internal sealed record TableGrant(
     IReadOnlySet<TablePrivilege> Privileges,
     IReadOnlyList<string>? UpdateColumns = null)
 {
-    private static readonly Regex Identifier = new("^[a-z_][a-z0-9_]{0,62}$", RegexOptions.CultureInvariant);
+    private static readonly Regex Identifier = new("^[a-z_][a-z0-9_]{0,62}\\z", RegexOptions.CultureInvariant);
 
     public string Schema { get; } = Validated(Schema);
 

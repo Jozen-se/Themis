@@ -1,6 +1,6 @@
-# Code owners (working model: the owner steers and reviews).
-# Ledger, inventory and posting code (R-LED, R-INV, R-PP), the database role model and the design snapshots always
-# get the owner's explicit review; branch protection on main requires a code owner review.
+# Code owners. Review and sign-off follow D-59: the required checks, an independent review in a separate session
+# against REVIEW.md and the step brief, the planner's conformance check, and the owner's squash merge of the reviewed
+# head commit as the sign-off. The owner reads ledger, inventory, posting profile and migration changes himself.
 
 *                      @SebastianHanssonPriv
 

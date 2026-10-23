@@ -92,6 +92,11 @@ internal static class SettingStore
         return rows.Count == 0 ? null : rows[0];
     }
 
+    /// <summary>The rows of kernel.sod_conflict, the entity behind security.sod_conflicts (R-SEC-02, D-63), in pair order.</summary>
+    public static Task<IReadOnlyList<PermissionCodePair>> SodConflictPairsAsync(IUnitOfWork unitOfWork, CancellationToken cancellationToken) =>
+        unitOfWork.QueryAsync(DatabaseRole.Kernel, "SELECT permission_a, permission_b FROM kernel.sod_conflict ORDER BY permission_a, permission_b",
+            new Dictionary<string, object?>(), reader => new PermissionCodePair(reader.GetString(0), reader.GetString(1)), cancellationToken);
+
     /// <summary>Whether the company exists.</summary>
     public static async Task<bool> CompanyExistsAsync(IUnitOfWork unitOfWork, Guid companyId, CancellationToken cancellationToken) =>
         await unitOfWork.ScalarAsync(DatabaseRole.Kernel, "SELECT 1 FROM kernel.company WHERE id = @id", new Dictionary<string, object?> { ["id"] = companyId }, cancellationToken) is not null;

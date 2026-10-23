@@ -50,24 +50,26 @@ public sealed class SegregationOfDutiesTests
     }
 
     [Fact]
-    public void The_milestone_1_fixture_passes_the_check_and_gives_the_clerk_POST_and_ITEM_CREATE_and_the_preparer_neither()
+    public void R_SEC_02_RR_101_the_milestone_1_fixture_passes_the_check_gives_the_clerk_POST_and_ITEM_CREATE_and_the_preparer_neither_and_only_the_settings_administrator_the_settings()
     {
         IdentityFixtureDefinition fixture = Milestone1IdentityFixture.For(Milestone1OrganisationFixture.CompanyId);
 
         Assert.True(SegregationOfDuties.CheckFixture(fixture, Conflicts).IsSuccess);
-        Assert.Equal(2, fixture.Users.Count);
+        Assert.Equal(3, fixture.Users.Count);
         Dictionary<Guid, RoleDefinition> roles = fixture.Roles.ToDictionary(role => role.Id);
         HashSet<string> clerk = [.. fixture.Assignments.Where(a => a.UserId == Milestone1IdentityFixture.ClerkId).SelectMany(a => roles[a.RoleId].Permissions)];
         HashSet<string> preparer = [.. fixture.Assignments.Where(a => a.UserId == Milestone1IdentityFixture.PreparerId).SelectMany(a => roles[a.RoleId].Permissions)];
+        HashSet<string> settingsAdministrator = [.. fixture.Assignments.Where(a => a.UserId == Milestone1IdentityFixture.SettingsAdministratorId).SelectMany(a => roles[a.RoleId].Permissions)];
 
         Assert.Superset(new HashSet<string> { "ITEM.CREATE", "INVENTORY_ADJUSTMENT.CREATE", "INVENTORY_ADJUSTMENT.UPDATE", "INVENTORY_ADJUSTMENT.POST", "INVENTORY_ADJUSTMENT.DISCARD" }, clerk);
         Assert.DoesNotContain("INVENTORY_ADJUSTMENT.POST", preparer);
         Assert.DoesNotContain("ITEM.CREATE", preparer);
         Assert.Contains("ITEM.READ", preparer);
-        // Milestone 2 step 2: the settings administrator role is the clerk's too; the preparer holds none of it.
-        Assert.Superset(new HashSet<string> { "SETTING.SET", "SETTING.CLEAR", "SETTING.READ" }, clerk);
+        // RR-101: the settings administrator holds the settings permissions and nothing else; the clerk is back to milestone 1.
+        Assert.Equal(["SETTING.CLEAR", "SETTING.READ", "SETTING.SET"], settingsAdministrator.Order(StringComparer.Ordinal));
+        Assert.DoesNotContain(clerk, p => p.StartsWith("SETTING.", StringComparison.Ordinal));
         Assert.DoesNotContain(preparer, p => p.StartsWith("SETTING.", StringComparison.Ordinal));
-        Assert.Equal(clerk.Where(p => p is not "INVENTORY_ADJUSTMENT.POST" and not "ITEM.CREATE" && !p.StartsWith("SETTING.", StringComparison.Ordinal)).Order(), preparer.Order());
+        Assert.Equal(clerk.Where(p => p is not "INVENTORY_ADJUSTMENT.POST" and not "ITEM.CREATE").Order(), preparer.Order());
         Assert.All(fixture.Assignments, assignment => Assert.Null(assignment.SiteId));
         Assert.All(fixture.Assignments, assignment => Assert.Equal(Milestone1OrganisationFixture.CompanyId, assignment.CompanyId));
         Assert.All(fixture.Roles.SelectMany(role => role.Permissions), permission => Assert.True(PermissionCatalog.Contains(permission)));

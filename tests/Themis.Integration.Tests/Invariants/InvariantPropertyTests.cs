@@ -69,7 +69,7 @@ public sealed class InvariantPropertyTests : IAsyncLifetime
     {
         _template = await _db.CreateSeededDatabaseAsync(Ct);
         string system = WellKnownUsers.System.Value.ToString();
-        await ExecuteAsync(new NpgsqlConnectionStringBuilder(_template) { Username = "themis_migrator", Password = "themis" }.ConnectionString,
+        await ExecuteAsync(new NpgsqlConnectionStringBuilder(_template) { Username = "themis_migrator", Password = PostgresFixture.TestRolePassword }.ConnectionString,
             $"INSERT INTO kernel.warehouse (id, site_id, company_id, code, name, is_default, status, created_at, created_by, updated_at, updated_by) VALUES ('{SecondWarehouse}', '{Milestone1OrganisationFixture.SiteId}', '{Company}', 'PROP-W2', 'Property fixture warehouse 2', false, 'Active', now(), '{system}', now(), '{system}')");
     }
 
@@ -319,7 +319,7 @@ public sealed class InvariantPropertyTests : IAsyncLifetime
         try
         {
             string database = new NpgsqlConnectionStringBuilder(clone).Database!;
-            string migrator = new NpgsqlConnectionStringBuilder(clone) { Username = "themis_migrator", Password = "themis" }.ConnectionString;
+            string migrator = new NpgsqlConnectionStringBuilder(clone) { Username = "themis_migrator", Password = PostgresFixture.TestRolePassword }.ConnectionString;
             await using PipelineTestHost host = await PipelineTestHost.StartAsync(_db, database);
             RunState state = new();
             for (int i = 0; i < sequence.Steps.Count; i++)
@@ -351,7 +351,7 @@ public sealed class InvariantPropertyTests : IAsyncLifetime
         try
         {
             string database = new NpgsqlConnectionStringBuilder(clone).Database!;
-            string migrator = new NpgsqlConnectionStringBuilder(clone) { Username = "themis_migrator", Password = "themis" }.ConnectionString;
+            string migrator = new NpgsqlConnectionStringBuilder(clone) { Username = "themis_migrator", Password = PostgresFixture.TestRolePassword }.ConnectionString;
             await using PipelineTestHost host = await PipelineTestHost.StartAsync(_db, database);
             RunState state = new();
             // Three shared items with opening stock, so that both lists lock the same cost state and balance rows (R-LED-08).

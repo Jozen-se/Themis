@@ -31,7 +31,7 @@ jobs:
   regenerate:
     name: Regenerate lock files
     if: github.actor == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Check out the pull request branch
@@ -50,8 +50,11 @@ jobs:
       - name: Prove the result restores in locked mode
         run: dotnet restore Themis.sln --locked-mode
 
+      # RR-85: the branch name reaches the shell only through an environment variable, quoted, never as ${{ }} in run:.
       - name: Commit and push the lock files when they changed
         id: commit
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           if git diff --quiet -- '**/packages.lock.json'; then
             echo "Lock files already consistent; nothing to commit."
@@ -63,11 +66,12 @@ jobs:
           git add -- '**/packages.lock.json'
           git commit -m "deps: regenerate the NuGet lock files after Dependabot's update" \
             -m "Lock files of projects that receive the updated packages transitively, regenerated with dotnet restore --force-evaluate by the Dependabot lock files workflow (D-38)."
-          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+          git push origin "HEAD:${HEAD_REF}"
           echo "changed=true" >> "$GITHUB_OUTPUT"
 
       - name: Run CI on the new head
         if: steps.commit.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "${{ github.event.pull_request.head.ref }}"
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "${HEAD_REF}"

@@ -28,6 +28,6 @@ public sealed partial class CommandAttribute : Attribute
 
     public string Verb { get; }
 
-    [GeneratedRegex("^(?<type>[A-Z][A-Z0-9_]{0,39})\\.(?<verb>[A-Z][A-Z0-9_]{0,39})$")]
+    [GeneratedRegex("^(?<type>[A-Z][A-Z0-9_]{0,39})\\.(?<verb>[A-Z][A-Z0-9_]{0,39})\\z")]
     private static partial Regex Pattern();
 }

@@ -50,7 +50,7 @@ internal static class SettingDefinitionSeeder
                 {
                     Id = EntityId.New(),
                     Key = definition.Key,
-                    ValueType = definition.ValueType.ToString(),
+                    ValueType = definition.ValueType?.ToString(),
                     DefaultValue = definition.DefaultValue,
                     Min = definition.Min,
                     Max = definition.Max,
@@ -78,7 +78,7 @@ internal static class SettingDefinitionSeeder
             }
             else
             {
-                Align(changes, "valueType", existing.ValueType, definition.ValueType.ToString(), value => existing.ValueType = value!);
+                Align(changes, "valueType", existing.ValueType, definition.ValueType?.ToString(), value => existing.ValueType = value);
                 Align(changes, "defaultValue", existing.DefaultValue, definition.DefaultValue, value => existing.DefaultValue = value);
                 Align(changes, "min", existing.Min, definition.Min, value => existing.Min = value);
                 Align(changes, "max", existing.Max, definition.Max, value => existing.Max = value);
@@ -106,7 +106,13 @@ internal static class SettingDefinitionSeeder
                 changed++;
             }
 
-            // A range tightened in code leaves stored values where they are; the owner hears about them here.
+            // A range tightened in code leaves stored values where they are; the owner hears about them here. A Data or
+            // Planned definition has no value type and no values to check (D-63).
+            if (definition.ValueType is null)
+            {
+                continue;
+            }
+
             string key = definition.Key;
             List<SettingValueRow> values = await context.SettingValues.AsNoTracking().Where(value => value.DefinitionKey == key && value.Kind == "Set").ToListAsync(cancellationToken);
             foreach (SettingValueRow value in values.Where(value => !isValidValue(definition, value.Value)))
@@ -119,9 +125,20 @@ internal static class SettingDefinitionSeeder
         HashSet<string> catalogued = catalogue.Select(definition => definition.Key).ToHashSet(StringComparer.Ordinal);
         foreach (SettingDefinitionRow orphan in rows.Values.Where(row => !catalogued.Contains(row.Key) && !row.Retired))
         {
+            Dictionary<string, FieldChange> retirement = new(StringComparer.Ordinal) { ["retired"] = new(Text(false), Text(true)) };
             orphan.Retired = true;
             orphan.UpdatedAt = now;
-            Audit(context, commandId, "SettingDefinition", orphan.Id, now, by, new Dictionary<string, FieldChange> { ["retired"] = new(Text(false), Text(true)) });
+            // D-63: a retired Data or Planned row keeps the shape the check demands, whatever an older catalogue stored.
+            if (orphan.Backing is "Data" or "Planned")
+            {
+                Align(retirement, "valueType", orphan.ValueType, null, value => orphan.ValueType = value);
+                Align(retirement, "defaultValue", orphan.DefaultValue, null, value => orphan.DefaultValue = value);
+                Align(retirement, "min", orphan.Min, null, value => orphan.Min = value);
+                Align(retirement, "max", orphan.Max, null, value => orphan.Max = value);
+                Align(retirement, "allowedValues", orphan.AllowedValues, null, value => orphan.AllowedValues = value);
+            }
+
+            Audit(context, commandId, "SettingDefinition", orphan.Id, now, by, retirement);
             string orphanKey = orphan.Key;
             int referencing = await context.SettingValues.CountAsync(value => value.DefinitionKey == orphanKey, cancellationToken);
             warnings.Add($"Setting {orphanKey} has left the catalogue; its definition row is marked retired and its {referencing} value row(s) stay.");

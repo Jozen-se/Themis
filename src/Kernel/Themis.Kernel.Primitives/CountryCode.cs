@@ -13,7 +13,7 @@ public readonly partial record struct CountryCode
 
     public string Value { get; }
 
-    [GeneratedRegex("^[A-Z]{2}$")]
+    [GeneratedRegex("^[A-Z]{2}\\z")]
     private static partial Regex Pattern();
 
     public static CountryCode From(string value)

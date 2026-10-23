@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Themis.Host.Messaging;
@@ -43,23 +44,29 @@ public sealed class IdempotencyPurgeHostedServiceTests
     }
 
     [Fact]
-    public async Task RR_42_a_failing_pass_is_logged_and_the_loop_goes_on_after_the_interval()
+    public async Task RR_42_RR_97_a_failing_pass_is_logged_with_its_exception_and_the_loop_goes_on_after_the_interval()
     {
         ScriptedPurge purge = new([-1, 10, 10]);
-        using IdempotencyPurgeHostedService service = new(purge, Options.Create(new IdempotencyPurgeOptions { BatchSize = 10, Interval = TimeSpan.FromMilliseconds(20) }), TimeProvider.System, NullLogger<IdempotencyPurgeHostedService>.Instance);
+        CapturingLogger logger = new();
+        using IdempotencyPurgeHostedService service = new(purge, Options.Create(new IdempotencyPurgeOptions { BatchSize = 10, Interval = TimeSpan.FromMilliseconds(20) }), TimeProvider.System, logger);
 
         await service.StartAsync(TestContext.Current.CancellationToken);
         await purge.ThirdCall.Task.WaitAsync(Timeout, TestContext.Current.CancellationToken);
         await service.StopAsync(TestContext.Current.CancellationToken).WaitAsync(Timeout, TestContext.Current.CancellationToken);
 
         Assert.True(purge.Calls >= 3);
+        // RR-97: the failure itself is logged, at error, with the exception and the wait before the next pass.
+        (LogLevel level, string message, Exception? exception) failed = Assert.Single(logger.Lines, line => line.Level == LogLevel.Error);
+        Assert.Contains("Idempotency purge pass failed", failed.message, StringComparison.Ordinal);
+        Assert.Contains("RR-42", failed.message, StringComparison.Ordinal);
+        Assert.Equal("Scripted pass failure.", failed.exception?.Message);
     }
 
     [Theory]
     [InlineData(0, "00:05:00", "BatchSize")]
     [InlineData(10, "00:00:00", "Interval")]
     [InlineData(10, "-00:00:01", "Interval")]
-    public void Invalid_purge_options_name_the_offending_key(int batchSize, string interval, string key)
+    public void RR_42_invalid_purge_options_name_the_offending_key(int batchSize, string interval, string key)
     {
         IdempotencyPurgeOptions options = new() { BatchSize = batchSize, Interval = TimeSpan.Parse(interval, System.Globalization.CultureInfo.InvariantCulture) };
         Assert.Contains(options.Errors(), error => error.Contains($"Idempotency:Purge:{key}", StringComparison.Ordinal));
@@ -90,6 +97,36 @@ public sealed class IdempotencyPurgeHostedServiceTests
 
             int result = call <= _script.Length ? _script[call - 1] : 0;
             return result < 0 ? Task.FromException<int>(new InvalidOperationException("Scripted pass failure.")) : Task.FromResult(result);
+        }
+    }
+
+    /// <summary>Keeps every log line of the service with its level and exception (RR-97).</summary>
+    private sealed class CapturingLogger : ILogger<IdempotencyPurgeHostedService>
+    {
+        private readonly List<(LogLevel Level, string Message, Exception? Exception)> _lines = [];
+
+        public IReadOnlyList<(LogLevel Level, string Message, Exception? Exception)> Lines
+        {
+            get
+            {
+                lock (_lines)
+                {
+                    return [.. _lines];
+                }
+            }
+        }
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            lock (_lines)
+            {
+                _lines.Add((logLevel, formatter(state, exception), exception));
+            }
         }
     }
 }

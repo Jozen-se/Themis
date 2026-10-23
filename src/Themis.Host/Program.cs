@@ -63,12 +63,12 @@ public sealed class Program
         }
 
         builder.Services.AddKernelOpenApi();
-        builder.Services.AddProblemDetails();
+        builder.Services.AddKernelProblemDetails();
 
         WebApplication app = builder.Build();
 
-        app.UseExceptionHandler();
-        app.UseCorrelationId();
+        // RR-72: the correlation id surrounds the exception handler, so a 500 and its log line carry it.
+        app.UseKernelRequestPipeline();
         if (app.Services.GetService<Microsoft.AspNetCore.Authentication.IAuthenticationSchemeProvider>() is not null)
         {
             app.UseAuthentication();

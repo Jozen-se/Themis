@@ -2,7 +2,6 @@ using System.Net.Http.Headers;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Testcontainers.Keycloak;
 using Themis.FixtureModule;
@@ -82,10 +81,10 @@ public sealed class KeycloakSmokeTests
         builder.Services.AddKernelOrganisation();
         // Milestone 2 step 2 (D-58): the pipeline reads the idempotency retention through the settings reader.
         builder.Services.AddKernelSettings();
-        builder.Services.AddProblemDetails();
+        builder.Services.AddKernelProblemDetails();
         WebApplication app = builder.Build();
-        app.UseExceptionHandler();
-        app.UseCorrelationId();
+        // RR-72: the correlation id surrounds the exception handler, so a 500 and its log line carry it.
+        app.UseKernelRequestPipeline();
         app.UseAuthentication();
         app.MapCommandRoutes(FixtureContracts.Routes);
         app.MapQuery<GetCompany, CompanyInfo>(OrganisationRoutes.Company);

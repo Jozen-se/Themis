@@ -16,7 +16,7 @@ internal static partial class SettingValueFormat
     public const string ValueInvalidCode = "setting_value_invalid";
     public const int CodeMaxLength = 200;
 
-    [GeneratedRegex("^[A-Za-z0-9_.,|-]{1,200}$")]
+    [GeneratedRegex("^[A-Za-z0-9_.,|-]{1,200}\\z")]
     private static partial Regex CodeToken();
 
     /// <summary>The value in its canonical text, or the 400 that refuses it.</summary>
@@ -28,8 +28,14 @@ internal static partial class SettingValueFormat
             return Error.Validation(ValueInvalidCode, $"Setting {definition.Key} needs a value.", details: Details(definition));
         }
 
+        // D-63: a Data or Planned definition has no value type, so there is no value to check; SET refuses it earlier (R-SET-01).
+        if (definition.ValueType is not { } valueType)
+        {
+            return Error.Validation(ValueInvalidCode, $"Setting {definition.Key} is backed by {definition.Backing} and takes no value.", details: Details(definition));
+        }
+
         string text = value.Trim();
-        switch (definition.ValueType)
+        switch (valueType)
         {
             case SettingValueType.Integer:
                 if (!long.TryParse(text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out long integer))
@@ -51,7 +57,7 @@ internal static partial class SettingValueFormat
                     : Error.Validation(ValueInvalidCode, $"Setting {definition.Key} takes true or false; '{text}' is neither.", details: Details(definition));
             case SettingValueType.Code:
                 // A code value is a case-sensitive token, compared exactly with the allowed values where the definition lists them.
-                if (!CodeToken().IsMatch(text))
+                if (!IsCodeToken(text))
                 {
                     return Error.Validation(ValueInvalidCode, $"Setting {definition.Key} takes a code (letters, digits, '_', '-', '.', ',' and '|', no spaces, at most {CodeMaxLength} characters); '{text}' is not one.", details: Details(definition));
                 }
@@ -77,6 +83,9 @@ internal static partial class SettingValueFormat
     /// <summary>True when the stored text is a valid value of the definition today; the migrator reports values a tightened range left behind.</summary>
     public static bool IsValid(SettingDefinition definition, string? value) => Normalise(definition, value).IsSuccess;
 
+    /// <summary>The token check of a Code value, on the exact text: the whole input, so a trailing newline fails (RR-82).</summary>
+    public static bool IsCodeToken(string text) => CodeToken().IsMatch(text);
+
     private static Result<string> Bound<T>(SettingDefinition definition, T value, Func<string, T> parse, string canonical)
         where T : struct, IComparable<T>
     {
@@ -95,7 +104,12 @@ internal static partial class SettingValueFormat
 
     private static Dictionary<string, string> Details(SettingDefinition definition)
     {
-        Dictionary<string, string> details = new(StringComparer.Ordinal) { ["field"] = "value", ["key"] = definition.Key, ["valueType"] = definition.ValueType.ToString() };
+        Dictionary<string, string> details = new(StringComparer.Ordinal) { ["field"] = "value", ["key"] = definition.Key };
+        if (definition.ValueType is { } valueType)
+        {
+            details["valueType"] = valueType.ToString();
+        }
+
         if (definition.Min is { } min)
         {
             details["min"] = min;

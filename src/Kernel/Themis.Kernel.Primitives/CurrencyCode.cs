@@ -13,7 +13,7 @@ public readonly partial record struct CurrencyCode
 
     public string Value { get; }
 
-    [GeneratedRegex("^[A-Z]{3}$")]
+    [GeneratedRegex("^[A-Z]{3}\\z")]
     private static partial Regex Pattern();
 
     public static CurrencyCode From(string value)

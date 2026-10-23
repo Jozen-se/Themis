@@ -4,7 +4,7 @@
 
 - .NET SDK as pinned in `global.json` (10.0.112 or a later patch of the 10.0.1xx band, D-06).
 - Docker or Podman with a compose plugin, for the local stack and for the integration tests, which start PostgreSQL
-  through Testcontainers. With Podman, point `DOCKER_HOST` at the Podman socket.
+  through Testcontainers. Podman needs two optional settings; see Podman below.
 - No other tools: the licence scanner is a local dotnet tool restored by `dotnet tool restore`.
 
 ## The local stack
@@ -13,23 +13,52 @@
 
 | Service | Image | Port | Credentials (development only) |
 |---|---|---|---|
-| PostgreSQL | `postgres:18` | 5432 | superuser `postgres` / `postgres`, database `themis` |
-| Keycloak | `quay.io/keycloak/keycloak:26.8` | 8080 | admin console `admin` / `admin`; realm `themis`, client `themis-api` (secret `themis-dev-secret`), user `dev` / `dev` |
+| PostgreSQL | `postgres:18` | 127.0.0.1:5432 | superuser `postgres` / `postgres`, database `themis` |
+| Keycloak | `quay.io/keycloak/keycloak:26.8` | 127.0.0.1:8080 | admin console `admin` / `admin`; realm `themis`, client `themis-api` (secret `themis-dev-secret`), user `dev` / `dev` |
 
-On first start PostgreSQL runs `db/bootstrap/01-roles.sql`, which creates the roles and the `kernel` and
-`reporting` schemas, revokes every default and installs the `btree_gist` extension, which the no-overlap exclusion
-constraints on effective-dated rows need (R-MD-02; first used by `kernel.posting_profile_rule`). A hand-made database
-needs the same script run once as a superuser, or the general ledger migration fails on the missing extension. The roles:
+Both ports are published on the loopback interface only (RR-79), and every credential in the table is a development
+placeholder. The PostgreSQL volume is mounted at `/var/lib/postgresql`, the path `postgres:18` expects (RR-59).
+
+On first start PostgreSQL runs `docker/postgres/initdb/10-themis-bootstrap.sh` (that directory alone is the image's
+`/docker-entrypoint-initdb.d`; `db/bootstrap` is mounted read-only at `/themis-bootstrap`). The script runs two files:
+
+1. `db/bootstrap/01-roles.sql` creates the roles and the `kernel` and `reporting` schemas, revokes every default and
+   installs the `btree_gist` extension, which the no-overlap exclusion constraints on effective-dated rows need (R-MD-02;
+   first used by `kernel.posting_profile_rule`). It is plain SQL and sets no password (RR-65).
+2. `db/bootstrap/02-role-passwords.psql` (psql only, `ON_ERROR_STOP`) sets the three LOGIN passwords from the psql
+   variables `themis_migrator_password`, `themis_app_password` and `themis_reporting_password`. The compose script
+   fills them with `\getenv` from `THEMIS_MIGRATOR_PASSWORD`, `THEMIS_APP_PASSWORD` and `THEMIS_REPORTING_PASSWORD`,
+   which `compose.yaml` defaults to the placeholder `themis`, so no password appears on a command line. A missing
+   variable stops the bootstrap with a non-zero exit code and a message naming it.
+
+A hand-made database needs both files run once as a superuser, or the general ledger migration fails on the missing
+extension. A real installation supplies its own passwords through the same psql variables; choosing, storing and
+handing over those values happens outside the coder's work (Build Brief, Secrets). The integration tests run
+`01-roles.sql` through Npgsql and then set a test-only placeholder password with `ALTER ROLE`
+(`PostgresFixture.TestRolePassword`); CI's compose job proves the psql script. The roles:
 
 | Role | Login | Purpose |
 |---|---|---|
-| `themis_migrator` | yes, password `themis` | Owns schemas, tables and views; used only by `Themis.Migrator` |
-| `themis_app` | yes, password `themis` | The application's connection; no table privileges; `SET LOCAL ROLE` to a module role inside each transaction (R-DB-01, D-41) |
+| `themis_migrator` | yes, password from `themis_migrator_password` (`themis` in development) | Owns schemas, tables and views; used only by `Themis.Migrator` |
+| `themis_app` | yes, password from `themis_app_password` (`themis` in development) | The application's connection; no table privileges; `SET LOCAL ROLE` to a module role inside each transaction (R-DB-01, D-41) |
 | `themis_kernel` | no | The kernel's role; privileges only as granted explicitly by migrations |
-| `themis_reporting` | yes, password `themis` | BI tools; SELECT on `reporting` views only |
+| `themis_reporting` | yes, password from `themis_reporting_password` (`themis` in development) | BI tools; SELECT on `reporting` views only |
 | `themis_fixture` | no | Test-only module role, created by the integration tests |
 
-To reset the database, `docker compose down -v` removes the volume and the next start re-runs the bootstrap.
+PostgreSQL runs the init scripts only on an empty volume. To reset the database, or to switch an existing local stack
+to this bootstrap (it used `/var/lib/postgresql/data` and mounted `db/bootstrap` directly before milestone 2 step 2a),
+run `docker compose down -v`; the next start re-runs the bootstrap.
+
+### Podman
+
+`podman compose up -d` runs the same stack. Two optional settings help with rootless Podman:
+
+- `DOCKER_HOST` pointing at the Podman socket, for example
+  `export DOCKER_HOST=unix://$XDG_RUNTIME_DIR/podman/podman.sock`, so Testcontainers and docker-compatible tools
+  find Podman instead of a Docker daemon.
+- `TESTCONTAINERS_RYUK_DISABLED=true`, because the Ryuk clean-up container needs privileged access to the socket,
+  which rootless Podman does not give it; the integration tests then rely on their own disposal of the container.
+
 Keycloak uses its own file database in development; the realm is imported from `docker/keycloak/themis-realm.json`.
 
 ## Migrator and host
@@ -561,9 +590,15 @@ configurable default from code, and the idempotency retention is the first setti
 The catalogue (`SettingCatalog`, `Themis.Kernel.Settings`) follows the `PermissionCatalog` pattern: one definition
 per configurable default with its key, value type, documented default, validation (min, max, allowed values), the
 levels a value may be written at, whether the caller dates its values, the lock, the backing (Setting, Column, Data or
-Planned with its phase and the levels that phase adds) and the rule and decision that make it a default. The
-architecture test `SettingCatalogCoverageTests` reads the Foundation's list and the specification's milestone 2
-definitions from the snapshots and holds the catalogue to them in both directions. `Themis.Migrator` writes the
+Planned with its phase and the levels that phase adds) and the rule and decision that make it a default. Since
+milestone 2 step 2a (D-63) only Setting and Column definitions have a value type: a Planned definition carries only
+its key, description, rule, decision where there is one, phase and levels, and gets its type, default and validation
+from the specification of the phase that builds it; a Data definition holds no copy of its entity's rows and no
+validation. The check `ck_setting_definition_shape` holds every row to that shape. The architecture test
+`SettingCatalogCoverageTests` reads the Foundation's list and the specification's milestone 2 definitions from the
+snapshots and holds the catalogue to them in both directions, by rule ID and against an expected list of keys (RR-97).
+A database created before step 2a holds Planned rows with invented types, which the new check refuses: recreate it
+(`docker compose down -v`, then the migrator); no migration rewrites those rows. `Themis.Migrator` writes the
 catalogue to `kernel.setting_definition` on every run through `SettingDefinitionSeeder`, as it writes the document
 type registry (D-40): a missing row is inserted, a differing one aligned, each with an audit event under the system
 user; a stored value that a tightened range left outside its definition is printed as a warning and never changed,
@@ -577,17 +612,29 @@ company). The kernel role holds SELECT and INSERT and no UPDATE or DELETE, which
 (R-SET-01, I-14). Both commands are Sensitive and require If-Match with the slot's current version, 0 for a slot
 with no rows yet (R-API-02: 412 when stale, 428 when missing); a write that loses a concurrent race on the unique
 version index `ux_setting_value_slot_version` gets the same 412 through a `UniqueConstraintRule` of kind
-PreconditionFailed (RR-45), and like every 412 it is not stored as the key's result. An Installation value declares
-installation scope (RR-52), so a holder of SETTING.SET with a company-wide assignment in any company changes
-installation values for every company; access reviews treat SETTING.SET and SETTING.CLEAR as installation-wide. A
-company, site or warehouse value declares its company (and site). Rejections: a value of the wrong type or outside
+PreconditionFailed (RR-45), and like every 412 it is not stored as the key's result. One scope resolver
+(`SettingScopeResolver`) serves SET, CLEAR and READ inside the transaction (D-63, RR-102): an Installation value
+declares installation scope (RR-52), so a holder of SETTING.SET with a company-wide assignment in any company changes
+installation values for every company, and access reviews treat SETTING.SET and SETTING.CLEAR as installation-wide; a
+Company value declares its company, a Site value its company and site, and a Warehouse value the warehouse's company
+and site, read from the warehouse row, so a site-limited assignment for that site may write it. A site or warehouse
+that does not exist or belongs to another company declares the body's company, and the handler's target check
+answers 400, stored as the key's result. The site serves the scope only; a warehouse value stores no site. Rejections
+(confirmed by D-63): a value of the wrong type or outside
 its validation, an unknown key, a target that does not fit the level and a valid_from on a plain definition are 400;
 a locked definition, a level the definition does not allow, and SET or CLEAR on a definition backed by a column, data
-or a planned feature are 422 under R-SET-01. CLEAR on a slot with no rows is a 400. Each write has one audit event
+or a planned feature are 422 under R-SET-01. CLEAR on a slot with no rows is a 400 with code `setting_value_absent`,
+READ of an unknown key is a 404, and a Code value must pass the token check (letters, digits, `_`, `-`, `.`, `,` and
+`|`, anchored at the end of input, RR-82). Each write has one audit event
 (entity `SettingValue`) and one outbox event `SETTING_CHANGED` (aggregate type `SETTING`, the company empty for an
 Installation value) carrying key, level, target, previous and new value (D-44, D-50). SETTING.READ returns the
 effective value at a target with its source (a level, the default or a column) and the current version of each
-allowed level at that target.
+allowed level at that target; for a Data definition the source is Data and the answer carries the entity's rows, read
+in the query's transaction: for `security.sod_conflicts`, `conflictPairs`, the permission code pairs of
+`kernel.sod_conflict` (RR-98). The value type is empty for Data and Planned definitions. In the fixture the settings
+permissions belong to their own user, the settings administrator (`eeeeeeee-3333-4333-8333-eeeeeeeeeeee`, test tokens
+only), not to the milestone 1 clerk (RR-101); a database seeded before step 2a gave them to the clerk and is
+recreated.
 
 The reader (`SettingsReader`, `ISettingsReader` in Contracts) runs inside the caller's transaction: for one
 definition, level and target, a plain definition takes the row with the highest version; a history-bearing one the

@@ -12,7 +12,7 @@ public static partial class PermissionCodes
     public const int MaxLength = 81;
     public const string ReadVerb = "READ";
 
-    [GeneratedRegex("^(?<type>[A-Z][A-Z0-9_]{0,39})\\.(?<verb>[A-Z][A-Z0-9_]{0,39})$")]
+    [GeneratedRegex("^(?<type>[A-Z][A-Z0-9_]{0,39})\\.(?<verb>[A-Z][A-Z0-9_]{0,39})\\z")]
     private static partial Regex Pattern();
 
     public static bool IsValid(string? code) => code is not null && Pattern().IsMatch(code);
