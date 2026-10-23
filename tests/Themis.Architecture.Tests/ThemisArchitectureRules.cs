@@ -133,23 +133,32 @@ internal static class ThemisArchitectureRules
     private static IEnumerable<Assembly> ThemisAssemblies(ArchModel architecture) =>
         architecture.Assemblies.Where(assembly => assembly.Name.StartsWith("Themis.", StringComparison.Ordinal)).OrderBy(assembly => assembly.Name, StringComparer.Ordinal);
 
-    /// <summary>Module roots found in the architecture: Themis.Modules.&lt;Name&gt; and Themis.FixtureModule, from their layer namespaces.</summary>
+    /// <summary>
+    /// Module roots found in the architecture: Themis.Modules.&lt;Name&gt; and Themis.FixtureModule, from their layer
+    /// namespaces. Throws when none is found (RR-84): a rule over an empty set of modules would pass on nothing.
+    /// </summary>
     public static IReadOnlyList<string> ModuleRoots(ArchModel architecture) =>
-        architecture.Namespaces
+        NotEmpty("module roots", architecture.Namespaces
             .Select(ns => Regex.Match(ns.FullName, $@"^({ModuleRoot})\.{Layers}(?:\.|$)"))
             .Where(match => match.Success)
             .Select(match => match.Groups[1].Value)
             .Distinct(StringComparer.Ordinal)
             .OrderBy(name => name, StringComparer.Ordinal)
-            .ToList();
+            .ToList());
 
-    /// <summary>Kernel capability names found in the architecture: every Themis.Kernel.&lt;Name&gt; except Primitives and Contracts.</summary>
+    /// <summary>
+    /// Kernel capability names found in the architecture: every Themis.Kernel.&lt;Name&gt; except Primitives and
+    /// Contracts. Throws when none is found (RR-84), like <see cref="ModuleRoots"/>.
+    /// </summary>
     public static IReadOnlyList<string> KernelCapabilities(ArchModel architecture) =>
-        architecture.Namespaces
+        NotEmpty("kernel capabilities", architecture.Namespaces
             .Select(ns => Regex.Match(ns.FullName, $@"^Themis\.Kernel\.(?!{SharedKernel}(?:\.|$))({Name})(?:\.|$)"))
             .Where(match => match.Success)
             .Select(match => match.Groups[1].Value)
             .Distinct(StringComparer.Ordinal)
             .OrderBy(name => name, StringComparer.Ordinal)
-            .ToList();
+            .ToList());
+
+    private static List<string> NotEmpty(string what, List<string> found) =>
+        found.Count > 0 ? found : throw new InvalidOperationException($"The architecture holds no {what}; a rule over an empty set would pass on nothing (RR-84).");
 }
