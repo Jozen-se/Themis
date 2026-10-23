@@ -94,6 +94,20 @@ internal static class KernelIdentityServices
             bearer.MapInboundClaims = false;
             bearer.TokenValidationParameters.NameClaimType = HttpSubject.SubjectClaim;
             bearer.TokenValidationParameters.RoleClaimType = "themis:roles-are-not-read-from-tokens";
+            // RR-71: the 401 carries no token error details; the kernel's shared writer answers every challenge.
+            bearer.IncludeErrorDetails = false;
+            JwtBearerEvents events = bearer.Events ?? new JwtBearerEvents();
+            Func<TokenValidatedContext, Task> validated = events.OnTokenValidated;
+            events.OnTokenValidated = async context =>
+            {
+                await validated(context);
+                // RR-71: a token without a sub claim is not a valid token here, so the request is anonymous and gets 401.
+                if (string.IsNullOrWhiteSpace(context.Principal?.FindFirst(HttpSubject.SubjectClaim)?.Value))
+                {
+                    context.Fail("The token carries no sub claim.");
+                }
+            };
+            bearer.Events = events;
         });
         services.Replace(ServiceDescriptor.Scoped<ICurrentSubject, HttpSubject>());
         return services;

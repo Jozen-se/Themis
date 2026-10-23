@@ -7,9 +7,11 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Primitives;
 using Themis.Kernel.Contracts.Commands;
+using Themis.Kernel.Contracts.Security;
 using Themis.Kernel.Contracts.Settings;
 using Themis.Kernel.Pipeline.Dispatch;
 using Themis.Kernel.Pipeline.Json;
+using Themis.Kernel.Pipeline.Security;
 using Themis.Kernel.Primitives;
 
 namespace Themis.Kernel.Pipeline.Http;
@@ -17,8 +19,10 @@ namespace Themis.Kernel.Pipeline.Http;
 /// <summary>
 /// Maps a command to <c>POST {pattern}</c> (brief, API conventions). The endpoint reads the <c>Idempotency-Key</c>
 /// header (R-API-01), the <c>If-Match</c> header for versioned commands (R-API-02) and the request body, merges the
-/// route values and the version into the body (route and header win over the body), binds the command and hands it
-/// to the dispatcher. Every outcome, replay included, is written as the dispatcher produced it (R-API-03).
+/// route values and the version into the body (route and header win over the body: a body member that names a route
+/// value in any letter case must agree with it, else 400 route_body_mismatch, and every member naming the version is
+/// dropped, RR-73), binds the command and hands it to the dispatcher. Every outcome, replay included, is written as
+/// the dispatcher produced it (R-API-03).
 /// </summary>
 internal static class CommandEndpoints
 {
@@ -26,6 +30,7 @@ internal static class CommandEndpoints
     internal const string IfMatchHeader = "If-Match";
     internal const string ReplayedHeader = "Idempotency-Replayed";
     internal const string ExpectedVersionProperty = "expectedVersion";
+    internal const string RouteBodyMismatch = "route_body_mismatch";
 
     public static IEndpointConventionBuilder MapCommand<TCommand, TResult>(this IEndpointRouteBuilder routes, string pattern)
         where TCommand : ICommand<TResult>
@@ -73,6 +78,13 @@ internal static class CommandEndpoints
     private static async Task HandleAsync<TCommand, TResult>(HttpContext http, CommandMetadata metadata, CancellationToken cancellationToken)
         where TCommand : ICommand<TResult>
     {
+        // RR-71: no subject, no work; the fallback policy answers first, this guards a host that maps the endpoint without it.
+        if (http.RequestServices.GetRequiredService<ICurrentSubject>().Current is null)
+        {
+            await Unauthorized.WriteAsync(http);
+            return;
+        }
+
         CorrelationId correlationId = CorrelationIdMiddleware.Of(http);
         CommandResponse response = await BuildAndDispatchAsync<TCommand, TResult>(http, metadata, correlationId, cancellationToken);
 
@@ -116,12 +128,26 @@ internal static class CommandEndpoints
             return ProblemDetailsBody.Http(StatusCodes.Status400BadRequest, "request_body_invalid", null, exception.Message, correlationId);
         }
 
+        // RR-73: the binder matches members without regard to letter case, so a body member that names a route value in
+        // any case must agree with it, or the request is refused; an agreeing one is replaced by the route value.
         foreach ((string key, object? value) in http.Request.RouteValues)
         {
-            if (value is string text)
+            if (value is not string text)
             {
-                body[JsonNamingPolicy.CamelCase.ConvertName(key)] = text;
+                continue;
             }
+
+            foreach (string member in MembersNamed(body, key))
+            {
+                if (!SameValue(body[member], text))
+                {
+                    return ProblemDetailsBody.Http(StatusCodes.Status400BadRequest, RouteBodyMismatch, null, $"The body member '{member}' differs from the route value '{key}'; the route names the record.", correlationId);
+                }
+
+                body.Remove(member);
+            }
+
+            body[JsonNamingPolicy.CamelCase.ConvertName(key)] = text;
         }
 
         if (metadata.IsVersioned)
@@ -135,6 +161,12 @@ internal static class CommandEndpoints
             if (!TryParseVersion(ifMatch, out long expectedVersion))
             {
                 return ProblemDetailsBody.Http(StatusCodes.Status400BadRequest, "if_match_invalid", "R-API-02", $"The {IfMatchHeader} header carries the record version as an entity tag, for example \"7\".", correlationId);
+            }
+
+            // RR-73: every body member that names the version, in any letter case, goes; the header alone carries it.
+            foreach (string member in MembersNamed(body, ExpectedVersionProperty))
+            {
+                body.Remove(member);
             }
 
             body[ExpectedVersionProperty] = expectedVersion;
@@ -153,6 +185,29 @@ internal static class CommandEndpoints
 
         ICommandDispatcher dispatcher = http.RequestServices.GetRequiredService<ICommandDispatcher>();
         return await dispatcher.DispatchAsync<TCommand, TResult>(command, new CommandEnvelope(idempotencyKey, correlationId), cancellationToken);
+    }
+
+    /// <summary>The body members whose name equals <paramref name="name"/> without regard to letter case (RR-73).</summary>
+    private static string[] MembersNamed(JsonObject body, string name) =>
+        [.. body.Select(member => member.Key).Where(member => string.Equals(member, name, StringComparison.OrdinalIgnoreCase))];
+
+    /// <summary>
+    /// Whether a body member carries the route value (RR-73): two ids are compared as Guid values, so the same id in
+    /// upper case agrees; any other value must be the same string.
+    /// </summary>
+    internal static bool SameValue(JsonNode? member, string routeValue)
+    {
+        if (member is not JsonValue value || !value.TryGetValue(out string? text))
+        {
+            return false;
+        }
+
+        if (Guid.TryParse(routeValue, out Guid routeId) && Guid.TryParse(text, out Guid memberId))
+        {
+            return routeId == memberId;
+        }
+
+        return string.Equals(text, routeValue, StringComparison.Ordinal);
     }
 
     private static async Task<JsonObject> ReadBodyAsync(HttpRequest request, CancellationToken cancellationToken)

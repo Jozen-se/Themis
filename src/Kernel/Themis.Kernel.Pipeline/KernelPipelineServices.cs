@@ -28,6 +28,8 @@ internal static class KernelPipelineServices
         // R-SEC-01: deny by default until the identity capability registers the real subject and access control.
         services.TryAddScoped<ICurrentSubject, NoCurrentSubject>();
         services.TryAddSingleton<IAccessControl, DenyAllAccessControl>();
+        // RR-71: every endpoint needs an authenticated user unless it opts out; anonymous requests get 401 first.
+        services.AddKernelAuthentication();
         return services;
     }
 

@@ -147,7 +147,6 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         WebApplication app = builder.Build();
         // RR-72: the correlation id surrounds the exception handler, so a 500 and its log line carry it.
         app.UseKernelRequestPipeline();
-        app.UseAuthentication();
         app.MapCommandRoutes(FixtureContracts.Routes);
         app.MapCommandRoutes(RoleProbeRoutes.Commands);
         app.MapQuery<GetCompany, CompanyInfo>(OrganisationRoutes.Company);
@@ -158,7 +157,7 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         app.MapQuery<GetInventoryAdjustment, InventoryAdjustmentView>(DocumentRoutes.InventoryAdjustment);
         app.MapCommandRoutes(SettingRoutes.Commands);
         app.MapQuery<GetSetting, SettingReadView>(SettingRoutes.Setting);
-        app.MapOpenApi();
+        app.MapOpenApi().AllowAnonymous();
         await app.StartAsync();
 
         PipelineTestHost host = new(app, app.GetTestClient(), logs, new MeterListener(), db, superuserConnectionString);
