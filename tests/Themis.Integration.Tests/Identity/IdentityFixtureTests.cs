@@ -71,7 +71,7 @@ public sealed class IdentityFixtureTests
     {
         await using NpgsqlConnection connection = await PostgresFixture.OpenAsync(_db.SuperuserConnectionString, Ct);
         List<(string Code, string Risk)> rows = [];
-        await using (NpgsqlCommand command = new("SELECT code, risk_level FROM kernel.permission WHERE code <> 'FIXTURE.TOUCH' ORDER BY code", connection))
+        await using (NpgsqlCommand command = new("SELECT code, risk_level FROM kernel.permission WHERE code NOT LIKE 'FIXTURE.%' ORDER BY code", connection))
         await using (NpgsqlDataReader reader = await command.ExecuteReaderAsync(Ct))
         {
             while (await reader.ReadAsync(Ct))
@@ -122,7 +122,7 @@ public sealed class IdentityFixtureTests
 
         Assert.Equal(24L, await ScalarAsync(connection, $"SELECT count(*) {fixtureAudit}"));
         Assert.Equal(4L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.user_account"));
-        Assert.Equal((long)PermissionCatalog.Definition.Permissions.Count, await ScalarAsync(connection, "SELECT count(*) FROM kernel.permission WHERE code <> 'FIXTURE.TOUCH'"));
+        Assert.Equal((long)PermissionCatalog.Definition.Permissions.Count, await ScalarAsync(connection, "SELECT count(*) FROM kernel.permission WHERE code NOT LIKE 'FIXTURE.%'"));
     }
 
     [Fact]

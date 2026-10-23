@@ -16,8 +16,8 @@ using Themis.Kernel.Primitives;
 namespace Themis.Kernel.Pipeline.Dispatch;
 
 /// <summary>
-/// Runs a query (P-04: GET only): a signed-in subject (401), then inside one read-only unit of work rolled back at
-/// the end (R-DB-01): the subject's User row (403 subject_unknown, user_disabled), the query's scope from its own
+/// Runs a query (P-04: GET only): a signed-in subject (401), then inside one read-only unit of work (SET TRANSACTION
+/// READ ONLY, RR-81) rolled back at the end (R-DB-01): the subject's User row (403 subject_unknown, user_disabled), the query's scope from its own
 /// data or the record it names (403 scope_undeclared), and the permission TYPE.READ in that scope (403
 /// permission_missing, out_of_scope), all under R-SEC-01 and D-47; then the handler's result as JSON or problem
 /// details (R-API-03). The role is reset to themis_app immediately before the scope resolver and the handler, as in
@@ -86,7 +86,8 @@ internal sealed partial class QueryDispatcher : IQueryDispatcher
             return ProblemDetailsBody.Http(StatusCodes.Status401Unauthorized, "authentication_required", AccessDenied.RuleId, "The query requires a signed-in user.", correlation);
         }
 
-        await using IKernelUnitOfWork unitOfWork = await _unitOfWorkFactory.BeginAsync(cancellationToken);
+        // RR-81: a read-only transaction, so a query that tries to write or lock rows is refused by PostgreSQL (25006).
+        await using IKernelUnitOfWork unitOfWork = await _unitOfWorkFactory.BeginReadOnlyAsync(cancellationToken);
         try
         {
             Result<Principal> resolved = await _accessControl.ResolvePrincipalAsync(unitOfWork, subject, cancellationToken);

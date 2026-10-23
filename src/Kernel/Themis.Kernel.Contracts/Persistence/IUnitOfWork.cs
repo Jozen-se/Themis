@@ -64,4 +64,10 @@ public sealed record UnitOfWorkConnection(DbConnection Connection, DbTransaction
 public interface IUnitOfWorkFactory
 {
     Task<IKernelUnitOfWork> BeginAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The query's unit of work (RR-81): SET TRANSACTION READ ONLY right after BEGIN, so a write, a row lock or a
+    /// temporary table is refused with 25006; role switches and advisory locks still work. Used by the query dispatcher only.
+    /// </summary>
+    Task<IKernelUnitOfWork> BeginReadOnlyAsync(CancellationToken cancellationToken);
 }

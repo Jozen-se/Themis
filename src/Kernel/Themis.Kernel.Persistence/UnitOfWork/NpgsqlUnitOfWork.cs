@@ -35,13 +35,21 @@ internal sealed class NpgsqlUnitOfWork : IKernelUnitOfWork
     /// <summary>Persistence-internal, like <see cref="Connection"/>.</summary>
     public DbTransaction Transaction => _transaction;
 
-    public static async Task<NpgsqlUnitOfWork> BeginAsync(NpgsqlDataSource dataSource, CancellationToken cancellationToken)
+    public static async Task<NpgsqlUnitOfWork> BeginAsync(NpgsqlDataSource dataSource, CancellationToken cancellationToken, bool readOnly = false)
     {
         NpgsqlConnection connection = await dataSource.OpenConnectionAsync(cancellationToken);
         try
         {
             NpgsqlTransaction transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
-            return new NpgsqlUnitOfWork(connection, transaction);
+            NpgsqlUnitOfWork unitOfWork = new(connection, transaction);
+            if (readOnly)
+            {
+                // RR-81: a query's transaction refuses every write and row lock with 25006, whatever its code tries.
+                await using NpgsqlCommand command = unitOfWork.CreateCommand("SET TRANSACTION READ ONLY", null);
+                await command.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            return unitOfWork;
         }
         catch
         {

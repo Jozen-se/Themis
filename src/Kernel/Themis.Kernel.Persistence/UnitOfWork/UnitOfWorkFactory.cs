@@ -15,4 +15,7 @@ internal sealed class UnitOfWorkFactory : IUnitOfWorkFactory
 
     public async Task<IKernelUnitOfWork> BeginAsync(CancellationToken cancellationToken) =>
         await NpgsqlUnitOfWork.BeginAsync(_dataSource, cancellationToken);
+
+    public async Task<IKernelUnitOfWork> BeginReadOnlyAsync(CancellationToken cancellationToken) =>
+        await NpgsqlUnitOfWork.BeginAsync(_dataSource, cancellationToken, readOnly: true);
 }

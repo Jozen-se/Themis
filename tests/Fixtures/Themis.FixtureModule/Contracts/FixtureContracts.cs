@@ -23,6 +23,9 @@ public static class FixtureContracts
     public const string CreatePermission = "ITEM.CREATE";
     public const string TouchPermission = "FIXTURE.TOUCH";
 
+    /// <summary>The test-only TYPE.READ permission of the write-attempting query seam (RR-81), carried by <see cref="TouchRoleCode"/>.</summary>
+    public const string ReadPermission = "FIXTURE.READ";
+
     /// <summary>The test-only role that carries <see cref="TouchPermission"/>, assigned to the clerk by the integration tests.</summary>
     public const string TouchRoleCode = "FIXTURE_TESTER";
 

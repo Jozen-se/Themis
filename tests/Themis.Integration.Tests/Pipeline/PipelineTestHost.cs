@@ -16,6 +16,7 @@ using Themis.Kernel.Contracts.Commands;
 using Themis.Kernel.Contracts.Documents;
 using Themis.Kernel.Contracts.MasterData;
 using Themis.Kernel.Contracts.Organisation;
+using Themis.Kernel.Contracts.Queries;
 using Themis.Kernel.Contracts.Security;
 using Themis.Kernel.Contracts.Settings;
 using Themis.Kernel.Documents;
@@ -135,6 +136,8 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         builder.Services.AddScoped<RoleProbeRecorder>();
         builder.Services.AddScoped<IScopeResolver<RoleProbe>, RoleProbeScopeResolver>();
         builder.Services.AddScoped<ICommandHandler<RoleProbe, RoleProbeResult>, RoleProbeHandler>();
+        // RR-81: the write-attempting query (docs/development/test-seams.md).
+        builder.Services.AddScoped<IQueryHandler<WriteAttemptQuery, long>, WriteAttemptQueryHandler>();
         builder.Services.AddKernelOrganisation();
         builder.Services.AddKernelSettings();
         builder.Services.AddKernelMasterData();
@@ -149,6 +152,7 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         app.UseKernelRequestPipeline();
         app.MapCommandRoutes(FixtureContracts.Routes);
         app.MapCommandRoutes(RoleProbeRoutes.Commands);
+        app.MapQuery<WriteAttemptQuery, long>(WriteAttemptQueryRoutes.Query);
         app.MapQuery<GetCompany, CompanyInfo>(OrganisationRoutes.Company);
         app.MapCommandRoutes(MasterDataRoutes.Commands);
         app.MapQuery<GetItem, ItemView>(MasterDataRoutes.Item);
