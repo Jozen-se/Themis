@@ -28,13 +28,17 @@ internal sealed class StringPrimitiveConverter<T> : JsonConverter<T>
             throw new JsonException($"Expected a string for {typeToConvert.Name}, found {reader.TokenType}.");
         }
 
+        // RR-61: every parse failure is a JsonException, so the request is a 400 at binding, never a 500. The
+        // factories throw ArgumentException for a value outside their rule and FormatException or OverflowException
+        // for text they cannot parse at all, such as the date 2026-02-30.
+        string text = reader.GetString() ?? string.Empty;
         try
         {
-            return _parse(reader.GetString() ?? string.Empty);
+            return _parse(text);
         }
-        catch (ArgumentException exception)
+        catch (Exception exception) when (exception is ArgumentException or FormatException or OverflowException)
         {
-            throw new JsonException(exception.Message, exception);
+            throw new JsonException($"'{text}' is not a valid {typeToConvert.Name}: {exception.Message}", exception);
         }
     }
 

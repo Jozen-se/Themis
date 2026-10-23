@@ -56,7 +56,10 @@ internal sealed class DecimalJsonConverter : JsonConverter<decimal>
         switch (reader.TokenType)
         {
             case JsonTokenType.Number:
-                return reader.GetDecimal();
+                // RR-61: a number outside the decimal range (for example 1e400) is a JsonException, so the request is a 400.
+                return reader.TryGetDecimal(out decimal number)
+                    ? number
+                    : throw new JsonException($"The number {System.Text.Encoding.UTF8.GetString(reader.ValueSpan)} is outside the decimal range. Decimals are sent as strings such as \"12.50\" or as plain JSON numbers (D-37).");
             case JsonTokenType.String:
                 string text = reader.GetString() ?? string.Empty;
                 return decimal.TryParse(text, AcceptedStyles, CultureInfo.InvariantCulture, out decimal value)
