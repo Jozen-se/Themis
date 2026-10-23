@@ -42,6 +42,11 @@ internal static class SettingCatalog
         // Data-backed: the default is rows of an entity, changed by that entity's commands.
         new("security.sod_conflicts", SettingValueType.Code, "CUSTOMER.SET_CREDIT_LIMIT|SALES_ORDER.APPROVE_CREDIT,ACCOUNT.MAINTAIN|MANUAL_JOURNAL.POST,FISCAL_PERIOD.REOPEN|MANUAL_JOURNAL.POST", InstallationOnly, SettingBacking.Data, "R-SEC-02",
             "The permission pairs one user may not hold together. Rows of SodConflict, shipped by the migrator and changed by the role commands of milestone 2 step 13."),
+        // R-SEC-03 entered the Foundation's list with D-62. The step 13 specification sets the value type and the D-62
+        // defaults per document type; until then the definition holds no default.
+        new("security.four_eyes_posting", SettingValueType.Boolean, null, CompanyOnly, SettingBacking.Planned, "R-SEC-03",
+            "Four-eyes posting per document type: the user who posts a document is neither the user who created it nor the user who last changed it or one of its lines.",
+            DecisionId: "D-62", Phase: "Phase 0, milestone 2 step 13 (users and roles)", PlannedLevels: "DocumentType"),
 
         // Planned: the feature that reads the default comes in the named phase (D-55 moves these out of Phase 0).
         new("inventory.availability_components", SettingValueType.Code, "OnHandMinusReservedMinusBlocked", CompanyOnly, SettingBacking.Planned, "R-INV-04",
