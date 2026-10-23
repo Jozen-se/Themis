@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Themis.Kernel.Contracts.Commands;
 using Themis.Kernel.Contracts.Queries;
+using Themis.Kernel.Contracts.Security;
 using Themis.Kernel.Contracts.Settings;
 using Themis.Kernel.Primitives;
 
@@ -26,6 +27,11 @@ internal static class KernelSettingsServices
         // R-API-02: a write that loses the race on the slot's version is the same 412 as a stale If-Match, never stored (RR-45).
         services.AddSingleton(new UniqueConstraintRule(SettingWrites.SlotVersionIndex, "R-API-02", SettingWrites.VersionStaleCode, "The setting changed since the version was read.", ErrorKind.PreconditionFailed));
         services.AddScoped<IQueryHandler<GetSetting, SettingReadView>, GetSettingHandler>();
+        // D-63, RR-102: one resolver for every level, inside the transaction; a warehouse declares its company and site.
+        services.AddSingleton<SettingScopeResolver>();
+        services.AddSingleton<IScopeResolver<SetSetting>>(provider => provider.GetRequiredService<SettingScopeResolver>());
+        services.AddSingleton<IScopeResolver<ClearSetting>>(provider => provider.GetRequiredService<SettingScopeResolver>());
+        services.AddSingleton<IScopeResolver<GetSetting>>(provider => provider.GetRequiredService<SettingScopeResolver>());
         return services;
     }
 }

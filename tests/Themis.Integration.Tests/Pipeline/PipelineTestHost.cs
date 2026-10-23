@@ -198,10 +198,17 @@ internal sealed class PipelineTestHost : IAsyncDisposable
     public static string TokenFor(string? subject = null) => TestTokens.For(subject ?? TestUsers.ClerkSubject, TimeProvider.System);
 
     public Task<CommandReply> GetAsync(string path, string? subject = null, string? token = null, CancellationToken cancellationToken = default) =>
-        SendAsync(HttpMethod.Get, path, null, null, null, token ?? TokenFor(subject), null, cancellationToken);
+        SendAsync(HttpMethod.Get, path, null, null, null, token ?? TokenFor(subject ?? DefaultSubject(path)), null, cancellationToken);
 
     public Task<CommandReply> PostAsync(string path, object? body, string? idempotencyKey, string? ifMatch = null, string? subject = null, string? token = null, string? correlationId = null, CancellationToken cancellationToken = default) =>
-        SendAsync(HttpMethod.Post, path, body, idempotencyKey, ifMatch, token ?? TokenFor(subject), correlationId, cancellationToken);
+        SendAsync(HttpMethod.Post, path, body, idempotencyKey, ifMatch, token ?? TokenFor(subject ?? DefaultSubject(path)), correlationId, cancellationToken);
+
+    /// <summary>
+    /// The settings routes default to the settings administrator, the fixture user who holds SETTINGS_ADMINISTRATOR
+    /// since the clerk no longer does (RR-101); every other route defaults to the clerk. A test that names a subject gets it.
+    /// </summary>
+    private static string DefaultSubject(string path) =>
+        path.StartsWith("/v1/kernel/settings", StringComparison.Ordinal) ? TestUsers.SettingsAdministratorSubject : TestUsers.ClerkSubject;
 
     /// <summary>A request with no token at all.</summary>
     public Task<CommandReply> PostAnonymousAsync(string path, object? body, string? idempotencyKey, CancellationToken cancellationToken = default) =>

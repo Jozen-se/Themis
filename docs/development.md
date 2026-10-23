@@ -590,9 +590,15 @@ configurable default from code, and the idempotency retention is the first setti
 The catalogue (`SettingCatalog`, `Themis.Kernel.Settings`) follows the `PermissionCatalog` pattern: one definition
 per configurable default with its key, value type, documented default, validation (min, max, allowed values), the
 levels a value may be written at, whether the caller dates its values, the lock, the backing (Setting, Column, Data or
-Planned with its phase and the levels that phase adds) and the rule and decision that make it a default. The
-architecture test `SettingCatalogCoverageTests` reads the Foundation's list and the specification's milestone 2
-definitions from the snapshots and holds the catalogue to them in both directions. `Themis.Migrator` writes the
+Planned with its phase and the levels that phase adds) and the rule and decision that make it a default. Since
+milestone 2 step 2a (D-63) only Setting and Column definitions have a value type: a Planned definition carries only
+its key, description, rule, decision where there is one, phase and levels, and gets its type, default and validation
+from the specification of the phase that builds it; a Data definition holds no copy of its entity's rows and no
+validation. The check `ck_setting_definition_shape` holds every row to that shape. The architecture test
+`SettingCatalogCoverageTests` reads the Foundation's list and the specification's milestone 2 definitions from the
+snapshots and holds the catalogue to them in both directions, by rule ID and against an expected list of keys (RR-97).
+A database created before step 2a holds Planned rows with invented types, which the new check refuses: recreate it
+(`docker compose down -v`, then the migrator); no migration rewrites those rows. `Themis.Migrator` writes the
 catalogue to `kernel.setting_definition` on every run through `SettingDefinitionSeeder`, as it writes the document
 type registry (D-40): a missing row is inserted, a differing one aligned, each with an audit event under the system
 user; a stored value that a tightened range left outside its definition is printed as a warning and never changed,
@@ -606,17 +612,29 @@ company). The kernel role holds SELECT and INSERT and no UPDATE or DELETE, which
 (R-SET-01, I-14). Both commands are Sensitive and require If-Match with the slot's current version, 0 for a slot
 with no rows yet (R-API-02: 412 when stale, 428 when missing); a write that loses a concurrent race on the unique
 version index `ux_setting_value_slot_version` gets the same 412 through a `UniqueConstraintRule` of kind
-PreconditionFailed (RR-45), and like every 412 it is not stored as the key's result. An Installation value declares
-installation scope (RR-52), so a holder of SETTING.SET with a company-wide assignment in any company changes
-installation values for every company; access reviews treat SETTING.SET and SETTING.CLEAR as installation-wide. A
-company, site or warehouse value declares its company (and site). Rejections: a value of the wrong type or outside
+PreconditionFailed (RR-45), and like every 412 it is not stored as the key's result. One scope resolver
+(`SettingScopeResolver`) serves SET, CLEAR and READ inside the transaction (D-63, RR-102): an Installation value
+declares installation scope (RR-52), so a holder of SETTING.SET with a company-wide assignment in any company changes
+installation values for every company, and access reviews treat SETTING.SET and SETTING.CLEAR as installation-wide; a
+Company value declares its company, a Site value its company and site, and a Warehouse value the warehouse's company
+and site, read from the warehouse row, so a site-limited assignment for that site may write it. A site or warehouse
+that does not exist or belongs to another company declares the body's company, and the handler's target check
+answers 400, stored as the key's result. The site serves the scope only; a warehouse value stores no site. Rejections
+(confirmed by D-63): a value of the wrong type or outside
 its validation, an unknown key, a target that does not fit the level and a valid_from on a plain definition are 400;
 a locked definition, a level the definition does not allow, and SET or CLEAR on a definition backed by a column, data
-or a planned feature are 422 under R-SET-01. CLEAR on a slot with no rows is a 400. Each write has one audit event
+or a planned feature are 422 under R-SET-01. CLEAR on a slot with no rows is a 400 with code `setting_value_absent`,
+READ of an unknown key is a 404, and a Code value must pass the token check (letters, digits, `_`, `-`, `.`, `,` and
+`|`, anchored at the end of input, RR-82). Each write has one audit event
 (entity `SettingValue`) and one outbox event `SETTING_CHANGED` (aggregate type `SETTING`, the company empty for an
 Installation value) carrying key, level, target, previous and new value (D-44, D-50). SETTING.READ returns the
 effective value at a target with its source (a level, the default or a column) and the current version of each
-allowed level at that target.
+allowed level at that target; for a Data definition the source is Data and the answer carries the entity's rows, read
+in the query's transaction: for `security.sod_conflicts`, `conflictPairs`, the permission code pairs of
+`kernel.sod_conflict` (RR-98). The value type is empty for Data and Planned definitions. In the fixture the settings
+permissions belong to their own user, the settings administrator (`eeeeeeee-3333-4333-8333-eeeeeeeeeeee`, test tokens
+only), not to the milestone 1 clerk (RR-101); a database seeded before step 2a gave them to the clerk and is
+recreated.
 
 The reader (`SettingsReader`, `ISettingsReader` in Contracts) runs inside the caller's transaction: for one
 definition, level and target, a plain definition takes the row with the highest version; a history-bearing one the

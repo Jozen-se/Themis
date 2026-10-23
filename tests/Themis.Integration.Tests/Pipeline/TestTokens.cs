@@ -62,4 +62,9 @@ internal static class TestUsers
     public const string ClerkSubject = Milestone1IdentityFixture.ClerkSubject;
 
     public const string PreparerSubject = Milestone1IdentityFixture.PreparerSubject;
+
+    /// <summary>The fixture user who holds SETTINGS_ADMINISTRATOR (RR-101); the clerk no longer does.</summary>
+    public static Guid SettingsAdministrator => Milestone1IdentityFixture.SettingsAdministratorId;
+
+    public const string SettingsAdministratorSubject = Milestone1IdentityFixture.SettingsAdministratorSubject;
 }

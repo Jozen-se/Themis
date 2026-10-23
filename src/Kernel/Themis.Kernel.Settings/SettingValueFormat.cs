@@ -28,8 +28,14 @@ internal static partial class SettingValueFormat
             return Error.Validation(ValueInvalidCode, $"Setting {definition.Key} needs a value.", details: Details(definition));
         }
 
+        // D-63: a Data or Planned definition has no value type, so there is no value to check; SET refuses it earlier (R-SET-01).
+        if (definition.ValueType is not { } valueType)
+        {
+            return Error.Validation(ValueInvalidCode, $"Setting {definition.Key} is backed by {definition.Backing} and takes no value.", details: Details(definition));
+        }
+
         string text = value.Trim();
-        switch (definition.ValueType)
+        switch (valueType)
         {
             case SettingValueType.Integer:
                 if (!long.TryParse(text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out long integer))
@@ -98,7 +104,12 @@ internal static partial class SettingValueFormat
 
     private static Dictionary<string, string> Details(SettingDefinition definition)
     {
-        Dictionary<string, string> details = new(StringComparer.Ordinal) { ["field"] = "value", ["key"] = definition.Key, ["valueType"] = definition.ValueType.ToString() };
+        Dictionary<string, string> details = new(StringComparer.Ordinal) { ["field"] = "value", ["key"] = definition.Key };
+        if (definition.ValueType is { } valueType)
+        {
+            details["valueType"] = valueType.ToString();
+        }
+
         if (definition.Min is { } min)
         {
             details["min"] = min;

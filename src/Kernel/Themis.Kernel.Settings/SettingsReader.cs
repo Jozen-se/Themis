@@ -90,9 +90,13 @@ internal sealed class SettingsReader : ISettingsReader
 
         if (!found)
         {
-            (value, source) = definition.Backing == SettingBacking.Column && target.CompanyId is { } company
-                ? (await ColumnValueAsync(unitOfWork, definition, company, cancellationToken), SettingSource.Column)
-                : (definition.DefaultValue, SettingSource.Default);
+            (value, source) = definition.Backing switch
+            {
+                SettingBacking.Column when target.CompanyId is { } company => (await ColumnValueAsync(unitOfWork, definition, company, cancellationToken), SettingSource.Column),
+                // D-63: a Data definition holds no copy of its rows; its value is the rows themselves, which SETTING.READ returns.
+                SettingBacking.Data => (null, SettingSource.Data),
+                _ => (definition.DefaultValue, SettingSource.Default),
+            };
         }
 
         levels.Reverse();

@@ -37,7 +37,7 @@ public sealed class SettingValueFormatTests
     [InlineData(SettingValueType.Code, "semi;colon")]
     [InlineData(SettingValueType.Duration, "5 minutes")]
     [InlineData(SettingValueType.Duration, "-00:01:00")]
-    public void A_value_of_the_wrong_form_is_a_400_with_the_field_in_the_details(SettingValueType type, string given)
+    public void D_63_a_value_of_the_wrong_form_a_Code_value_failing_the_token_check_included_is_a_400_with_the_field_in_the_details(SettingValueType type, string given)
     {
         Result<string> result = SettingValueFormat.Normalise(Definition(type), given);
         Assert.True(result.IsFailure);

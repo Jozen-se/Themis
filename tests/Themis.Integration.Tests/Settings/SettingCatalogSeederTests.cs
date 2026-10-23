@@ -9,7 +9,8 @@ namespace Themis.Integration.Tests.Settings;
 /// <summary>
 /// The migrator's catalogue run (D-58): every definition in code is in kernel.setting_definition after a run; a stored
 /// value a tightened range left behind is reported and never changed; a definition that left the catalogue is marked
-/// retired and reported, its values stay, and it comes back when the catalogue names it again.
+/// retired and reported, its values stay, and it comes back when the catalogue names it again. Data and Planned rows
+/// carry no value type, default or validation, which the database checks (D-63).
 /// </summary>
 [Collection(PostgresTestGroup.Name)]
 [Trait("Category", "Integration")]
@@ -73,6 +74,46 @@ public sealed class SettingCatalogSeederTests
             // The migrator prints the warnings and still exits 0: a report, never a stop.
             await ExecuteAsync(connection, "UPDATE kernel.setting_value SET value = '30' WHERE definition_key = 'idempotency.retention_days'");
             Assert.Equal(0, await Themis.Migrator.Program.Main(["--connection", migrator]));
+        }
+        finally
+        {
+            await _db.DropDatabaseAsync(database, CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task D_63_Data_and_Planned_rows_carry_no_value_type_default_or_validation_the_database_refuses_one_that_does_and_a_retired_row_keeps_the_shape()
+    {
+        string database = await _db.CreateSeededDatabaseAsync(Ct);
+        try
+        {
+            string migrator = new NpgsqlConnectionStringBuilder(database) { Username = "themis_migrator", Password = PostgresFixture.TestRolePassword }.ConnectionString;
+            await using NpgsqlConnection connection = await PostgresFixture.OpenAsync(database, Ct);
+
+            // RR-98, RR-99: every Data and Planned row is bare; every Setting and Column row has its value type.
+            Assert.Equal(0L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.setting_definition WHERE backing IN ('Data', 'Planned') AND (value_type IS NOT NULL OR default_value IS NOT NULL OR min IS NOT NULL OR max IS NOT NULL OR allowed_values IS NOT NULL)"));
+            Assert.Equal(0L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.setting_definition WHERE backing IN ('Setting', 'Column') AND value_type IS NULL"));
+            Assert.Equal(true, await ScalarAsync(connection, "SELECT default_value IS NULL FROM kernel.setting_definition WHERE key = 'security.sod_conflicts'"));
+
+            // The check refuses a Planned row with a value type, and a Setting row without one, whoever writes it.
+            PostgresException typed = await Assert.ThrowsAsync<PostgresException>(() => ExecuteAsync(connection, "UPDATE kernel.setting_definition SET value_type = 'Code' WHERE key = 'sales.credit_check_mode'"));
+            Assert.Equal(PostgresErrorCodes.CheckViolation, typed.SqlState);
+            Assert.Equal("ck_setting_definition_shape", typed.ConstraintName);
+            PostgresException untyped = await Assert.ThrowsAsync<PostgresException>(() => ExecuteAsync(connection, "UPDATE kernel.setting_definition SET value_type = NULL WHERE key = 'document.max_lines'"));
+            Assert.Equal("ck_setting_definition_shape", untyped.ConstraintName);
+
+            // A catalogue that gives a Planned definition a type is refused by the database; nothing of the run is kept.
+            SettingDefinition planned = SettingCatalog.Find("sales.credit_check_mode")!;
+            List<SettingDefinition> invented = [.. SettingCatalog.Definitions.Where(definition => definition.Key != planned.Key), planned with { ValueType = SettingValueType.Code, DefaultValue = "Block" }];
+            Exception refused = await Assert.ThrowsAnyAsync<Exception>(() => SettingDefinitionSeeder.ApplyCatalogueAsync(migrator, invented, SettingValueFormat.IsValid, TimeProvider.System.GetUtcNow(), WellKnownUsers.System, Ct));
+            Assert.Contains("ck_setting_definition_shape", refused.ToString(), StringComparison.Ordinal);
+            Assert.Equal(true, await ScalarAsync(connection, "SELECT value_type IS NULL FROM kernel.setting_definition WHERE key = 'sales.credit_check_mode'"));
+
+            // A Planned definition that leaves the catalogue is retired and keeps the shape the check demands.
+            SettingCatalogReport retired = await SettingDefinitionSeeder.ApplyCatalogueAsync(migrator, [.. SettingCatalog.Definitions.Where(definition => definition.Key != planned.Key)], SettingValueFormat.IsValid, TimeProvider.System.GetUtcNow(), WellKnownUsers.System, Ct);
+            Assert.Equal(1, retired.Retired);
+            Assert.Equal(true, await ScalarAsync(connection, "SELECT retired FROM kernel.setting_definition WHERE key = 'sales.credit_check_mode'"));
+            Assert.Equal(0L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.setting_definition WHERE key = 'sales.credit_check_mode' AND (value_type IS NOT NULL OR default_value IS NOT NULL OR allowed_values IS NOT NULL)"));
         }
         finally
         {

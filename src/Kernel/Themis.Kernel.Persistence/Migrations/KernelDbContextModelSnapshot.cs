@@ -3071,7 +3071,6 @@ namespace Themis.Kernel.Persistence.Migrations
                         .HasColumnName("updated_at");
 
                     b.Property<string>("ValueType")
-                        .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasColumnName("value_type");
@@ -3082,13 +3081,11 @@ namespace Themis.Kernel.Persistence.Migrations
                     b.HasAlternateKey("Key")
                         .HasName("ak_setting_definition_key");
 
-                    b.HasIndex("Key")
-                        .IsUnique()
-                        .HasDatabaseName("ux_setting_definition_key");
-
                     b.ToTable("setting_definition", "kernel", t =>
                         {
                             t.HasCheckConstraint("ck_setting_definition_backing", "backing IN ('Setting', 'Column', 'Data', 'Planned')");
+
+                            t.HasCheckConstraint("ck_setting_definition_shape", "(backing IN ('Setting', 'Column') AND value_type IS NOT NULL) OR (backing IN ('Data', 'Planned') AND value_type IS NULL AND default_value IS NULL AND min IS NULL AND max IS NULL AND allowed_values IS NULL)");
 
                             t.HasCheckConstraint("ck_setting_definition_value_type", "value_type IN ('Integer', 'Decimal', 'Boolean', 'Code', 'Duration')");
                         });

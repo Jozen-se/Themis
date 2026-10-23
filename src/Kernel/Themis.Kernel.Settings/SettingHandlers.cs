@@ -329,6 +329,8 @@ internal sealed class GetSettingHandler : IQueryHandler<GetSetting, SettingReadV
         }
 
         SettingsReader.Resolved resolved = await _reader.ResolveAsync(unitOfWork, definition, new SettingTarget(query.CompanyId, query.SiteId, query.WarehouseId), asOf: null, cancellationToken);
+        // D-63, RR-98: a Data definition answers with its entity's rows, read in this query's transaction.
+        IReadOnlyList<PermissionCodePair>? conflictPairs = definition.Backing == SettingBacking.Data ? await DataRowsAsync(unitOfWork, definition, cancellationToken) : null;
         return new SettingReadView(
             definition.Key,
             definition.ValueType,
@@ -338,6 +340,17 @@ internal sealed class GetSettingHandler : IQueryHandler<GetSetting, SettingReadV
             [.. definition.Levels.Order()],
             resolved.Value,
             resolved.Source,
-            [.. resolved.Levels.Select(level => new SettingLevelState(level.Level, level.Version, level.Deciding?.Kind, level.Deciding?.Value, level.Deciding?.ValidFrom))]);
+            [.. resolved.Levels.Select(level => new SettingLevelState(level.Level, level.Version, level.Deciding?.Kind, level.Deciding?.Value, level.Deciding?.ValidFrom))],
+            conflictPairs);
     }
+
+    /// <summary>The rows behind a Data definition; security.sod_conflicts is the only one in this build.</summary>
+    private static Task<IReadOnlyList<PermissionCodePair>> DataRowsAsync(IUnitOfWork unitOfWork, SettingDefinition definition, CancellationToken cancellationToken) =>
+        definition.Key switch
+        {
+            SodConflictsKey => SettingStore.SodConflictPairsAsync(unitOfWork, cancellationToken),
+            _ => throw new InvalidOperationException($"Setting {definition.Key} is backed by Data, but the query does not know its entity."),
+        };
+
+    private const string SodConflictsKey = "security.sod_conflicts";
 }

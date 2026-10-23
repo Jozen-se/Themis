@@ -122,7 +122,7 @@ public sealed class HostSmokeTests : IDisposable
     [Theory]
     [InlineData("BatchSize", "0")]
     [InlineData("Interval", "00:00:00")]
-    public void Invalid_purge_options_stop_the_host_at_start_also_with_the_purge_disabled(string option, string value)
+    public void RR_42_invalid_purge_options_stop_the_host_at_start_also_with_the_purge_disabled(string option, string value)
     {
         // Milestone 2 step 2 (RR-42): Idempotency:Purge:* are validated at every host start, enabled or not, like the relay's.
         using WebApplicationFactory<Program> factory = new WebApplicationFactory<Program>()

@@ -9,13 +9,16 @@ namespace Themis.Kernel.Identity;
 /// INVENTORY_ADJUSTMENT.CREATE, UPDATE, POST and DISCARD; the preparer prepares adjustments only, without POST and
 /// without ITEM.CREATE (step 5 brief, acceptance 6: the preparer without ITEM.CREATE gets 403); both are assigned
 /// to company SE01 without site restriction. Both also hold the TYPE.READ permissions of the milestone's resource
-/// types (D-47). Every value is test data; the identifiers are fixed so that seeding is idempotent and tests can
-/// name the rows.
+/// types (D-47). Since milestone 2 step 2a a third user, the settings administrator, holds SETTINGS_ADMINISTRATOR,
+/// so the clerk's permissions are again exactly those milestone 1 proves (RR-101); that user is not in the Keycloak
+/// realm, because no Keycloak test needs it. Every value is test data; the identifiers are fixed so that seeding is
+/// idempotent and tests can name the rows.
 /// </summary>
 internal static class Milestone1IdentityFixture
 {
     public static Guid ClerkId { get; } = Guid.Parse("11111111-1111-4111-8111-111111111111");
     public static Guid PreparerId { get; } = Guid.Parse("22222222-2222-4222-8222-222222222222");
+    public static Guid SettingsAdministratorId { get; } = Guid.Parse("33333333-3333-4333-8333-333333333333");
     public static Guid PreparerRoleId { get; } = Guid.Parse("00000000-0000-7000-8000-000000000301");
     public static Guid PosterRoleId { get; } = Guid.Parse("00000000-0000-7000-8000-000000000302");
     public static Guid ItemMaintainerRoleId { get; } = Guid.Parse("00000000-0000-7000-8000-000000000303");
@@ -24,11 +27,14 @@ internal static class Milestone1IdentityFixture
     public static Guid ClerkPosterAssignmentId { get; } = Guid.Parse("00000000-0000-7000-8000-000000000402");
     public static Guid PreparerAssignmentId { get; } = Guid.Parse("00000000-0000-7000-8000-000000000403");
     public static Guid ClerkItemMaintainerAssignmentId { get; } = Guid.Parse("00000000-0000-7000-8000-000000000404");
-    public static Guid ClerkSettingsAdministratorAssignmentId { get; } = Guid.Parse("00000000-0000-7000-8000-000000000405");
+    public static Guid SettingsAdministratorAssignmentId { get; } = Guid.Parse("00000000-0000-7000-8000-000000000406");
 
     /// <summary>The Keycloak user ids of the realm export, which the provider issues as the <c>sub</c> claim.</summary>
     public const string ClerkSubject = "cccccccc-1111-4111-8111-cccccccccccc";
     public const string PreparerSubject = "dddddddd-2222-4222-8222-dddddddddddd";
+
+    /// <summary>The settings administrator's subject; test tokens only, not in the Keycloak realm (RR-101).</summary>
+    public const string SettingsAdministratorSubject = "eeeeeeee-3333-4333-8333-eeeeeeeeeeee";
 
     public const string ClerkUsername = "clerk";
     public const string PreparerUsername = "preparer";
@@ -46,7 +52,7 @@ internal static class Milestone1IdentityFixture
     /// <summary>Posts adjustments: the Sensitive permission alone, so the two roles never collide (R-SEC-02).</summary>
     public const string PosterRoleCode = "INVENTORY_POSTER";
 
-    /// <summary>Administers settings (milestone 2 step 2): SETTING.SET, SETTING.CLEAR and SETTING.READ, held by the clerk only.</summary>
+    /// <summary>Administers settings (milestone 2 step 2): SETTING.SET, SETTING.CLEAR and SETTING.READ, held by the settings administrator only (RR-101).</summary>
     public const string SettingsAdministratorRoleCode = "SETTINGS_ADMINISTRATOR";
 
     /// <summary>Assignments start with the fixture's fiscal year and never end.</summary>
@@ -57,6 +63,7 @@ internal static class Milestone1IdentityFixture
         [
             new UserDefinition(ClerkId, ClerkSubject, "Clerk Carlsson", "clerk@themis.local", IsServiceAccount: false, UserStatus.Active),
             new UserDefinition(PreparerId, PreparerSubject, "Preparer Persson", "preparer@themis.local", IsServiceAccount: false, UserStatus.Active),
+            new UserDefinition(SettingsAdministratorId, SettingsAdministratorSubject, "Settings Svensson", "settings@themis.local", IsServiceAccount: false, UserStatus.Active),
         ],
         [
             new RoleDefinition(PreparerRoleId, Code.From(PreparerRoleCode), "Inventory preparer",
@@ -89,6 +96,6 @@ internal static class Milestone1IdentityFixture
             new RoleAssignmentDefinition(ClerkPosterAssignmentId, ClerkId, PosterRoleId, companyId, SiteId: null, ValidFrom, ValidTo: null),
             new RoleAssignmentDefinition(PreparerAssignmentId, PreparerId, PreparerRoleId, companyId, SiteId: null, ValidFrom, ValidTo: null),
             new RoleAssignmentDefinition(ClerkItemMaintainerAssignmentId, ClerkId, ItemMaintainerRoleId, companyId, SiteId: null, ValidFrom, ValidTo: null),
-            new RoleAssignmentDefinition(ClerkSettingsAdministratorAssignmentId, ClerkId, SettingsAdministratorRoleId, companyId, SiteId: null, ValidFrom, ValidTo: null),
+            new RoleAssignmentDefinition(SettingsAdministratorAssignmentId, SettingsAdministratorId, SettingsAdministratorRoleId, companyId, SiteId: null, ValidFrom, ValidTo: null),
         ]);
 }
