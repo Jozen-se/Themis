@@ -60,8 +60,10 @@ jobs:
         run: |
           docker compose up -d --wait
           dotnet run --project src/Themis.Migrator --configuration Release --no-build -- --connection "Host=127.0.0.1;Port=5432;Database=themis;Username=themis_migrator;Password=${THEMIS_MIGRATOR_PASSWORD}"
-          docker compose exec -T -e PGPASSWORD="$THEMIS_APP_PASSWORD" postgres psql --no-psqlrc -v ON_ERROR_STOP=1 -h 127.0.0.1 -U themis_app -d themis -c 'SELECT current_user'
-          docker compose exec -T -e PGPASSWORD="$THEMIS_REPORTING_PASSWORD" postgres psql --no-psqlrc -v ON_ERROR_STOP=1 -h 127.0.0.1 -U themis_reporting -d themis -c 'SELECT current_user'
+          # Over the compose network, so the server asks for the password (loopback inside the container may be trusted).
+          docker run --rm --network themis_default -e PGPASSWORD="$THEMIS_APP_PASSWORD" postgres:18 psql --no-psqlrc -v ON_ERROR_STOP=1 -h postgres -U themis_app -d themis -c 'SELECT current_user'
+          docker run --rm --network themis_default -e PGPASSWORD="$THEMIS_REPORTING_PASSWORD" postgres:18 psql --no-psqlrc -v ON_ERROR_STOP=1 -h postgres -U themis_reporting -d themis -c 'SELECT current_user'
+          if docker run --rm --network themis_default -e PGPASSWORD=wrong postgres:18 psql --no-psqlrc -h postgres -U themis_app -d themis -c 'SELECT 1'; then echo "themis_app logged in with a wrong password."; exit 1; fi
 
       - name: The password script stops on a missing variable and names it (RR-65)
         run: |
