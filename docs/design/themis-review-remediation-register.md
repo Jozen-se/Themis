@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Review Remediation Register* (https://claude.ai/code/artifact/91610c8f-7465-46a7-9f48-0bf2c5171ede), revision 32, taken 2026-10-19.
+> **Snapshot** of the live document *Themis Review Remediation Register* (https://claude.ai/code/artifact/91610c8f-7465-46a7-9f48-0bf2c5171ede), revision 39, taken 2026-10-23.
 > Reference only: findings RR-xx and the owner's decision on each. Accepted items are already in the Foundation, the
 > Phase 0 Specification and the Build Brief, which win on any conflict. The live document is authoritative.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -121,6 +121,66 @@ A static review of the code at commit b4ceb2e (after milestone 1 step 10) found 
 | RR-56 | (L8) Repeated query-string keys are joined silently | Reject repeated keys with 400 | Milestone 2 step 1 | [Accept] |
 | RR-57 | (L9) Segregation of duties is checked only at fixture time | Checked by the role assignment commands | Milestone 2 users and roles step | [Accept] |
 | RR-58 | (L10) The reporting view shows every company | Already decided in milestone 1 step 10 (operations note); row-level security later | None | [Reject] |
+
+## Kernel review (2026-10-22)
+
+Your full review of the kernel (copy of 2026-10-20, before milestone 2 step 2 merged) found no critical defect and no data-corruption path, with 1 high (development setup only), 10 medium, 16 low and 4 info findings. The planner checked F-01 to F-04, F-06 to F-08, F-11, F-27, F-29 and F-31 against current main. Your decisions of 2026-10-22 are below; the review's own IDs are kept in brackets.
+
+| ID | Finding | Resolution | When | Decision |
+|---|---|---|---|---|
+| RR-59 | (F-01) postgres:18 refuses to start: compose mounts the volume at the pre-18 path; CI misses it because Testcontainers mounts no volume | Mount the volume at /var/lib/postgresql; docs/development.md gains the Podman settings (DOCKER_HOST, Ryuk) | Interim fix | [Accept] |
+| RR-60 | (F-02) A zero or missing companyId returns 500: the request hash serialises the computed Scope getter, which throws before validation | Keep the computed scope out of the request hash; 400 company_required; an HTTP test with no company | Interim fix | [Accept] |
+| RR-61 | (F-03) An invalid date such as 2026-02-30 returns 500 | The JSON converter turns every parse failure into a 400 | Interim fix | [Accept] |
+| RR-62 | (F-04) The role stays themis_kernel after the dispatcher's kernel calls, and handlers see the raw connection (R-DB-01) | Reset the role after kernel store calls; stop exposing the connection to modules before Phase 1 | Milestone 2 step 2b | [Accept] |
+| RR-63 | (F-05) Ledger and audit tables are insert-only through grants alone; the owner role can still change them, so I-14's "no role" is not literally true | Blocking triggers on journal_entry, journal_line, inventory_entry, audit_event and setting_value; I-14 reworded (D-60) | Milestone 2 step 2b | [Accept] |
+| RR-64 | (F-06) themis_kernel can write the permission catalogue and the SoD pairs, although no command does | Both read-only for the kernel, as document_type; the SoD pair grant returns with the step 13 commands | Milestone 2 step 2b | [Accept] |
+| RR-65 | (F-07) The bootstrap creates LOGIN roles with the password themis | The role script carries no password; a separate psql step sets the passwords from variables and fails without them; development and test placeholders stay in development-only configuration; real values are managed outside the coder's work | Interim fix | [Accept] |
+| RR-66 | (F-08) Number series rows stay locked from numbering until commit; the gapless flag is never read; R-LED-08 says numbering is the last step | The code follows the specification and milestone 1 step 8; R-LED-08 reworded (D-61); throughput of series that are not gapless revisited with Phase 1 volumes | No code change | [Changed] |
+| RR-67 | (F-09) Fiscal period and item status are read without a lock | Period lock with the fiscal year step (already planned, RR-44); item status lock with the item lifecycle step; each with its lock order entry | Milestone 2 steps 6 and 7 | [Accept] |
+| RR-68 | (F-10) No maker-checker: one user can draft and post a stock write-off | New configurable rule R-SEC-03, four-eyes posting, on by default for INVENTORY_ADJUSTMENT and MANUAL_JOURNAL (D-62) | Milestone 2 step 13; Planned definition in the interim fix | [Accept] |
+| RR-69 | (F-11) Documents drift: README version table stale, released step stated differently, two URL forms for the same live documents | The README names packages without versions and points to Directory.Packages.props, and a test checks that every package it names is there; snapshot headers use the URL form CLAUDE.md uses | Interim fix | [Accept] |
+| RR-70 | (F-12) Fixtures with POST rights can be seeded into any database through --fixture | The migrator refuses a fixture outside a development or test environment | Milestone 2 step 2b | [Accept] |
+| RR-71 | (F-13) Anonymous callers get validation answers before the 401; no fallback policy; no WWW-Authenticate header | 401 first through a fallback authorisation policy, with WWW-Authenticate (order of RR-51) | Milestone 2 step 2b | [Accept] |
+| RR-72 | (F-14) The unhandled-exception log line and the 500 body have no correlation id | Correlation middleware runs before the exception handler | Interim fix | [Accept] |
+| RR-73 | (F-15) Body keys can override route values through case-insensitive binding | Route values win; a body value that differs is a 400 | Milestone 2 step 2b | [Accept] |
+| RR-74 | (F-16) The company rounding mode is loaded, but costing always uses HalfAwayFromZero | Costing follows the company's rounding mode before COMPANY.UPDATE can change it | Milestone 2 step 3 | [Accept] |
+| RR-75 | (F-17) Costing multiplies before it divides and can overflow decimal at column limits | Safe operation order, with the posting service contract (RR-55) | Milestone 2 step 9 | [Accept] |
+| RR-76 | (F-18) Posting profile rules are read twice per line while locks are held | Each rule resolved once per posting | Milestone 2 step 9 | [Accept] |
+| RR-77 | (F-19) I-06 and I-15 sum by the INVENTORY line tag, not by account; I-09 skips numbers it cannot parse | I-09 reports an unparsable number as a violation (step 2b); summing by account is settled when manual journals can post lines without the tag (step 11) | Milestone 2 steps 2b and 11 | [Accept] |
+| RR-78 | (F-20) One golden script lacks statement terminators | Golden scripts are compared, never replayed; no change | None | [Reject] |
+| RR-79 | (F-21) Compose publishes Postgres and Keycloak on all interfaces with known passwords | Ports bound to 127.0.0.1; development values only | Interim fix | [Accept] |
+| RR-80 | (F-22) DELETE on idempotency records is granted table-wide | Only the purge and the expired-record branch delete; revisit with row-level security | None | [Reject] |
+| RR-81 | (F-23) Queries run in a read-write transaction that is rolled back | Queries run in a READ ONLY transaction | Milestone 2 step 2b | [Accept] |
+| RR-82 | (F-24) Validation regexes accept a trailing newline (correlation id, idempotency key, Code) | Anchor every pattern at the end of input | Interim fix | [Accept] |
+| RR-83 | (F-25) Every numeric overflow (22003) is reported under R-DOC-01, whatever the command | R-DOC-01 only inside posting; elsewhere it stays a 500 until a command maps it | Milestone 2 step 2b | [Accept] |
+| RR-84 | (F-26) Architecture rules accept an empty module set; the zero-test guard counts per category | Module discovery fails when it finds nothing; the guard counts per test project | Milestone 2 step 2b | [Accept] |
+| RR-85 | (F-27) The Dependabot workflow puts head.ref straight into run:; no nightly long run although the repository is public; no SECURITY.md; no NuGet cache | Branch name through an environment variable; a nightly schedule on the long run; SECURITY.md; cache optional | Interim fix | [Accept] |
+| RR-86 | (F-28) The outbox orders by attempt start time and logs an error every poll with no backoff | Delivery terms stay with D-50 and D-53; backoff comes with the first event consumer | Phase 1 | [Accept] |
+| RR-87 | (F-29) The idempotency retention is a constant | Done in milestone 2 step 2; D-45 ended | Done | [Accept] |
+| RR-88 | (F-30) Invariant queries run as the owner role | The production nightly check uses a SELECT-only role, decided with that job (already planned) | Milestone 2 step 14 | [Accept] |
+| RR-89 | (F-31) The test token issuer is allowed in an environment named Test | It also needs the Identity:TestIssuer configuration; accepted as is | None | [Reject] |
+
+## Review of pull request 42 (2026-10-22)
+
+The first independent review under D-59 read milestone 2 step 2 at its head commit 1dca5f6, after it had merged. Most of the code meets the brief; the findings below and one from the review setup are decided as shown (your decisions of 2026-10-22).
+
+| ID | Finding | Resolution | When | Decision |
+|---|---|---|---|---|
+| RR-90 | CI was red at merge: one host did not register the settings reader, and nothing enforced the registration | Pull request 43 registers it and stops a host without it at start; review layers and sign-off of D-59; admin bypass removed | Pull request 43; D-59 | [Accept] |
+| RR-91 | The pull request body ticked "CI is green" and reported local results as if from CI; deviations from the brief and unrelated changes were not reported | CLAUDE.md: local results are labelled local; the CI box is ticked only when the head commit's checks pass; deviations and unrelated changes are listed | Interim fix | [Accept] |
+| RR-92 | Test names without rule IDs; one test name contradicts its assertion | Rename | Interim fix | [Accept] |
+| RR-93 | The brief asked every definition to cite a decision; the specification makes decision_id optional | The specification wins; the brief's wording was the planner's error; the specification now says so | No code change | [Accept] |
+| RR-94 | The brief asked the migration to add the warehouse alternate key, which already existed | The planner's error; the code was right not to add it | No code change | [Accept] |
+| RR-95 | Duplicate unique index on setting_definition.key, now frozen in a golden script | A new migration drops the redundant index | Interim fix | [Accept] |
+| RR-96 | The purge scans the whole idempotency table every pass | No code change: ix_idempotency_record_expires_at exists since migration 20261009111917 and the purge filters on it; the review's premise was wrong (found in the brief's independent review) | None | [Reject] |
+| RR-97 | Missing tests: scope declaration (RR-52), company_id in the SETTING_CHANGED envelope for company-level values, the purge failure log line, a coverage test that fails on a missing or extra definition key | Add them; the coverage test compares definition keys, not only rule IDs | Interim fix | [Accept] |
+| RR-98 | security.sod_conflicts copies the conflict pairs as default text | Data definitions hold no copy; SETTING.READ reads the SodConflict rows (D-63) | Interim fix | [Accept] |
+| RR-99 | Planned definitions carry invented types, defaults and allowed values | Planned definitions carry only key, rule, phase and levels (D-63) | Interim fix | [Accept] |
+| RR-100 | Rejections the brief did not specify: CLEAR on an empty slot, unknown keys, the Code token check | Confirmed and added to the specification (D-63) | Specification | [Accept] |
+| RR-101 | The SETTINGS_ADMINISTRATOR role was given to the milestone 1 fixture clerk | A separate fixture user holds it | Interim fix | [Accept] |
+| RR-102 | A warehouse value declares only its company | It declares the warehouse's company and site (D-63) | Interim fix | [Accept] |
+| RR-103 | UniqueConstraintRule Kind, serialised host tests, test-only definitions retired in the shared CI database | They follow from the brief or are harmless test plumbing | None | [Reject] |
+| RR-104 | CI runs on ubuntu-latest, which GitHub moves to Ubuntu 26 from 2026-10-19 (planner, review setup) | Pin ubuntu-24.04; upgrade by a deliberate pull request | Interim fix | [Accept] |
 
 ## Where the review overreaches
 
