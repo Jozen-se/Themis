@@ -17,7 +17,7 @@ not). They are written once (Build Brief, step 11) and read in two places:
 | `I-04.sql` | Item cost state = sums of the entries per company and item; value 0 at quantity 0 (R-INV-05, R-INV-07) | `ck_item_cost_state_value` for the zero-value part |
 | `I-06.sql` | INVENTORY-role balance = sum of the entry costs, per company, at every posting date (R-INV-06, R-ACC-01) | |
 | `I-08.sql` | A costed entry links to a journal entry; a posted document has one journal entry exactly when a line has a cost (R-INV-06, R-LED-05) | `ck_inventory_entry_journal_entry` for the entry part |
-| `I-09.sql` | Gapless series have no gaps or duplicates (R-DOC-04, R-DOC-07); JOURNAL_ENTRY series in milestone 1; a number not 1 to 18 digits after its prefix, or matching no gapless series of its company, is reported (RR-77) | `ux_journal_entry_company_number` for duplicates |
+| `I-09.sql` | Gapless series have no gaps or duplicates (R-DOC-04, R-DOC-07); JOURNAL_ENTRY series in milestone 1; a number not 1 to 18 digits after its prefix, or taken by no gapless series of its company and fiscal year, is reported (RR-77) | `ux_journal_entry_company_number` for duplicates |
 | `I-15.sql` | The reported warehouse values sum to the item cost state and the INVENTORY balance, none negative, none without stock (D-54) | `ck_stock_balance_on_hand` and `ck_item_cost_state_value` make a negative value impossible; the sum and the no-stock parts hold by the view's definition |
 
 Not covered here: I-11 and I-14 are role and privilege statements, proven by the privilege matrix and role model tests

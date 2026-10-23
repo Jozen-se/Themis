@@ -2,13 +2,17 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using Themis.Integration.Tests.Pipeline;
+using Themis.Kernel.Contracts.Commands;
 using Themis.Kernel.Contracts.Documents;
 using Themis.Kernel.Contracts.Organisation;
+using Themis.Kernel.Contracts.Persistence;
 using Themis.Kernel.Contracts.Posting;
 using Themis.Kernel.Contracts.Security;
 using Themis.Kernel.Contracts.Settings;
 using Themis.Kernel.Organisation;
 using Themis.Kernel.Persistence.UnitOfWork;
+using Themis.Kernel.Pipeline.Dispatch;
+using Themis.Kernel.Pipeline.Http;
 using Themis.Kernel.Primitives;
 
 namespace Themis.Integration.Tests.Hardening;
@@ -128,7 +132,25 @@ public sealed class RolePerStatementTests : IAsyncLifetime
         await services.GetRequiredService<INumberSeriesService>().TakeAsync(unitOfWork, Company, [new NumberRequest(DocumentTypes.InventoryAdjustment)], TimeProvider.System.GetUtcNow(), principal.Value.UserId, Ct);
         await After("INumberSeriesService.TakeAsync");
 
-        // IPostingService resets through the same helper; the posting tests prove it posts as before.
+        // An adjustment without lines: the posting service locks nothing, takes the IA number and returns; the transaction rolls
+        // back. Its ledger writes run as themis_kernel after the number series call has reset, so the posting hook, which runs
+        // after the writes, switches to themis_kernel as they do: only the posting service's own reset hands back themis_app.
+        _host.PostingFailures.AfterLedgerWrites = (work, _, ct) => work.EnsureRoleAsync(DatabaseRole.Kernel, ct);
+        try
+        {
+            Assert.True(IdempotencyKey.TryFrom("rr62-posting", out IdempotencyKey key));
+            CommandContext context = new(CommandId.New(), CorrelationIds.Fresh(), principal.Value, key, TimeProvider.System.GetUtcNow(), unitOfWork);
+            InventoryAdjustmentPosting posting = new(Guid.NewGuid(), Company, CurrencyCode.From("SEK"), 2, june, june, Milestone1OrganisationFixture.PeriodId(6), Milestone1OrganisationFixture.FiscalYearId, ReasonCode.CountDifference, []);
+            Result<PostingOutcome> posted = await services.GetRequiredService<IPostingService>().PostInventoryAdjustmentAsync(posting, context, Ct);
+            Assert.True(posted.IsSuccess);
+            await After("IPostingService.PostInventoryAdjustmentAsync");
+        }
+        finally
+        {
+            _host.PostingFailures.AfterLedgerWrites = null;
+        }
+
+        Assert.Equal(10, seen.Count);
         Assert.All(seen, call => Assert.Equal(("themis_app", call.Call), (call.User, call.Call)));
         Assert.Null(unitOfWork.CurrentRole);
         await unitOfWork.RollbackAsync(Ct);

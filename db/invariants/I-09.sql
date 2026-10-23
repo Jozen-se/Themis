@@ -5,8 +5,9 @@
 -- JOURNAL_ENTRY (D-52); a gapless series of another document type is reported until this query covers its documents,
 -- so a new gapless type cannot pass unchecked. Duplicates are also refused by ux_journal_entry_company_number.
 -- RR-77: the part of a number after the series prefix must be 1 to 18 digits; an entry whose number parses in none of
--- the series it matches is reported with its id and number, and so is a journal entry whose number carries the prefix
--- of no gapless JOURNAL_ENTRY series of its company. Nothing is skipped silently.
+-- the series it matches is reported with its id and number, and so is a journal entry that no gapless JOURNAL_ENTRY
+-- series of its company and its fiscal year took a number for: a prefix of no series, or the prefix of a series of
+-- another fiscal year. Every journal entry is either counted by a series or reported.
 WITH series AS (SELECT s.id AS series_id, s.company_id, s.document_type, s.fiscal_year_id, coalesce(s.prefix, '') AS prefix, s.next_number
                 FROM kernel.number_series s
                 WHERE s.gapless),
@@ -60,19 +61,15 @@ FROM taken t
 GROUP BY t.company_id, t.journal_entry_id, t.entry_number
 HAVING NOT bool_or(t.parsable)
 UNION ALL
--- RR-77: a journal entry number that carries the prefix of no gapless JOURNAL_ENTRY series of its company.
+-- RR-77: a journal entry that no gapless JOURNAL_ENTRY series of its company and fiscal year took a number for.
 SELECT e.company_id,
        NULL::uuid,
        'JOURNAL_ENTRY',
        NULL::text,
        NULL::bigint,
-       'journal entry number matches no gapless series of its company',
+       'journal entry number matches no gapless series of its company and fiscal year',
        e.id,
        e.entry_number
 FROM kernel.journal_entry e
-WHERE NOT EXISTS (SELECT 1
-                  FROM series s
-                  WHERE s.company_id = e.company_id
-                    AND s.document_type = 'JOURNAL_ENTRY'
-                    AND left(e.entry_number, length(s.prefix)) = s.prefix)
+WHERE NOT EXISTS (SELECT 1 FROM taken t WHERE t.journal_entry_id = e.id)
 ORDER BY 1, 2, 5, 8;

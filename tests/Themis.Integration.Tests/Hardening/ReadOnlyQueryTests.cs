@@ -9,7 +9,7 @@ namespace Themis.Integration.Tests.Hardening;
 
 /// <summary>
 /// Read-only queries (RR-81): the query dispatcher's unit of work runs SET TRANSACTION READ ONLY right after BEGIN.
-/// Role switches and advisory locks keep working; a write or a row lock is refused with 25006. The write-attempting
+/// Role switches, advisory locks and set_config keep working; a write, a row lock or a temporary table is refused with 25006. The write-attempting
 /// query seam gets 500 with 25006 in the log, and the counter it tried to change is unchanged. Every existing query
 /// passes through the same dispatcher in its own tests.
 /// </summary>
@@ -54,7 +54,7 @@ public sealed class ReadOnlyQueryTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task RR_81_the_read_only_unit_of_work_switches_roles_and_takes_advisory_locks_but_refuses_writes_and_row_locks_with_25006()
+    public async Task RR_81_the_read_only_unit_of_work_switches_roles_takes_advisory_locks_and_sets_config_but_refuses_writes_row_locks_and_temporary_tables_with_25006()
     {
         IUnitOfWorkFactory factory = _host.Services.GetRequiredService<IUnitOfWorkFactory>();
         await using IKernelUnitOfWork unitOfWork = await factory.BeginReadOnlyAsync(Ct);
@@ -62,9 +62,11 @@ public sealed class ReadOnlyQueryTests : IAsyncLifetime
         Assert.Equal("on", await unitOfWork.ScalarAsync(DatabaseRole.Kernel, "SELECT current_setting('transaction_read_only')", null, Ct));
         Assert.Equal("themis_kernel", await unitOfWork.ScalarAsync(DatabaseRole.Kernel, "SELECT current_user", null, Ct));
         Assert.True(await unitOfWork.TryAdvisoryLockAsync(818181, Ct));
+        Assert.Equal("rr81", await unitOfWork.ScalarAsync(DatabaseRole.Kernel, "SELECT set_config('themis.rr81_probe', 'rr81', true)", null, Ct));
+        Assert.Equal("rr81", await unitOfWork.ScalarAsync(DatabaseRole.Kernel, "SELECT current_setting('themis.rr81_probe')", null, Ct));
         await unitOfWork.ResetRoleAsync(Ct);
 
-        foreach (string sql in new[] { "UPDATE kernel.company SET code = code WHERE false", "SELECT id FROM kernel.company FOR UPDATE", "SELECT id FROM kernel.company FOR KEY SHARE" })
+        foreach (string sql in new[] { "UPDATE kernel.company SET code = code WHERE false", "SELECT id FROM kernel.company FOR UPDATE", "SELECT id FROM kernel.company FOR KEY SHARE", "CREATE TEMPORARY TABLE rr81_probe (x integer)" })
         {
             await unitOfWork.SavepointAsync("probe", Ct);
             PostgresException refused = await Assert.ThrowsAsync<PostgresException>(() => unitOfWork.ExecuteAsync(DatabaseRole.Kernel, sql, null, Ct));
