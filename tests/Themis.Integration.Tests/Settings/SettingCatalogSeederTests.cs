@@ -74,7 +74,7 @@ public sealed class SettingCatalogSeederTests
             // The migrator prints the warnings and still exits 0: a report, never a stop.
             // D-60: setting_value is insert-only, so the value is set again as a new version row, as SETTING.SET writes it.
             await ExecuteAsync(connection, "INSERT INTO kernel.setting_value (id, definition_key, level, kind, value, version, recorded_at, recorded_by, command_id) VALUES (gen_random_uuid(), 'idempotency.retention_days', 'Installation', 'Set', '30', 2, now(), @system, gen_random_uuid())", ("system", WellKnownUsers.System.Value));
-            Assert.Equal(0, await Themis.Migrator.Program.Main(["--connection", migrator]));
+            Assert.Equal(0, await Themis.Migrator.Program.RunAsync(["--connection", migrator], PostgresFixture.MigratorEnvironment));
         }
         finally
         {

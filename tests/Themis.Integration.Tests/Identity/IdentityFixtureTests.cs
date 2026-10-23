@@ -118,7 +118,7 @@ public sealed class IdentityFixtureTests
         Assert.Equal(1L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.audit_event WHERE command_name = 'SYSTEM.MIGRATE' AND entity_type = 'User'"));
         Assert.Equal(Milestone1IdentityFixture.ClerkSubject, await ScalarAsync(connection, $"SELECT changes->'externalSubject'->>'after' {fixtureAudit} AND entity_id = @id", ("id", Milestone1IdentityFixture.ClerkId)));
 
-        Assert.Equal(0, await Themis.Migrator.Program.Main(["--connection", _db.ConnectionStringFor("themis_migrator"), "--fixture", "milestone-1"]));
+        Assert.Equal(0, await Themis.Migrator.Program.RunAsync(["--connection", _db.ConnectionStringFor("themis_migrator"), "--fixture", "milestone-1"], PostgresFixture.MigratorEnvironment));
 
         Assert.Equal(24L, await ScalarAsync(connection, $"SELECT count(*) {fixtureAudit}"));
         Assert.Equal(4L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.user_account"));
@@ -141,7 +141,7 @@ public sealed class IdentityFixtureTests
     }
 
     [Fact]
-    public async Task I_14_the_kernel_role_reads_inserts_and_updates_the_security_tables_and_never_deletes()
+    public async Task I_14_the_kernel_role_reads_every_security_table_writes_users_roles_and_assignments_only_and_never_deletes()
     {
         await using NpgsqlConnection connection = await PostgresFixture.OpenAsync(_db.ConnectionStringFor("themis_app"), Ct);
         foreach (string table in new[] { "user_account", "permission", "role", "role_permission", "role_assignment", "sod_conflict" })
@@ -151,10 +151,31 @@ public sealed class IdentityFixtureTests
             Assert.Equal(InsufficientPrivilege, refused.SqlState);
         }
 
-        // UPDATE is granted (a user is Disabled, an assignment gets its valid_to), and refused to the fixture role.
-        Assert.Equal(0, await ExecuteAsync(connection, "SET LOCAL ROLE themis_kernel; UPDATE kernel.user_account SET status = status WHERE false"));
+        // UPDATE is granted where a command changes rows (a user is Disabled, an assignment gets its valid_to), and refused to the fixture role.
+        foreach (string table in new[] { "user_account", "role", "role_permission", "role_assignment" })
+        {
+            Assert.Equal(0, await ExecuteAsync(connection, $"SET LOCAL ROLE themis_kernel; UPDATE kernel.{table} SET id = id WHERE false"));
+        }
+
         PostgresException fixture = await Assert.ThrowsAsync<PostgresException>(() => ExecuteAsync(connection, "SET LOCAL ROLE themis_fixture; SELECT count(*) FROM kernel.user_account"));
         Assert.Equal(InsufficientPrivilege, fixture.SqlState);
+    }
+
+    [Theory]
+    [InlineData("permission")]
+    [InlineData("sod_conflict")]
+    public async Task RR_64_the_kernel_role_reads_a_system_catalogue_and_is_refused_INSERT_and_UPDATE_on_it(string table)
+    {
+        await using NpgsqlConnection connection = await PostgresFixture.OpenAsync(_db.ConnectionStringFor("themis_app"), Ct);
+        string system = WellKnownUsers.System.Value.ToString();
+        string insert = table == "permission"
+            ? $"INSERT INTO kernel.permission (id, code, risk_level, created_at, created_by, updated_at, updated_by) VALUES (gen_random_uuid(), 'RR64.PROBE', 'Normal', now(), '{system}', now(), '{system}')"
+            : $"INSERT INTO kernel.sod_conflict (id, permission_a, permission_b, created_at, created_by, updated_at, updated_by) VALUES (gen_random_uuid(), 'A.X', 'B.Y', now(), '{system}', now(), '{system}')";
+
+        Assert.True((long)(await ScalarAsync(connection, $"SET LOCAL ROLE themis_kernel; SELECT count(*) FROM kernel.{table}"))! > 0);
+        PostgresException inserted = await Assert.ThrowsAsync<PostgresException>(() => ExecuteAsync(connection, $"SET LOCAL ROLE themis_kernel; {insert}"));
+        PostgresException updated = await Assert.ThrowsAsync<PostgresException>(() => ExecuteAsync(connection, $"SET LOCAL ROLE themis_kernel; UPDATE kernel.{table} SET id = id WHERE false"));
+        Assert.Equal((InsufficientPrivilege, InsufficientPrivilege), (inserted.SqlState, updated.SqlState));
     }
 
     [Fact]

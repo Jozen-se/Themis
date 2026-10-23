@@ -66,7 +66,7 @@ Keycloak uses its own file database in development; the realm is imported from `
 ```bash
 export THEMIS_MIGRATOR_CONNECTION="Host=localhost;Port=5432;Database=themis;Username=themis_migrator;Password=themis"
 dotnet run --project src/Themis.Migrator     # verifies the role, applies the pending kernel migrations, seeds the permission catalogue
-dotnet run --project src/Themis.Migrator -- --fixture milestone-1   # also seeds the milestone 1 organisation, identity and master data fixtures (idempotent)
+DOTNET_ENVIRONMENT=Development dotnet run --project src/Themis.Migrator -- --fixture milestone-1   # also seeds the milestone 1 fixtures (idempotent); refused outside Development, Test or Testing (RR-70)
 dotnet run --project src/Themis.Host
 curl -i http://localhost:5080/health/live     # 200 as soon as the process serves requests
 curl -i http://localhost:5080/health/ready    # 200 when PostgreSQL answers as themis_app, 503 otherwise
@@ -74,7 +74,10 @@ open http://localhost:5080/scalar             # API reference (development only)
 ```
 
 The milestone 1 organisation fixture (step 3 brief; `THEMIS_MIGRATOR_FIXTURE=milestone-1` is the environment form)
-runs only in tests and local development, never as part of a production migration. It is one installation
+runs only in tests and local development, never as part of a production migration. The migrator enforces it (RR-70):
+a fixture loads only when `DOTNET_ENVIRONMENT` is `Development`, `Test` or `Testing` (any letter case); unset means
+Production, and the run stops with exit code 9 before it opens a connection. The tests name their environment
+(`Testing`) when they call the migrator in process. It is one installation
 `THEMIS-DEV` (sv-SE), the company's own party `P-000001` (Themis Fictitious Fasteners AB, organisation number
 555555-5555, SE), the chart of accounts `BAS` (header only), company `SE01` (SEK, Europe/Stockholm, fiscal year start
 month 1, HalfAwayFromZero, tax rounding level Line as a test value until D-10, no payment tolerance), site `MAIN`,
@@ -154,6 +157,7 @@ The migrator's exit codes:
 | 6 | The database holds outbox rows written before the D-50 envelope and must be recreated before the step 7 migration |
 | 7 | The document type catalogue in code breaks a registry rule |
 | 8 | PostgreSQL refused a statement; the SQLSTATE and message are printed (RR-48), for example `P0001` from the overlap check of RR-44 |
+| 9 | A fixture was asked for while `DOTNET_ENVIRONMENT` is not `Development`, `Test` or `Testing` (unset means Production); the message names the environment and the fixture, and nothing was opened (RR-70) |
 
 A run is not one transaction: each migration applies in its own transaction and each seeder commits on its own, so
 a failure leaves the steps before it applied. Every step is safe to re-run: the migrations history skips applied

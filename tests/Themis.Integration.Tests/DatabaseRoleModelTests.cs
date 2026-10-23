@@ -178,8 +178,8 @@ public sealed class DatabaseRoleModelTests : IAsyncLifetime
 
         Assert.Equal(1L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.__ef_migrations_history WHERE \"MigrationId\" LIKE '%_KernelPipelineTables'"));
         Assert.Empty(await Themis.Kernel.Persistence.KernelMigrations.PendingAsync(_db.ConnectionStringFor("themis_migrator"), TestContext.Current.CancellationToken));
-        Assert.Equal(0, await Themis.Migrator.Program.Main(["--connection", _db.ConnectionStringFor("themis_migrator")]));
-        Assert.Equal(2, await Themis.Migrator.Program.Main(["--connection", _db.ConnectionStringFor("themis_app")]));
+        Assert.Equal(0, await Themis.Migrator.Program.RunAsync(["--connection", _db.ConnectionStringFor("themis_migrator")], PostgresFixture.MigratorEnvironment));
+        Assert.Equal(2, await Themis.Migrator.Program.RunAsync(["--connection", _db.ConnectionStringFor("themis_app")], PostgresFixture.MigratorEnvironment));
     }
 
     private static async Task ExecuteAsync(NpgsqlConnection connection, string sql)

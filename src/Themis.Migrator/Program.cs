@@ -26,7 +26,8 @@ namespace Themis.Migrator;
 /// rules (R-PP-04, R-PP-06, or an account outside the company's chart or not Active), 6 the database holds outbox
 /// rows written before the event envelope of D-50 and must be recreated before the step 7 migration, 7 the
 /// document type catalogue in code breaks a registry rule, 8 PostgreSQL refused a statement (reported with its
-/// SQLSTATE and message, RR-48). A run is not one transaction: each migration and each seeder commits on its own,
+/// SQLSTATE and message, RR-48), 9 a fixture was asked for outside Development, Test or Testing (RR-70). The
+/// environment is DOTNET_ENVIRONMENT, read by <see cref="Main"/>; unset means Production. A run is not one transaction: each migration and each seeder commits on its own,
 /// and every step is safe to re-run. The settings catalogue (D-58) is written on every run; a stored value outside a
 /// tightened range and a definition that left the catalogue are printed as warnings and never changed.
 /// </summary>
@@ -36,8 +37,15 @@ public static class Program
     private const string FixtureVariable = "THEMIS_MIGRATOR_FIXTURE";
     private const string RequiredRole = "themis_migrator";
     private const string Milestone1Fixture = "milestone-1";
+    private const string EnvironmentVariable = "DOTNET_ENVIRONMENT";
 
-    public static async Task<int> Main(string[] args)
+    /// <summary>The environments a fixture may load in (RR-70); compared without regard to letter case.</summary>
+    private static readonly string[] FixtureEnvironments = ["Development", "Test", "Testing"];
+
+    public static Task<int> Main(string[] args) => RunAsync(args, Environment.GetEnvironmentVariable(EnvironmentVariable));
+
+    /// <summary>The migrator run for an explicit environment; in-process callers such as the tests name theirs (RR-70).</summary>
+    public static async Task<int> RunAsync(string[] args, string? environment)
     {
         string? connectionString = ReadOption(args, "--connection", ConnectionVariable);
         if (string.IsNullOrWhiteSpace(connectionString))
@@ -51,6 +59,14 @@ public static class Program
         {
             Console.Error.WriteLine($"Unknown fixture '{fixture}'. The only fixture is '{Milestone1Fixture}'.");
             return 1;
+        }
+
+        // RR-70: test data never reaches a real database by accident; refused before any connection is opened.
+        if (!string.IsNullOrWhiteSpace(fixture) && !FixtureEnvironments.Contains(environment, StringComparer.OrdinalIgnoreCase))
+        {
+            string named = string.IsNullOrWhiteSpace(environment) ? $"Production ({EnvironmentVariable} is unset)" : environment;
+            Console.Error.WriteLine($"Fixture '{fixture}' refused in environment '{named}'. Fixtures load only when {EnvironmentVariable} is Development, Test or Testing (RR-70).");
+            return 9;
         }
 
         try

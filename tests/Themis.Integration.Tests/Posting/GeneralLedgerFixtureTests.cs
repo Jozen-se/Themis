@@ -71,7 +71,7 @@ public sealed class GeneralLedgerFixtureTests
         Assert.Equal("CountDifference", await ScalarAsync(connection, $"SELECT changes->'reasonCode'->>'after' {seedAudit} AND entity_id = @id", ("id", Milestone1GeneralLedgerFixture.InventoryAdjustmentRuleId)));
         Assert.Equal(0L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.outbox_event WHERE aggregate_id IN (SELECT id FROM kernel.account UNION SELECT id FROM kernel.posting_profile_rule)"));
 
-        Assert.Equal(0, await Themis.Migrator.Program.Main(["--connection", _db.ConnectionStringFor("themis_migrator"), "--fixture", "milestone-1"]));
+        Assert.Equal(0, await Themis.Migrator.Program.RunAsync(["--connection", _db.ConnectionStringFor("themis_migrator"), "--fixture", "milestone-1"], PostgresFixture.MigratorEnvironment));
 
         Assert.Equal(2L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.account"));
         Assert.Equal(2L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.posting_profile_rule"));

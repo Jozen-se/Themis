@@ -67,7 +67,7 @@ docker compose up -d                        # or: podman compose up -d
 dotnet tool restore
 dotnet build
 dotnet test
-dotnet run --project src/Themis.Migrator -- --fixture milestone-1   # needs THEMIS_MIGRATOR_CONNECTION, see docs/development.md
+DOTNET_ENVIRONMENT=Development dotnet run --project src/Themis.Migrator -- --fixture milestone-1   # needs THEMIS_MIGRATOR_CONNECTION, see docs/development.md
 dotnet run --project src/Themis.Host        # http://localhost:5080/health/ready, API reference at /scalar
 ```
 

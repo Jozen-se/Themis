@@ -278,6 +278,17 @@ public sealed class SettingCommandTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RR_64_SETTING_READ_of_security_sod_conflicts_still_returns_the_pairs_now_that_the_catalogue_is_read_only()
+    {
+        CommandReply read = await _host.GetAsync("/v1/kernel/settings/security.sod_conflicts", cancellationToken: Ct);
+
+        Assert.True(read.Status == 200, read.Body);
+        Assert.Equal(await _host.ScalarAsync("SELECT count(*) FROM kernel.sod_conflict", Ct), (long)read.Json!["conflictPairs"]!.AsArray().Count);
+        Assert.NotEmpty(read.Json["conflictPairs"]!.AsArray());
+        Assert.Equal(false, await _host.ScalarAsync("SELECT has_table_privilege('themis_kernel', 'kernel.sod_conflict', 'INSERT')", Ct));
+    }
+
+    [Fact]
     public async Task RR_98_D_63_SETTING_READ_of_the_Data_definition_security_sod_conflicts_answers_source_Data_with_the_SodConflict_rows_and_no_value_type()
     {
         CommandReply read = await _host.GetAsync("/v1/kernel/settings/security.sod_conflicts", cancellationToken: Ct);

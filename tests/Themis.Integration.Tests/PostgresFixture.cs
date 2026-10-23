@@ -21,6 +21,9 @@ public sealed class PostgresFixture : IAsyncLifetime
     /// </summary>
     public const string TestRolePassword = "themis";
 
+    /// <summary>The environment every in-process migrator run names, so the fixture guard of RR-70 lets the test fixture load.</summary>
+    public const string MigratorEnvironment = "Testing";
+
     private const string TestRolePasswordsSql =
         "ALTER ROLE themis_migrator PASSWORD '" + TestRolePassword + "'; " +
         "ALTER ROLE themis_app PASSWORD '" + TestRolePassword + "'; " +
@@ -50,7 +53,7 @@ public sealed class PostgresFixture : IAsyncLifetime
         await ExecuteAsSuperuserAsync(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "fixture-bootstrap.sql")), CancellationToken.None);
 
         // Only Themis.Migrator applies migrations (brief, Migrations); the tests take the same path.
-        MigratorExitCode = await Themis.Migrator.Program.Main(["--connection", ConnectionStringFor("themis_migrator"), "--fixture", "milestone-1"]);
+        MigratorExitCode = await Themis.Migrator.Program.RunAsync(["--connection", ConnectionStringFor("themis_migrator"), "--fixture", "milestone-1"], MigratorEnvironment);
         if (MigratorExitCode != 0)
         {
             throw new InvalidOperationException($"Themis.Migrator exited with {MigratorExitCode}.");
@@ -120,7 +123,7 @@ public sealed class PostgresFixture : IAsyncLifetime
     {
         string connectionString = await CreateEmptyDatabaseAsync(cancellationToken);
         string migrator = new NpgsqlConnectionStringBuilder(connectionString) { Username = "themis_migrator", Password = TestRolePassword }.ConnectionString;
-        int exitCode = await Themis.Migrator.Program.Main(["--connection", migrator, "--fixture", "milestone-1"]);
+        int exitCode = await Themis.Migrator.Program.RunAsync(["--connection", migrator, "--fixture", "milestone-1"], MigratorEnvironment);
         if (exitCode != 0)
         {
             throw new InvalidOperationException($"Themis.Migrator exited with {exitCode} on {new NpgsqlConnectionStringBuilder(connectionString).Database}.");

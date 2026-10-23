@@ -605,7 +605,7 @@ public sealed class InventoryAdjustmentPostingTests : IAsyncLifetime
             await ExecuteAsync(connection, $"INSERT INTO kernel.user_account (id, external_subject, display_name, is_service_account, status, created_at, created_by, updated_at, updated_by) VALUES ('{user}', 'old-{user:N}', 'Old', false, 'Active', now(), '{user}', now(), '{user}')");
             await ExecuteAsync(connection, $"INSERT INTO kernel.audit_event (id, occurred_at, user_id, command_name, entity_type, entity_id, changes) VALUES ('{old}', now(), '{user}', 'OLD.WRITE', 'Probe', gen_random_uuid(), '{{}}')");
 
-            Assert.Equal(0, await Themis.Migrator.Program.Main(["--connection", migrator]));
+            Assert.Equal(0, await Themis.Migrator.Program.RunAsync(["--connection", migrator], PostgresFixture.MigratorEnvironment));
 
             Assert.Null(await ScalarAsync(connection, "SELECT command_id FROM kernel.audit_event WHERE id = @id", ("id", old)));
             Assert.Equal(1L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.audit_event WHERE id = @id", ("id", old)));
