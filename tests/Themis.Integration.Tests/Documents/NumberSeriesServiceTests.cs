@@ -71,7 +71,8 @@ public sealed class NumberSeriesServiceTests : IAsyncLifetime
             Assert.Equal([1L, 2L, 1L], taken.Value.Select(number => number.Sequence));
             Assert.Equal(Milestone1NumberSeriesFixture.InventoryAdjustmentSeriesId, taken.Value[0].SeriesId);
             Assert.Equal(Milestone1NumberSeriesFixture.JournalEntrySeriesId, taken.Value[2].SeriesId);
-            Assert.Equal("themis_kernel", first.CurrentRole?.Name);
+            // The series ran as themis_kernel (themis_app is refused on kernel.number_series); RR-62: the service hands the connection back as themis_app.
+            Assert.Null(first.CurrentRole);
             await first.CommitAsync(Ct);
         }
 

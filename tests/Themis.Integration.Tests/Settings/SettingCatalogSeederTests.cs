@@ -72,8 +72,9 @@ public sealed class SettingCatalogSeederTests
             Assert.Equal("90", await ScalarAsync(connection, "SELECT max FROM kernel.setting_definition WHERE key = 'idempotency.retention_days'"));
 
             // The migrator prints the warnings and still exits 0: a report, never a stop.
-            await ExecuteAsync(connection, "UPDATE kernel.setting_value SET value = '30' WHERE definition_key = 'idempotency.retention_days'");
-            Assert.Equal(0, await Themis.Migrator.Program.Main(["--connection", migrator]));
+            // D-60: setting_value is insert-only, so the value is set again as a new version row, as SETTING.SET writes it.
+            await ExecuteAsync(connection, "INSERT INTO kernel.setting_value (id, definition_key, level, kind, value, version, recorded_at, recorded_by, command_id) VALUES (gen_random_uuid(), 'idempotency.retention_days', 'Installation', 'Set', '30', 2, now(), @system, gen_random_uuid())", ("system", WellKnownUsers.System.Value));
+            Assert.Equal(0, await Themis.Migrator.Program.RunAsync(["--connection", migrator], PostgresFixture.MigratorEnvironment));
         }
         finally
         {

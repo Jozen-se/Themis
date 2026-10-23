@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Globalization;
 using Themis.Kernel.Contracts.Commands;
 using Themis.Kernel.Contracts.Documents;
@@ -25,6 +26,9 @@ internal sealed class InventoryPostingService : IPostingService
     public const string StockInsufficient = "stock_insufficient";
     public const string SeriesMissing = "number_series_missing";
     public const string JournalDescription = "Inventory adjustment";
+    public const string AmountOutOfRange = "amount_out_of_range";
+
+    private const string NumericValueOutOfRange = "22003";
 
     private readonly IAccountResolver _accounts;
     private readonly INumberSeriesService _numbers;
@@ -41,6 +45,26 @@ internal sealed class InventoryPostingService : IPostingService
     {
         ArgumentNullException.ThrowIfNull(posting);
         ArgumentNullException.ThrowIfNull(context);
+        Result<PostingOutcome> outcome;
+        try
+        {
+            outcome = await PostCoreAsync(posting, context, cancellationToken);
+        }
+        catch (LedgerOverflow)
+        {
+            // RR-83: an amount that overflows its ledger or cache column is the posting's rejection under R-DOC-01 (the
+            // Specification's shared rule for guards without their own rule). The statement failed, so the transaction is
+            // aborted: no role reset here (RR-62), and the dispatcher's rollback to its savepoint clears the state.
+            return Error.Rule("R-DOC-01", AmountOutOfRange, "An amount computed by the posting exceeds the range of the column that stores it.");
+        }
+
+        // RR-62: hands the connection back as themis_app on successful return.
+        await KernelServiceRole.ResetAsync(context.UnitOfWork, cancellationToken);
+        return outcome;
+    }
+
+    private async Task<Result<PostingOutcome>> PostCoreAsync(InventoryAdjustmentPosting posting, ICommandContext context, CancellationToken cancellationToken)
+    {
         IUnitOfWork unitOfWork = context.UnitOfWork;
         DateTimeOffset now = context.Now;
         UserId by = context.Principal.UserId;
@@ -144,13 +168,42 @@ internal sealed class InventoryPostingService : IPostingService
             }
         }
 
+        List<PostedLine> posted = [];
+        try
+        {
+            await WriteAsync(unitOfWork, posting, entry, entries, costStates, state, balances, onHand, posted, commandId, now, by, cancellationToken);
+        }
+        catch (DbException exception) when (exception.SqlState == NumericValueOutOfRange)
+        {
+            // RR-83: only a 22003 from the posting's own statements becomes its rejection; anywhere else it stays a 500.
+            throw new LedgerOverflow(exception);
+        }
+
+        await _hook.AfterLedgerWritesAsync(unitOfWork, posting.DocumentId, context, cancellationToken);
+        return new PostingOutcome(documentNumber, entry?.Id, entry?.EntryNumber, posted);
+    }
+
+    private static async Task WriteAsync(
+        IUnitOfWork unitOfWork,
+        InventoryAdjustmentPosting posting,
+        JournalEntryRow? entry,
+        List<(PostingLine Line, InventoryEntryRow Entry)> entries,
+        Dictionary<Guid, CostStateRow> costStates,
+        Dictionary<Guid, CostState> state,
+        Dictionary<BalanceKey, BalanceRow> balances,
+        Dictionary<BalanceKey, decimal> onHand,
+        List<PostedLine> posted,
+        Guid commandId,
+        DateTimeOffset now,
+        UserId by,
+        CancellationToken cancellationToken)
+    {
         // The writes, in this order: the journal entry with its lines, the inventory entries, the cache updates (R-LED-05).
         if (entry is not null)
         {
             await LedgerStore.InsertJournalEntryAsync(unitOfWork, posting, entry, commandId, now, by, cancellationToken);
         }
 
-        List<PostedLine> posted = [];
         Dictionary<Guid, Guid> lastEntryByItem = [];
         Dictionary<BalanceKey, Guid> lastEntryByKey = [];
         foreach ((PostingLine line, InventoryEntryRow row) in entries)
@@ -172,8 +225,14 @@ internal sealed class InventoryPostingService : IPostingService
         {
             await LedgerStore.UpdateBalanceAsync(unitOfWork, balances[key], onHand[key], lastEntry, now, by, cancellationToken);
         }
+    }
 
-        await _hook.AfterLedgerWritesAsync(unitOfWork, posting.DocumentId, context, cancellationToken);
-        return new PostingOutcome(documentNumber, entry?.Id, entry?.EntryNumber, posted);
+    /// <summary>A 22003 raised by the posting's own writes, carried to <see cref="PostInventoryAdjustmentAsync"/> (RR-83).</summary>
+    private sealed class LedgerOverflow : Exception
+    {
+        public LedgerOverflow(DbException inner)
+            : base("A posting write overflowed its column (SQLSTATE 22003).", inner)
+        {
+        }
     }
 }

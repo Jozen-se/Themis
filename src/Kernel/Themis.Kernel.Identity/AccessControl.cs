@@ -14,7 +14,14 @@ namespace Themis.Kernel.Identity;
 /// </summary>
 internal sealed class AccessControl : IAccessControl
 {
-    public async Task<Result<Principal>> ResolvePrincipalAsync(IUnitOfWork unitOfWork, AuthenticatedSubject subject, CancellationToken cancellationToken)
+    // RR-62: both methods hand the connection back as themis_app on successful return.
+    public Task<Result<Principal>> ResolvePrincipalAsync(IUnitOfWork unitOfWork, AuthenticatedSubject subject, CancellationToken cancellationToken) =>
+        ResolvePrincipalCoreAsync(unitOfWork, subject, cancellationToken).ThenResetRoleAsync(unitOfWork, cancellationToken);
+
+    public Task<Result> AuthorizeAsync(IUnitOfWork unitOfWork, Principal principal, string permissionCode, RequestScope scope, DateTimeOffset now, CancellationToken cancellationToken) =>
+        AuthorizeCoreAsync(unitOfWork, principal, permissionCode, scope, now, cancellationToken).ThenResetRoleAsync(unitOfWork, cancellationToken);
+
+    private static async Task<Result<Principal>> ResolvePrincipalCoreAsync(IUnitOfWork unitOfWork, AuthenticatedSubject subject, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(unitOfWork);
         ArgumentNullException.ThrowIfNull(subject);
@@ -39,7 +46,7 @@ internal sealed class AccessControl : IAccessControl
         return new Principal(new UserId(id), displayName, isServiceAccount);
     }
 
-    public async Task<Result> AuthorizeAsync(IUnitOfWork unitOfWork, Principal principal, string permissionCode, RequestScope scope, DateTimeOffset now, CancellationToken cancellationToken)
+    private static async Task<Result> AuthorizeCoreAsync(IUnitOfWork unitOfWork, Principal principal, string permissionCode, RequestScope scope, DateTimeOffset now, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(unitOfWork);
         ArgumentNullException.ThrowIfNull(principal);

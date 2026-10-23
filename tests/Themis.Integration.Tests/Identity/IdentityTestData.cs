@@ -82,7 +82,15 @@ internal sealed class IdentityTestData : IAsyncDisposable
     {
         foreach (string statement in _cleanup)
         {
-            await RunAsync(statement, CancellationToken.None);
+            // D-60: audit events are insert-only even for the table owner, so their cleanup goes through the fixture's cleanup seam.
+            if (statement.StartsWith("DELETE FROM kernel.audit_event", StringComparison.Ordinal))
+            {
+                await _db.CleanupAsync(statement, CancellationToken.None);
+            }
+            else
+            {
+                await RunAsync(statement, CancellationToken.None);
+            }
         }
     }
 

@@ -200,7 +200,8 @@ public sealed class PipelineHardeningTests : IAsyncLifetime
         Assert.Equal("Draft", await _host.ScalarAsync("SELECT status FROM kernel.document WHERE id = @id", Ct, ("id", secondDraft)));
         Assert.Equal(1L, await _host.ScalarAsync("SELECT count(*) FROM kernel.journal_entry", Ct));
         Assert.Equal(99000000000000m, await _host.ScalarAsync("SELECT quantity_base FROM kernel.item_cost_state WHERE item_id = @item", Ct, ("item", item)));
-        Assert.Contains(_host.Logs.Lines, line => line.Message.Contains("22003", StringComparison.Ordinal) && line.Message.Contains("RR-46", StringComparison.Ordinal));
+        // RR-83: the posting service returns the rejection itself, so the dispatcher logs it as any other rejection.
+        Assert.Contains(_host.Logs.Lines, line => line.Message.Contains("rejected with amount_out_of_range (R-DOC-01)", StringComparison.Ordinal));
         CommandReply replay = await PostAsync(secondDraft, "rr46-second-post");
         Assert.True(replay.Replayed);
         Assert.Equal("amount_out_of_range", replay.Code);

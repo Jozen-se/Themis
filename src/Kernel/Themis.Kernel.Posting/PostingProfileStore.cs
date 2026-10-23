@@ -43,7 +43,11 @@ internal static class PostingProfileStore
 /// <summary>The resolver on a unit of work: loads the company's rules for the role and applies <see cref="AccountResolver"/>.</summary>
 internal sealed class PostingProfileAccountResolver : IAccountResolver
 {
-    public async Task<Result<AccountResolution>> ResolveAsync(IUnitOfWork unitOfWork, Guid companyId, string accountRole, BusinessDate postingDate, PostingKeys keys, CancellationToken cancellationToken)
+    // RR-62: hands the connection back as themis_app on successful return.
+    public Task<Result<AccountResolution>> ResolveAsync(IUnitOfWork unitOfWork, Guid companyId, string accountRole, BusinessDate postingDate, PostingKeys keys, CancellationToken cancellationToken) =>
+        ResolveCoreAsync(unitOfWork, companyId, accountRole, postingDate, keys, cancellationToken).ThenResetRoleAsync(unitOfWork, cancellationToken);
+
+    private static async Task<Result<AccountResolution>> ResolveCoreAsync(IUnitOfWork unitOfWork, Guid companyId, string accountRole, BusinessDate postingDate, PostingKeys keys, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(unitOfWork);
         IReadOnlyList<PostingRuleCandidate> candidates = await PostingProfileStore.RulesAsync(unitOfWork, companyId, accountRole, cancellationToken);

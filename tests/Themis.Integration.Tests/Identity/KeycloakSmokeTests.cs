@@ -85,7 +85,6 @@ public sealed class KeycloakSmokeTests
         WebApplication app = builder.Build();
         // RR-72: the correlation id surrounds the exception handler, so a 500 and its log line carry it.
         app.UseKernelRequestPipeline();
-        app.UseAuthentication();
         app.MapCommandRoutes(FixtureContracts.Routes);
         app.MapQuery<GetCompany, CompanyInfo>(OrganisationRoutes.Company);
         await app.StartAsync(Ct);

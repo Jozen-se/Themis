@@ -12,9 +12,12 @@ using Npgsql;
 using Themis.FixtureModule;
 using Themis.FixtureModule.Application;
 using Themis.FixtureModule.Contracts;
+using Themis.Kernel.Contracts.Commands;
 using Themis.Kernel.Contracts.Documents;
 using Themis.Kernel.Contracts.MasterData;
 using Themis.Kernel.Contracts.Organisation;
+using Themis.Kernel.Contracts.Queries;
+using Themis.Kernel.Contracts.Security;
 using Themis.Kernel.Contracts.Settings;
 using Themis.Kernel.Documents;
 using Themis.Kernel.Identity;
@@ -129,6 +132,12 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         builder.Services.AddSingleton<ISettingDefinitionSeam>(provider => provider.GetRequiredService<TestSettingDefinitionSeam>());
         builder.Services.AddSingleton<TestSettingWriteSeam>();
         builder.Services.AddSingleton<ISettingWriteSeam>(provider => provider.GetRequiredService<TestSettingWriteSeam>());
+        // RR-62: the dispatcher's role probe (docs/development/test-seams.md).
+        builder.Services.AddScoped<RoleProbeRecorder>();
+        builder.Services.AddScoped<IScopeResolver<RoleProbe>, RoleProbeScopeResolver>();
+        builder.Services.AddScoped<ICommandHandler<RoleProbe, RoleProbeResult>, RoleProbeHandler>();
+        // RR-81: the write-attempting query (docs/development/test-seams.md).
+        builder.Services.AddScoped<IQueryHandler<WriteAttemptQuery, long>, WriteAttemptQueryHandler>();
         builder.Services.AddKernelOrganisation();
         builder.Services.AddKernelSettings();
         builder.Services.AddKernelMasterData();
@@ -141,8 +150,9 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         WebApplication app = builder.Build();
         // RR-72: the correlation id surrounds the exception handler, so a 500 and its log line carry it.
         app.UseKernelRequestPipeline();
-        app.UseAuthentication();
         app.MapCommandRoutes(FixtureContracts.Routes);
+        app.MapCommandRoutes(RoleProbeRoutes.Commands);
+        app.MapQuery<WriteAttemptQuery, long>(WriteAttemptQueryRoutes.Query);
         app.MapQuery<GetCompany, CompanyInfo>(OrganisationRoutes.Company);
         app.MapCommandRoutes(MasterDataRoutes.Commands);
         app.MapQuery<GetItem, ItemView>(MasterDataRoutes.Item);
@@ -151,7 +161,7 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         app.MapQuery<GetInventoryAdjustment, InventoryAdjustmentView>(DocumentRoutes.InventoryAdjustment);
         app.MapCommandRoutes(SettingRoutes.Commands);
         app.MapQuery<GetSetting, SettingReadView>(SettingRoutes.Setting);
-        app.MapOpenApi();
+        app.MapOpenApi().AllowAnonymous();
         await app.StartAsync();
 
         PipelineTestHost host = new(app, app.GetTestClient(), logs, new MeterListener(), db, superuserConnectionString);

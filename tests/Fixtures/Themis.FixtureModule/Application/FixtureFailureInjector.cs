@@ -27,6 +27,9 @@ internal sealed class FixtureFailureInjector
             case Contracts.FixtureFailure.WriteKernelTable:
                 await context.WriteKernelTableAsync(cancellationToken);
                 break;
+            case Contracts.FixtureFailure.NumericOverflowAfterWrite when context.OverflowAsync is { } overflow:
+                await overflow(cancellationToken);
+                break;
             default:
                 break;
         }
@@ -44,4 +47,4 @@ internal sealed class FixtureFailureInjector
     }
 }
 
-internal sealed record FixtureFailureContext(Contracts.FixtureFailure Failure, string IdempotencyKey, Func<CancellationToken, Task> WriteKernelTableAsync);
+internal sealed record FixtureFailureContext(Contracts.FixtureFailure Failure, string IdempotencyKey, Func<CancellationToken, Task> WriteKernelTableAsync, Func<CancellationToken, Task>? OverflowAsync = null);

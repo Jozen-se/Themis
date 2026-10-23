@@ -47,8 +47,8 @@ public sealed partial class MigrationDriftTests
             }
 
             Assert.Equal(8L, await ScalarAsync(restored, "SELECT count(*) FROM kernel.__ef_migrations_history"));
-            Assert.Equal(0, await Themis.Migrator.Program.Main(["--connection", Migrator(restored)]));
-            Assert.Equal(0, await Themis.Migrator.Program.Main(["--connection", Migrator(fresh)]));
+            Assert.Equal(0, await Themis.Migrator.Program.RunAsync(["--connection", Migrator(restored)], PostgresFixture.MigratorEnvironment));
+            Assert.Equal(0, await Themis.Migrator.Program.RunAsync(["--connection", Migrator(fresh)], PostgresFixture.MigratorEnvironment));
 
             IReadOnlyList<string> migrated = await CatalogAsync(restored);
             IReadOnlyList<string> scratch = await CatalogAsync(fresh);
@@ -109,7 +109,7 @@ public sealed partial class MigrationDriftTests
         {
             await using StringWriter captured = new();
             Console.SetError(captured);
-            int exitCode = await Themis.Migrator.Program.Main(["--connection", Migrator(database)]);
+            int exitCode = await Themis.Migrator.Program.RunAsync(["--connection", Migrator(database)], PostgresFixture.MigratorEnvironment);
             Console.SetError(original);
             return (exitCode, captured.ToString());
         }

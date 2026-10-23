@@ -52,11 +52,14 @@ jobs:
         env:
           THEMIS_PROPERTY_SEQUENCES: ${{ inputs.sequences || '5000' }}
           THEMIS_PROPERTY_SEED: ${{ inputs.seed }}
-        run: dotnet test --project tests/Themis.Integration.Tests/Themis.Integration.Tests.csproj --configuration Release --no-build --filter-trait "Category=Invariant" --report-xunit-trx --results-directory TestResults/invariant-long-run
+        run: |
+          for project in $(.github/scripts/require-tests.sh --projects Invariant); do
+            dotnet test --project "tests/$project/$project.csproj" --configuration Release --no-build --filter-trait "Category=Invariant" --report-xunit-trx --results-directory "TestResults/invariant-long-run/$project"
+          done
 
       - name: The property runs executed at least one test (RR-41)
         if: always()
-        run: .github/scripts/require-tests.sh TestResults/invariant-long-run
+        run: .github/scripts/require-tests.sh Invariant TestResults/invariant-long-run
 
       - name: Upload test results
         if: always()

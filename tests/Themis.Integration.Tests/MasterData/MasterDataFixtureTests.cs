@@ -77,7 +77,7 @@ public sealed class MasterDataFixtureTests
         Assert.Equal(WellKnownUsers.System.Value, await ScalarAsync(connection, $"SELECT user_id {seedAudit}"));
         Assert.Equal("TRADE_GOODS", await ScalarAsync(connection, $"SELECT changes->'code'->>'after' {seedAudit}"));
 
-        Assert.Equal(0, await Themis.Migrator.Program.Main(["--connection", _db.ConnectionStringFor("themis_migrator"), "--fixture", "milestone-1"]));
+        Assert.Equal(0, await Themis.Migrator.Program.RunAsync(["--connection", _db.ConnectionStringFor("themis_migrator"), "--fixture", "milestone-1"], PostgresFixture.MigratorEnvironment));
 
         Assert.Equal(1L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.item_posting_group"));
         Assert.Equal(1L, await ScalarAsync(connection, $"SELECT count(*) {seedAudit}"));
@@ -91,7 +91,7 @@ public sealed class MasterDataFixtureTests
         try
         {
             string migrator = new NpgsqlConnectionStringBuilder(fresh) { Username = "themis_migrator", Password = PostgresFixture.TestRolePassword }.ConnectionString;
-            Assert.Equal(0, await Themis.Migrator.Program.Main(["--connection", migrator]));
+            Assert.Equal(0, await Themis.Migrator.Program.RunAsync(["--connection", migrator], PostgresFixture.MigratorEnvironment));
 
             await using NpgsqlConnection connection = await PostgresFixture.OpenAsync(fresh, Ct);
             Assert.Equal(3L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.unit_of_measure"));
@@ -103,7 +103,7 @@ public sealed class MasterDataFixtureTests
             Assert.Equal(0L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.audit_event WHERE command_name = 'SYSTEM.SEED_FIXTURE'"));
 
             // A second plain run applies nothing and seeds nothing twice.
-            Assert.Equal(0, await Themis.Migrator.Program.Main(["--connection", migrator]));
+            Assert.Equal(0, await Themis.Migrator.Program.RunAsync(["--connection", migrator], PostgresFixture.MigratorEnvironment));
             Assert.Equal(3L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.unit_of_measure"));
             Assert.Equal(5L, await ScalarAsync(connection, $"SELECT count(*) {MigrateAudit}"));
         }

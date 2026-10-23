@@ -6,8 +6,10 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Themis.Kernel.Contracts.Commands;
 using Themis.Kernel.Contracts.Queries;
+using Themis.Kernel.Contracts.Security;
 using Themis.Kernel.Pipeline.Dispatch;
 using Themis.Kernel.Pipeline.Json;
+using Themis.Kernel.Pipeline.Security;
 using Themis.Kernel.Primitives;
 
 namespace Themis.Kernel.Pipeline.Http;
@@ -43,8 +45,22 @@ internal static class QueryEndpoints
     private static async Task HandleAsync<TQuery, TResult>(HttpContext http, CancellationToken cancellationToken)
         where TQuery : IQuery<TResult>
     {
+        // RR-71: no subject, no work; the fallback policy answers first, this guards a host that maps the endpoint without it.
+        if (http.RequestServices.GetRequiredService<ICurrentSubject>().Current is null)
+        {
+            await Unauthorized.WriteAsync(http);
+            return;
+        }
+
         CorrelationId correlationId = CorrelationIdMiddleware.Of(http);
         CommandResponse response = await BindAndDispatchAsync<TQuery, TResult>(http, correlationId, cancellationToken);
+
+        if (response.StatusCode == StatusCodes.Status401Unauthorized)
+        {
+            // RR-71: the dispatcher's own 401 goes out through the shared writer, so it looks like the fallback's.
+            await Unauthorized.WriteAsync(http);
+            return;
+        }
 
         http.Response.StatusCode = response.StatusCode;
         http.Response.ContentType = response.ContentType + "; charset=utf-8";

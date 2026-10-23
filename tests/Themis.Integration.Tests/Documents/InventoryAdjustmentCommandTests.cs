@@ -362,7 +362,9 @@ public sealed class InventoryAdjustmentCommandTests : IAsyncLifetime
         CommandReply otherVersion = await _host.PostAsync($"{Adjustments}/{id}/update", Update(warehouse: Warehouse, lines: Line(1, quantity: "2")), "ia-fp-1", ifMatch: "\"2\"", cancellationToken: Ct);
         // Both users hold INVENTORY_ADJUSTMENT.UPDATE: the preparer's "ia-fp-1" is another key (R-API-01, per user).
         CommandReply preparer = await _host.PostAsync($"{Adjustments}/{id}/update", Update(warehouse: Warehouse, lines: Line(1, quantity: "5")), "ia-fp-1", ifMatch: "\"2\"", subject: TestUsers.PreparerSubject, cancellationToken: Ct);
-        CommandReply overriding = await _host.PostAsync($"{Adjustments}/{id}/update", new { documentDate = "2026-06-15", warehouseId = Warehouse, lines = new[] { Line(1) }, id = Guid.NewGuid(), expectedVersion = 99 }, "ia-fp-2", ifMatch: "\"3\"", cancellationToken: Ct);
+        // RR-73: a body id that differs from the route is refused (400, not stored); a body version is dropped and If-Match decides.
+        CommandReply overridingId = await _host.PostAsync($"{Adjustments}/{id}/update", new { documentDate = "2026-06-15", warehouseId = Warehouse, lines = new[] { Line(1) }, id = Guid.NewGuid(), expectedVersion = 99 }, "ia-fp-3", ifMatch: "\"3\"", cancellationToken: Ct);
+        CommandReply overriding = await _host.PostAsync($"{Adjustments}/{id}/update", new { documentDate = "2026-06-15", warehouseId = Warehouse, lines = new[] { Line(1) }, expectedVersion = 99 }, "ia-fp-2", ifMatch: "\"3\"", cancellationToken: Ct);
 
         Assert.Equal(200, first.Status);
         Assert.True(replay.Replayed);
@@ -373,6 +375,9 @@ public sealed class InventoryAdjustmentCommandTests : IAsyncLifetime
         Assert.False(preparer.Replayed);
         Assert.Equal(3, preparer.Json!["version"]!.GetValue<long>());
         Assert.Equal(2L, await _host.ScalarAsync("SELECT count(*) FROM kernel.idempotency_record WHERE key = 'ia-fp-1'", Ct));
+        Assert.Equal(400, overridingId.Status);
+        Assert.Equal("route_body_mismatch", overridingId.Code);
+        Assert.Equal(0L, await _host.ScalarAsync("SELECT count(*) FROM kernel.idempotency_record WHERE key = 'ia-fp-3'", Ct));
         Assert.Equal(200, overriding.Status);
         Assert.Equal(id, overriding.Json!["id"]!.GetValue<Guid>());
         Assert.Equal(4, overriding.Json["version"]!.GetValue<long>());

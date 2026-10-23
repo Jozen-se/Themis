@@ -25,6 +25,19 @@ public sealed class RuleSelfTests : IClassFixture<ArchitectureFixture>
     }
 
     [Fact]
+    public void RR_84_discovery_on_a_model_without_modules_or_kernel_capabilities_throws_instead_of_passing_on_nothing()
+    {
+        // The xunit assertion library holds no Themis namespace at all.
+        ArchUnitNET.Domain.Architecture empty = new ArchUnitNET.Loader.ArchLoader().LoadAssemblies(typeof(Assert).Assembly).Build();
+
+        InvalidOperationException modules = Assert.Throws<InvalidOperationException>(() => ThemisArchitectureRules.ModuleRoots(empty));
+        InvalidOperationException capabilities = Assert.Throws<InvalidOperationException>(() => ThemisArchitectureRules.KernelCapabilities(empty));
+        InvalidOperationException rules = Assert.Throws<InvalidOperationException>(() => ThemisArchitectureRules.ModulesUseOnlyPrimitivesAndContracts(empty).ToList());
+
+        Assert.All(new[] { modules, capabilities, rules }, refused => Assert.Contains("RR-84", refused.Message, StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void ARCH_01_catches_a_type_outside_its_assembly_namespace() =>
         AssertCatches(ThemisArchitectureRules.NamespacesFollowAssemblyNames(_architecture.Fixtures).Select(pair => pair.Rule), "Elsewhere.StrayType");
 

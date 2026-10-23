@@ -91,7 +91,7 @@ public sealed class OrganisationFixtureTests
         Assert.Equal("SEK", await ScalarAsync(connection, $"SELECT changes->'baseCurrency'->>'after' {seedAudit} AND entity_type = 'Company'"));
         Assert.Null(await ScalarAsync(connection, $"SELECT changes->'baseCurrency'->>'before' {seedAudit} AND entity_type = 'Company'"));
 
-        Assert.Equal(0, await Themis.Migrator.Program.Main(["--connection", _db.ConnectionStringFor("themis_migrator"), "--fixture", "milestone-1"]));
+        Assert.Equal(0, await Themis.Migrator.Program.RunAsync(["--connection", _db.ConnectionStringFor("themis_migrator"), "--fixture", "milestone-1"], PostgresFixture.MigratorEnvironment));
 
         Assert.Equal(12L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.fiscal_period"));
         Assert.Equal(before, await ScalarAsync(connection, "SELECT max(created_at) FROM kernel.fiscal_period"));
@@ -101,7 +101,7 @@ public sealed class OrganisationFixtureTests
     [Fact]
     public async Task An_unknown_fixture_name_is_a_usage_error()
     {
-        Assert.Equal(1, await Themis.Migrator.Program.Main(["--connection", _db.ConnectionStringFor("themis_migrator"), "--fixture", "milestone-9"]));
+        Assert.Equal(1, await Themis.Migrator.Program.RunAsync(["--connection", _db.ConnectionStringFor("themis_migrator"), "--fixture", "milestone-9"], PostgresFixture.MigratorEnvironment));
     }
 
     [Fact]

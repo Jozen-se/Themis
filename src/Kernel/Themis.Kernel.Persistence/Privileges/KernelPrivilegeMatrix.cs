@@ -33,13 +33,14 @@ internal static class KernelPrivilegeMatrix
         TableGrant.Mutable(Kernel, "fiscal_period", KernelRole),
 
         // Security entities (milestone 1 step 4): SELECT, INSERT, UPDATE; never DELETE. Users are Disabled and
-        // assignments end by valid_to (step 4 brief; R-MD-03).
+        // assignments end by valid_to (step 4 brief; R-MD-03). The permission catalogue and the SoD pairs are system
+        // catalogues the migrator writes, read-only for the kernel (RR-64); the pair grant returns with step 13.
         TableGrant.Mutable(Kernel, "user_account", KernelRole),
-        TableGrant.Mutable(Kernel, "permission", KernelRole),
+        TableGrant.ReadOnly(Kernel, "permission", KernelRole),
         TableGrant.Mutable(Kernel, "role", KernelRole),
         TableGrant.Mutable(Kernel, "role_permission", KernelRole),
         TableGrant.Mutable(Kernel, "role_assignment", KernelRole),
-        TableGrant.Mutable(Kernel, "sod_conflict", KernelRole),
+        TableGrant.ReadOnly(Kernel, "sod_conflict", KernelRole),
 
         // Master data (milestone 1 step 5): reference lists, posting groups, items and their company rows; never DELETE (R-MD-03).
         TableGrant.Mutable(Kernel, "unit_of_measure", KernelRole),

@@ -112,36 +112,41 @@ public sealed class DatabaseBackstopTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task RR_47_the_trigger_function_runs_as_themis_migrator_with_a_fixed_search_path_and_no_role_holds_EXECUTE_on_any_kernel_or_reporting_function_I_14()
+    public async Task RR_47_D_60_every_kernel_and_reporting_function_runs_as_themis_migrator_with_a_fixed_search_path_and_no_role_holds_EXECUTE_on_any_I_14()
     {
         await using NpgsqlConnection connection = await PostgresFixture.OpenAsync(_db.SuperuserConnectionString, Ct);
         await using NpgsqlCommand functions = new(
             """
-            SELECT n.nspname || '.' || p.proname, pg_get_userbyid(p.proowner), p.prosecdef, array_to_string(p.proconfig, ';'), coalesce(p.proacl::text, 'default')
+            SELECT n.nspname || '.' || p.proname, pg_get_userbyid(p.proowner), p.prosecdef, array_to_string(p.proconfig, ';'), coalesce(p.proacl::text, 'default'), p.oid::regprocedure::text
             FROM pg_proc p
             JOIN pg_namespace n ON n.oid = p.pronamespace
             WHERE n.nspname IN ('kernel', 'reporting')
               AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')
             ORDER BY 1
             """, connection);
-        List<(string Name, string Owner, bool SecurityDefiner, string? Config, string Acl)> rows = [];
+        List<(string Name, string Owner, bool SecurityDefiner, string? Config, string Acl, string Signature)> rows = [];
         await using (NpgsqlDataReader reader = await functions.ExecuteReaderAsync(Ct))
         {
             while (await reader.ReadAsync(Ct))
             {
-                rows.Add((reader.GetString(0), reader.GetString(1), reader.GetBoolean(2), reader.IsDBNull(3) ? null : reader.GetString(3), reader.GetString(4)));
+                rows.Add((reader.GetString(0), reader.GetString(1), reader.GetBoolean(2), reader.IsDBNull(3) ? null : reader.GetString(3), reader.GetString(4), reader.GetString(5)));
             }
         }
 
-        (string Name, string Owner, bool SecurityDefiner, string? Config, string Acl) function = Assert.Single(rows);
-        Assert.Equal(("kernel.journal_entry_balance_check", "themis_migrator", true, "search_path=pg_catalog, kernel"), (function.Name, function.Owner, function.SecurityDefiner, function.Config));
-        // An empty access list: not the default (owner all, PUBLIC execute), nobody. A trigger fires without EXECUTE.
-        Assert.Equal("{}", function.Acl);
-        foreach (string role in new[] { "public", "themis_app", "themis_kernel", "themis_reporting", "themis_fixture", "themis_migrator" })
+        // The RR-47 balance check and the D-60 immutability trigger function, and nothing else outside extensions.
+        Assert.Equal(["kernel.journal_entry_balance_check", "kernel.ledger_row_immutable"], rows.Select(row => row.Name));
+        foreach ((string name, string owner, bool securityDefiner, string? config, string acl, string signature) in rows)
         {
-            await using NpgsqlCommand privilege = new("SELECT has_function_privilege(@role, 'kernel.journal_entry_balance_check()', 'EXECUTE')", connection);
-            privilege.Parameters.AddWithValue("role", role);
-            Assert.False((bool)(await privilege.ExecuteScalarAsync(Ct))!, $"{role} holds EXECUTE on the trigger function.");
+            Assert.Equal((name, "themis_migrator", true, "search_path=pg_catalog, kernel"), (name, owner, securityDefiner, config));
+            // An empty access list: not the default (owner all, PUBLIC execute), nobody. A trigger fires without EXECUTE.
+            Assert.Equal((name, "{}"), (name, acl));
+            foreach (string role in new[] { "public", "themis_app", "themis_kernel", "themis_reporting", "themis_fixture", "themis_migrator" })
+            {
+                await using NpgsqlCommand privilege = new("SELECT has_function_privilege(@role, @function, 'EXECUTE')", connection);
+                privilege.Parameters.AddWithValue("role", role);
+                privilege.Parameters.AddWithValue("function", signature);
+                Assert.False((bool)(await privilege.ExecuteScalarAsync(Ct))!, $"{role} holds EXECUTE on {signature}.");
+            }
         }
     }
 

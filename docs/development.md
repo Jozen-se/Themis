@@ -66,7 +66,7 @@ Keycloak uses its own file database in development; the realm is imported from `
 ```bash
 export THEMIS_MIGRATOR_CONNECTION="Host=localhost;Port=5432;Database=themis;Username=themis_migrator;Password=themis"
 dotnet run --project src/Themis.Migrator     # verifies the role, applies the pending kernel migrations, seeds the permission catalogue
-dotnet run --project src/Themis.Migrator -- --fixture milestone-1   # also seeds the milestone 1 organisation, identity and master data fixtures (idempotent)
+DOTNET_ENVIRONMENT=Development dotnet run --project src/Themis.Migrator -- --fixture milestone-1   # also seeds the milestone 1 fixtures (idempotent); refused outside Development, Test or Testing (RR-70)
 dotnet run --project src/Themis.Host
 curl -i http://localhost:5080/health/live     # 200 as soon as the process serves requests
 curl -i http://localhost:5080/health/ready    # 200 when PostgreSQL answers as themis_app, 503 otherwise
@@ -74,7 +74,10 @@ open http://localhost:5080/scalar             # API reference (development only)
 ```
 
 The milestone 1 organisation fixture (step 3 brief; `THEMIS_MIGRATOR_FIXTURE=milestone-1` is the environment form)
-runs only in tests and local development, never as part of a production migration. It is one installation
+runs only in tests and local development, never as part of a production migration. The migrator enforces it (RR-70):
+a fixture loads only when `DOTNET_ENVIRONMENT` is `Development`, `Test` or `Testing` (any letter case); unset means
+Production, and the run stops with exit code 9 before it opens a connection. The tests name their environment
+(`Testing`) when they call the migrator in process. It is one installation
 `THEMIS-DEV` (sv-SE), the company's own party `P-000001` (Themis Fictitious Fasteners AB, organisation number
 555555-5555, SE), the chart of accounts `BAS` (header only), company `SE01` (SEK, Europe/Stockholm, fiscal year start
 month 1, HalfAwayFromZero, tax rounding level Line as a test value until D-10, no payment tolerance), site `MAIN`,
@@ -141,6 +144,17 @@ on any kernel or reporting function outside extensions. The triggers raise SQLST
 first, and a commit they refuse is a 500 with the SQLSTATE in the log, no idempotency record and the key free for the
 retry.
 
+Milestone 2 step 2b adds two migrations. `LedgerImmutability` (D-60, RR-63) puts a BEFORE UPDATE OR DELETE row
+trigger and a BEFORE TRUNCATE statement trigger on `journal_entry`, `journal_line`, `inventory_entry`, `audit_event`
+and `setting_value`; each raises SQLSTATE 23514 with constraint name `ct_<table>_immutable`, so even the table owner
+`themis_migrator` cannot change ledger and audit rows (a superuser stays outside the guarantee). The function follows
+the RR-47 convention (SECURITY DEFINER, owned by `themis_migrator`, fixed search path, nobody holds EXECUTE), and the
+pipeline never retries or maps 23514. A later migration that must change such rows disables and re-enables the
+triggers inside its own script and needs the owner's review. `ReadOnlySystemCatalogues` (RR-64) revokes INSERT and
+UPDATE on `permission` and `sod_conflict` from `themis_kernel`; the migrator still writes both. A development
+database from before step 2b is migrated forward; nothing is recreated. Tests clean their database through
+`PostgresFixture.CleanupAsync` (docs/development/test-seams.md).
+
 The migrator's exit codes:
 
 | Code | Meaning |
@@ -154,6 +168,7 @@ The migrator's exit codes:
 | 6 | The database holds outbox rows written before the D-50 envelope and must be recreated before the step 7 migration |
 | 7 | The document type catalogue in code breaks a registry rule |
 | 8 | PostgreSQL refused a statement; the SQLSTATE and message are printed (RR-48), for example `P0001` from the overlap check of RR-44 |
+| 9 | A fixture was asked for while `DOTNET_ENVIRONMENT` is not `Development`, `Test` or `Testing` (unset means Production); the message names the environment and the fixture, and nothing was opened (RR-70) |
 
 A run is not one transaction: each migration applies in its own transaction and each seeder commits on its own, so
 a failure leaves the steps before it applied. Every step is safe to re-run: the migrations history skips applied
@@ -219,9 +234,10 @@ then the advisory lock and the idempotency record. An expired idempotency record
 the command's transaction under the advisory lock and the key runs as new; a 412, a failure or a D-41 retry rolls the
 delete back (RR-42; the host's purge removes the rest, see Settings). Inside the handler's savepoint,
 a unique violation (23505) of a constraint a capability registered as a `UniqueConstraintRule` becomes that rule's
-rejection (in milestone 1 `ux_item_item_number` to R-MD-05 `item_number_duplicate`), and a numeric overflow (22003)
-becomes a 422 under R-DOC-01 with code `amount_out_of_range`; both are stored as the key's result, any other database
-failure stays a 500 (RR-45, RR-46). The retry check of D-41 reads SQLSTATE 40001 and 40P01 wherever they sit in the
+rejection (in milestone 1 `ux_item_item_number` to R-MD-05 `item_number_duplicate`) and is stored as the key's
+result; any other database failure stays a 500 (RR-45). Since milestone 2 step 2b the dispatcher maps no numeric
+overflow: the posting service turns a 22003 from its own writes into the 422 under R-DOC-01 with code
+`amount_out_of_range`, stored like any rejection, and an overflow anywhere else is a 500 (RR-46, RR-83). The retry check of D-41 reads SQLSTATE 40001 and 40P01 wherever they sit in the
 exception chain, so a deadlock Entity Framework wraps in a `DbUpdateException` is retried too (RR-40). Validators
 also refuse any quantity, base quantity, entered cost or quantity times entered cost outside the range of its column
 with 400 `value_out_of_range` (RR-46). A caller's `X-Correlation-Id` is accepted only as one value of at most 128
@@ -233,11 +249,11 @@ Every command goes through `Themis.Kernel.Pipeline` (brief, One command, one tra
 
 | Step | What happens | Rules |
 |---|---|---|
-| Headers | `Idempotency-Key` is required (400 without it); `If-Match` is required on commands that change an existing record (428 without it) and its value becomes the command's `expectedVersion`, overwriting anything the body supplies; route values such as `{id}` are merged into the body and win over it. Every success returns the record's new version as the `ETag` header, ready for the next `If-Match` | R-API-01, R-API-02 |
-| Authentication | the bearer token is validated against the configured provider (issuer, audience, signature, lifetime); a request without a valid token is 401. The token's `sub` claim is the only claim read; roles and email in the token are ignored | D-12 |
+| Headers | `Idempotency-Key` is required (400 without it); `If-Match` is required on commands that change an existing record (428 without it) and its value becomes the command's `expectedVersion`, overwriting anything the body supplies; route values such as `{id}` are merged into the body and win over it: a body member that names a route value in any letter case must carry the same value (ids compared as Guid values), else 400 `route_body_mismatch` with no ruleId and nothing stored, and every body member that names `expectedVersion` in any letter case is dropped before the `If-Match` value is written (RR-73). Every success returns the record's new version as the `ETag` header, ready for the next `If-Match` | R-API-01, R-API-02 |
+| Authentication | the bearer token is validated against the configured provider (issuer, audience, signature, lifetime); a token without a `sub` claim fails validation. A fallback authorization policy requires an authenticated user on every endpoint, so a request without a valid token is 401 before any header, body or validator is looked at, also on a path no endpoint matches; without a configured provider a scheme that authenticates nobody stands in, so the answer is 401, never 500. Every 401 is the same problem body (`authentication_required`, R-SEC-01, the correlation id) with `WWW-Authenticate: Bearer` and no error details. The health endpoints, and OpenAPI and Scalar in Development, are anonymous on purpose. The token's `sub` claim is the only claim read; roles and email in the token are ignored | D-12, R-SEC-01, RR-71 |
 | Validation | validators run before any statement; their outcome is never stored | R-API-03 |
 | Authorisation | inside the transaction, before any business statement and again on every retry: the subject's User row becomes the principal (403 `subject_unknown`, `user_disabled`; no user is created on login), the command names its scope from its own data or from the record it loads (403 `scope_undeclared`), and the principal must hold the permission named by `[Command("TYPE.COMMAND")]` through a role assigned in that company (and site, where one applies) and valid on the company's business date, `valid_from` inclusive to `valid_to` exclusive (403 `permission_missing`, `out_of_scope`). A site-limited assignment never satisfies a command without a site. Every 403 carries `ruleId` R-SEC-01 and none is stored | R-SEC-01, R-TIME-01, D-47 |
-| Transaction | one connection as `themis_app`, one transaction; each statement switches with `SET LOCAL ROLE` to the role that owns the table (the kernel stores to `themis_kernel`, a module's own SQL to its role) | D-41, R-DB-01 |
+| Transaction | one connection as `themis_app`, one transaction; each statement switches with `SET LOCAL ROLE` to the role that owns the table (the kernel stores to `themis_kernel`, a module's own SQL to its role). The role is reset to `themis_app` before each call into module code and when a kernel Contracts service returns (see Module role switching below). A query runs in a read-only transaction (`SET TRANSACTION READ ONLY`): a write or a row lock in a query is refused with 25006 and answers 500 (RR-81) | D-41, R-DB-01, RR-62 |
 | Duplicate | a transaction-scoped advisory lock on (user, key) is tried, never waited for: a second request while the first runs gets 409 at once | R-API-01 |
 | Replay | a stored record with the same request fingerprint (command type, body and If-Match version) is replayed with the header `Idempotency-Replayed: true`; a different fingerprint is rejected with 422 and R-API-04 | R-API-01, R-API-04 |
 | Handler | runs inside a savepoint; a rejection rolls back to the savepoint, so the business writes disappear while the rejection itself is stored as the key's result and committed. Not stored: authorisation and validation outcomes, the 409 duplicate, a missing If-Match (428) and a stale version (412), so a retry with the fresh version runs afresh | R-API-03, R-API-02 |
@@ -253,6 +269,23 @@ Phase 0 is declared complete. The purge that deletes expired records is later wo
 
 A caller outside HTTP (a background service, a test) dispatches through `ICommandDispatcher` with a `CommandEnvelope`;
 when it supplies no correlation id, the pipeline creates one, so audit events always carry it (D-25).
+
+### Module role switching
+
+A statement runs only under the role that owns it (R-DB-01, RR-62). The command and query dispatchers reset the
+connection to `themis_app` (`SET LOCAL ROLE NONE`) immediately before the scope resolver and the handler, and take the
+business savepoint after the reset. Every kernel service a module calls through `Themis.Kernel.Contracts`
+(`IOrganisationReader`, `ISettingsReader`, `IPostingService`, `INumberSeriesService`, `IAccountResolver`,
+`IAccessControl`) resets the role on successful return through the one internal helper `KernelServiceRole`; a service
+that throws or caught a database error does not, since the transaction is then aborted. An architecture test keeps
+that list exact (`KernelServiceRoleTests`).
+
+`IUnitOfWork` no longer exposes `Connection` and `Transaction`. A module takes them from `ForRoleAsync(role)`, which
+switches to its role first, and a module's Entity Framework context adds a command interceptor that calls
+`EnsureRoleAsync(role)` before every statement (the fixture module's `FixtureRoleInterceptor` is the pattern). A raw
+ADO.NET statement after a kernel call, or a context built without the interceptor, therefore runs as `themis_app` and
+is refused with 42501. The posting service alone turns a numeric overflow (22003) of its own writes into the 422
+`amount_out_of_range` under R-DOC-01; an overflow anywhere else is a 500 (RR-83).
 
 ## Identity
 

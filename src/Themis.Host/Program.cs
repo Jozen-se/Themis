@@ -67,15 +67,12 @@ public sealed class Program
 
         WebApplication app = builder.Build();
 
-        // RR-72: the correlation id surrounds the exception handler, so a 500 and its log line carry it.
+        // RR-72: the correlation id surrounds the exception handler, so a 500 and its log line carry it; RR-71: then
+        // authentication and the fallback authorization policy, so an anonymous request gets 401 before any work.
         app.UseKernelRequestPipeline();
-        if (app.Services.GetService<Microsoft.AspNetCore.Authentication.IAuthenticationSchemeProvider>() is not null)
-        {
-            app.UseAuthentication();
-        }
 
-        app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
-        app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") });
+        app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();
+        app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") }).AllowAnonymous();
         app.MapQuery<GetCompany, CompanyInfo>(OrganisationRoutes.Company);
         app.MapCommandRoutes(MasterDataRoutes.Commands);
         app.MapQuery<GetItem, ItemView>(MasterDataRoutes.Item);
@@ -87,8 +84,8 @@ public sealed class Program
 
         if (app.Environment.IsDevelopment())
         {
-            app.MapOpenApi();
-            app.MapScalarApiReference();
+            app.MapOpenApi().AllowAnonymous();
+            app.MapScalarApiReference().AllowAnonymous();
         }
 
         app.Run();

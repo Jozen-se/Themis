@@ -34,14 +34,21 @@ internal sealed class SettingsReader : ISettingsReader
         _time = time;
     }
 
-    public async Task<SettingResolution> ResolveAsync(IUnitOfWork unitOfWork, string key, SettingTarget target, CancellationToken cancellationToken)
+    // RR-62: both Contracts reads hand the connection back as themis_app on successful return.
+    public Task<SettingResolution> ResolveAsync(IUnitOfWork unitOfWork, string key, SettingTarget target, CancellationToken cancellationToken) =>
+        ResolveCoreAsync(unitOfWork, key, target, cancellationToken).ThenResetRoleAsync(unitOfWork, cancellationToken);
+
+    public Task<int> GetIntegerAsync(IUnitOfWork unitOfWork, string key, SettingTarget target, CancellationToken cancellationToken) =>
+        GetIntegerCoreAsync(unitOfWork, key, target, cancellationToken).ThenResetRoleAsync(unitOfWork, cancellationToken);
+
+    private async Task<SettingResolution> ResolveCoreAsync(IUnitOfWork unitOfWork, string key, SettingTarget target, CancellationToken cancellationToken)
     {
         SettingDefinition definition = _definitions.Find(key) ?? throw new InvalidOperationException($"Setting {key} is not in the catalogue.");
         Resolved resolved = await ResolveAsync(unitOfWork, definition, target, asOf: null, cancellationToken);
         return new SettingResolution(key, resolved.Value, resolved.Source);
     }
 
-    public async Task<int> GetIntegerAsync(IUnitOfWork unitOfWork, string key, SettingTarget target, CancellationToken cancellationToken)
+    private async Task<int> GetIntegerCoreAsync(IUnitOfWork unitOfWork, string key, SettingTarget target, CancellationToken cancellationToken)
     {
         SettingDefinition definition = _definitions.Find(key) ?? throw new InvalidOperationException($"Setting {key} is not in the catalogue.");
         if (definition.ValueType != SettingValueType.Integer)

@@ -21,11 +21,11 @@ internal static class TestTokens
 
     public static string SigningKeyBase64 => Convert.ToBase64String(Key);
 
-    /// <summary>A valid token for the subject, one hour long, optionally with claims Themis must ignore.</summary>
-    public static string For(string subject, TimeProvider clock, IEnumerable<Claim>? extraClaims = null, string issuer = Issuer, string audience = Audience, TimeSpan? lifetime = null, byte[]? key = null)
+    /// <summary>A valid token for the subject, one hour long, optionally with claims Themis must ignore; a null subject leaves out the sub claim (RR-71).</summary>
+    public static string For(string? subject, TimeProvider clock, IEnumerable<Claim>? extraClaims = null, string issuer = Issuer, string audience = Audience, TimeSpan? lifetime = null, byte[]? key = null)
     {
         DateTimeOffset now = clock.GetUtcNow();
-        List<Claim> claims = [new Claim("sub", subject)];
+        List<Claim> claims = subject is null ? [new Claim("name", "no subject")] : [new Claim("sub", subject)];
         if (extraClaims is not null)
         {
             claims.AddRange(extraClaims);

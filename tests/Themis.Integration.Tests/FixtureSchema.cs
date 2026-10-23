@@ -10,7 +10,8 @@ namespace Themis.Integration.Tests;
 /// The fixture module's table, created the way a module migration will create it: as themis_migrator, with the
 /// grants of a declared privilege matrix rendered by the grant helper (I-14). The matrix is the one
 /// <see cref="PrivilegeMatrixTests"/> adds to the kernel's declared set. The same script seeds the test-only
-/// permission FIXTURE.TOUCH with its role and the clerk's assignment (owner's decision on step 7, point 3), so the
+/// permission FIXTURE.TOUCH with its role and the clerk's assignment (owner's decision on step 7, point 3), and the
+/// test-only FIXTURE.READ of the write-attempting query seam (RR-81) on the same role, so the
 /// fixture's touch command needs no real permission; the rows are test scaffolding outside the production catalogue
 /// and the seeders, idempotent and without audit events.
 /// </summary>
@@ -20,6 +21,8 @@ internal static class FixtureSchema
     public static Guid TouchRoleId { get; } = Guid.Parse("00000000-0000-7000-8000-0000000f0002");
     public static Guid TouchRolePermissionId { get; } = Guid.Parse("00000000-0000-7000-8000-0000000f0003");
     public static Guid ClerkTouchAssignmentId { get; } = Guid.Parse("00000000-0000-7000-8000-0000000f0004");
+    public static Guid ReadPermissionId { get; } = Guid.Parse("00000000-0000-7000-8000-0000000f0005");
+    public static Guid ReadRolePermissionId { get; } = Guid.Parse("00000000-0000-7000-8000-0000000f0006");
 
     public static IReadOnlyList<TableGrant> Declared { get; } =
     [
@@ -55,6 +58,10 @@ internal static class FixtureSchema
                 VALUES ('{TouchRoleId}', '{FixtureContracts.TouchRoleCode}', 'Fixture tester (test only)', {audit}) ON CONFLICT (code) DO NOTHING;
                 INSERT INTO kernel.role_permission (id, role_id, permission_code, created_at, created_by, updated_at, updated_by)
                 VALUES ('{TouchRolePermissionId}', '{TouchRoleId}', '{FixtureContracts.TouchPermission}', {audit}) ON CONFLICT (role_id, permission_code) DO NOTHING;
+                INSERT INTO kernel.permission (id, code, risk_level, created_at, created_by, updated_at, updated_by)
+                VALUES ('{ReadPermissionId}', '{FixtureContracts.ReadPermission}', 'Normal', {audit}) ON CONFLICT (code) DO NOTHING;
+                INSERT INTO kernel.role_permission (id, role_id, permission_code, created_at, created_by, updated_at, updated_by)
+                VALUES ('{ReadRolePermissionId}', '{TouchRoleId}', '{FixtureContracts.ReadPermission}', {audit}) ON CONFLICT (role_id, permission_code) DO NOTHING;
                 INSERT INTO kernel.role_assignment (id, user_id, role_id, company_id, site_id, valid_from, valid_to, assigned_by, created_at, created_by, updated_at, updated_by)
                 VALUES ('{ClerkTouchAssignmentId}', '{Milestone1IdentityFixture.ClerkId}', '{TouchRoleId}', '{Milestone1OrganisationFixture.CompanyId}', NULL, '2026-01-01', NULL, '{system}', {audit}) ON CONFLICT (id) DO NOTHING;
                 """;

@@ -80,7 +80,7 @@ public sealed class DocumentFrameworkFixtureTests : IAsyncLifetime
         Assert.Equal(expectedRows, await ScalarAsync(connection, $"SELECT count(DISTINCT entity_id) {registryAudit}"));
         Assert.Equal(0L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.outbox_event WHERE aggregate_type IN ('DocumentType', 'DocumentTransition')"));
 
-        Assert.Equal(0, await Themis.Migrator.Program.Main(["--connection", _db.ConnectionStringFor("themis_migrator"), "--fixture", "milestone-1"]));
+        Assert.Equal(0, await Themis.Migrator.Program.RunAsync(["--connection", _db.ConnectionStringFor("themis_migrator"), "--fixture", "milestone-1"], PostgresFixture.MigratorEnvironment));
 
         Assert.Equal((long)DocumentTypes.All.Count, await ScalarAsync(connection, "SELECT count(*) FROM kernel.document_type"));
         Assert.Equal(expectedRows, await ScalarAsync(connection, $"SELECT count(*) {registryAudit}"));
@@ -220,13 +220,13 @@ public sealed class DocumentFrameworkFixtureTests : IAsyncLifetime
             await using NpgsqlConnection connection = await PostgresFixture.OpenAsync(migrator, Ct);
             await ExecuteAsync(connection, "INSERT INTO kernel.outbox_event (id, event_type, schema_version, aggregate_id, payload, occurred_at) VALUES (gen_random_uuid(), 'OLD_EVENT', 1, gen_random_uuid(), '{}', now())");
 
-            Assert.Equal(6, await Themis.Migrator.Program.Main(["--connection", migrator]));
+            Assert.Equal(6, await Themis.Migrator.Program.RunAsync(["--connection", migrator], PostgresFixture.MigratorEnvironment));
             Assert.Equal(0L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.__ef_migrations_history WHERE \"MigrationId\" LIKE '%DocumentFrameworkTables'"));
             // The migration itself refuses too, as the second line of defence.
             await AssertFailsAsync(connection, RaiseException, Themis.Kernel.Persistence.Migrations.DocumentFrameworkTables.OutboxGuardSql, insideTransaction: false);
 
             await ExecuteAsync(connection, "DELETE FROM kernel.outbox_event");
-            Assert.Equal(0, await Themis.Migrator.Program.Main(["--connection", migrator]));
+            Assert.Equal(0, await Themis.Migrator.Program.RunAsync(["--connection", migrator], PostgresFixture.MigratorEnvironment));
             Assert.Equal(1L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.__ef_migrations_history WHERE \"MigrationId\" LIKE '%DocumentFrameworkTables'"));
             Assert.Equal(2L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.document_type"));
             Assert.Equal(0L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.number_series"));

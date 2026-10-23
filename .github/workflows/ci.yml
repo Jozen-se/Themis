@@ -1,8 +1,9 @@
 # Continuous integration (D-42). Required status checks on main: "Build and test" and "License scan".
 # Every pull request must be green here before review (CLAUDE.md, working model). Runners are pinned to
 # ubuntu-24.04; an upgrade is its own pull request (RR-104, Build Brief, CI runners). Actions are pinned by commit SHA
-# with the version as a comment, kept current by Dependabot (RR-50); a test category that executed no tests fails
-# the job (RR-41, .github/scripts/require-tests.sh).
+# with the version as a comment, kept current by Dependabot (RR-50); each test category runs in the projects the
+# guard's map names, one results directory per (category, project) pair, and a pair that executed no tests fails
+# the job (RR-41, RR-84, .github/scripts/require-tests.sh).
 name: CI
 
 on:
@@ -84,35 +85,47 @@ jobs:
         run: docker compose down -v
 
       - name: Architecture tests (D-26)
-        run: dotnet test --solution Themis.sln --configuration Release --no-build --filter-trait "Category=Architecture" --ignore-exit-code 8 --report-xunit-trx --results-directory TestResults/architecture
+        run: |
+          for project in $(.github/scripts/require-tests.sh --projects Architecture); do
+            dotnet test --project "tests/$project/$project.csproj" --configuration Release --no-build --filter-trait "Category=Architecture" --ignore-exit-code 8 --report-xunit-trx --results-directory "TestResults/architecture/$project"
+          done
 
-      - name: The architecture tests executed at least one test (RR-41)
+      - name: The architecture tests executed at least one test in every project of the category (RR-41, RR-84)
         if: always()
-        run: .github/scripts/require-tests.sh TestResults/architecture
+        run: .github/scripts/require-tests.sh Architecture TestResults/architecture
 
       - name: Unit tests
-        run: dotnet test --solution Themis.sln --configuration Release --no-build --filter-trait "Category=Unit" --ignore-exit-code 8 --report-xunit-trx --results-directory TestResults/unit
+        run: |
+          for project in $(.github/scripts/require-tests.sh --projects Unit); do
+            dotnet test --project "tests/$project/$project.csproj" --configuration Release --no-build --filter-trait "Category=Unit" --ignore-exit-code 8 --report-xunit-trx --results-directory "TestResults/unit/$project"
+          done
 
-      - name: The unit tests executed at least one test (RR-41)
+      - name: The unit tests executed at least one test in every project of the category (RR-41, RR-84)
         if: always()
-        run: .github/scripts/require-tests.sh TestResults/unit
+        run: .github/scripts/require-tests.sh Unit TestResults/unit
 
       - name: Integration tests (PostgreSQL and Keycloak via Testcontainers, I-14, D-12)
         env:
           # The Keycloak smoke test (step 4) skips without a container runtime; CI has one, so a skip is a failure.
           THEMIS_TEST_REQUIRE_KEYCLOAK: "true"
-        run: dotnet test --solution Themis.sln --configuration Release --no-build --filter-trait "Category=Integration" --ignore-exit-code 8 --report-xunit-trx --results-directory TestResults/integration
+        run: |
+          for project in $(.github/scripts/require-tests.sh --projects Integration); do
+            dotnet test --project "tests/$project/$project.csproj" --configuration Release --no-build --filter-trait "Category=Integration" --ignore-exit-code 8 --report-xunit-trx --results-directory "TestResults/integration/$project"
+          done
 
-      - name: The integration tests executed at least one test (RR-41)
+      - name: The integration tests executed at least one test in every project of the category (RR-41, RR-84)
         if: always()
-        run: .github/scripts/require-tests.sh TestResults/integration
+        run: .github/scripts/require-tests.sh Integration TestResults/integration
 
       - name: Invariant tests (property-based, I-xx)
-        run: dotnet test --solution Themis.sln --configuration Release --no-build --filter-trait "Category=Invariant" --ignore-exit-code 8 --report-xunit-trx --results-directory TestResults/invariant
+        run: |
+          for project in $(.github/scripts/require-tests.sh --projects Invariant); do
+            dotnet test --project "tests/$project/$project.csproj" --configuration Release --no-build --filter-trait "Category=Invariant" --ignore-exit-code 8 --report-xunit-trx --results-directory "TestResults/invariant/$project"
+          done
 
-      - name: The invariant tests executed at least one test (RR-41)
+      - name: The invariant tests executed at least one test in every project of the category (RR-41, RR-84)
         if: always()
-        run: .github/scripts/require-tests.sh TestResults/invariant
+        run: .github/scripts/require-tests.sh Invariant TestResults/invariant
 
       - name: Upload test results
         if: always()

@@ -31,7 +31,7 @@ internal sealed class CreateCounterHandler : ICommandHandler<CreateCounter, Coun
 
         Counter counter = created.Value;
         await _store.InsertAsync(context.UnitOfWork, counter, cancellationToken);
-        await _failures.ApplyAsync(new FixtureFailureContext(command.Failure, context.IdempotencyKey.Value, ct => _store.WriteKernelTableAsync(context.UnitOfWork, ct)), cancellationToken);
+        await _failures.ApplyAsync(new FixtureFailureContext(command.Failure, context.IdempotencyKey.Value, ct => _store.WriteKernelTableAsync(context.UnitOfWork, ct), ct => _store.OverflowSampleAsync(context.UnitOfWork, counter.Id, ct)), cancellationToken);
         if (command.Failure == FixtureFailure.RejectAfterWrite)
         {
             return Error.Rule("R-API-03", "rejected_after_write", "Injected rejection after the business write (fixture).");

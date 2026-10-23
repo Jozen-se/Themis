@@ -9,7 +9,9 @@ namespace Themis.Kernel.Persistence.UnitOfWork;
 /// One connection as themis_app and one transaction per command (D-41). Every statement goes through it, and it
 /// issues SET LOCAL ROLE to the owning module's role whenever the current role differs (R-DB-01). SET LOCAL is
 /// transaction-scoped, so pooled connections return clean, and a rollback to a savepoint also undoes a role switch
-/// made after it, which is why the tracked role is forgotten on such a rollback.
+/// made after it, which is why the tracked role is forgotten on such a rollback. Modules reach the connection only
+/// through <see cref="ForRoleAsync"/>, which switches first; the kernel context factory and the tests read the
+/// persistence-internal <see cref="Connection"/> and <see cref="Transaction"/> (RR-62).
 /// </summary>
 internal sealed class NpgsqlUnitOfWork : IKernelUnitOfWork
 {
@@ -27,17 +29,27 @@ internal sealed class NpgsqlUnitOfWork : IKernelUnitOfWork
 
     public DatabaseRole? CurrentRole => _currentRole;
 
+    /// <summary>Persistence-internal: the kernel data context enlists here; not part of <see cref="IUnitOfWork"/> (RR-62).</summary>
     public DbConnection Connection => _connection;
 
+    /// <summary>Persistence-internal, like <see cref="Connection"/>.</summary>
     public DbTransaction Transaction => _transaction;
 
-    public static async Task<NpgsqlUnitOfWork> BeginAsync(NpgsqlDataSource dataSource, CancellationToken cancellationToken)
+    public static async Task<NpgsqlUnitOfWork> BeginAsync(NpgsqlDataSource dataSource, CancellationToken cancellationToken, bool readOnly = false)
     {
         NpgsqlConnection connection = await dataSource.OpenConnectionAsync(cancellationToken);
         try
         {
             NpgsqlTransaction transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
-            return new NpgsqlUnitOfWork(connection, transaction);
+            NpgsqlUnitOfWork unitOfWork = new(connection, transaction);
+            if (readOnly)
+            {
+                // RR-81: a query's transaction refuses every write and row lock with 25006, whatever its code tries.
+                await using NpgsqlCommand command = unitOfWork.CreateCommand("SET TRANSACTION READ ONLY", null);
+                await command.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            return unitOfWork;
         }
         catch
         {
@@ -56,6 +68,20 @@ internal sealed class NpgsqlUnitOfWork : IKernelUnitOfWork
         await using NpgsqlCommand command = CreateCommand($"SET LOCAL ROLE \"{role.Name}\"", null);
         await command.ExecuteNonQueryAsync(cancellationToken);
         _currentRole = role;
+    }
+
+    public async Task<UnitOfWorkConnection> ForRoleAsync(DatabaseRole role, CancellationToken cancellationToken)
+    {
+        await EnsureRoleAsync(role, cancellationToken);
+        return new UnitOfWorkConnection(_connection, _transaction);
+    }
+
+    public async Task ResetRoleAsync(CancellationToken cancellationToken)
+    {
+        // RR-62: the caller guarantees a healthy transaction (never after a failed statement, where 25P02 would hide the error).
+        await using NpgsqlCommand command = CreateCommand("SET LOCAL ROLE NONE", null);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+        _currentRole = null;
     }
 
     /// <summary>Synchronous twin for the data context interceptor's synchronous paths.</summary>
