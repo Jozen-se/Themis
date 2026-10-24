@@ -213,7 +213,10 @@ public sealed partial class ReviewAndCiHygieneTests
         Assert.Contains("## Deviations and out-of-scope findings", template, StringComparison.Ordinal);
         Assert.Contains("## Owner checklist", template, StringComparison.Ordinal);
         Assert.Contains("- [ ] The required checks are green on the head commit", template, StringComparison.Ordinal);
-        Assert.Contains("- [ ] The reviewer's summary names that head commit", template, StringComparison.Ordinal);
+        // D-59 as amended 2026-10-24: review is tiered, and the template names the sign-off of each tier.
+        Assert.Contains("- **Review tier (D-59):**", template, StringComparison.Ordinal);
+        Assert.Contains("- [ ] Full tier: the reviewer's summary names that head commit", template, StringComparison.Ordinal);
+        Assert.Contains("- [ ] Light tier: the planner's conformance check names that head commit", template, StringComparison.Ordinal);
         Assert.Contains("- [ ] Every conversation is resolved", template, StringComparison.Ordinal);
         Assert.DoesNotContain("Owner sign-off", template, StringComparison.Ordinal);
         Assert.DoesNotContain("explicit review", template, StringComparison.OrdinalIgnoreCase);

@@ -1,6 +1,7 @@
 ## Task brief
 
 - **Step brief:** <!-- the step brief and the release line it came from, e.g. "Milestone 2, step 2a (final), released 2026-10-22 23:59; amendment 1, released 2026-10-23 18:05" -->
+- **Review tier (D-59):** <!-- full or light, and why (the files changed) -->
 - **Goal:** 
 - **Rule IDs:** 
 - **Entities touched:** 
@@ -25,5 +26,6 @@
 ## Owner checklist (ticked by the owner before the squash merge, D-59)
 
 - [ ] The required checks are green on the head commit
-- [ ] The reviewer's summary names that head commit
+- [ ] Full tier: the reviewer's summary names that head commit
+- [ ] Light tier: the planner's conformance check names that head commit
 - [ ] Every conversation is resolved
