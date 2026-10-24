@@ -50,7 +50,7 @@ public sealed class OrganisationRaceTests : IAsyncLifetime
             "company-code" => (OrganisationBodies.Companies, OrganisationBodies.Company("RACE", organisationNumber: "111111-1111", vatNumber: null), OrganisationBodies.Company("race", organisationNumber: "222222-2222", vatNumber: null), "Company", "RACE"),
             "organisation-number" => (OrganisationBodies.Companies, OrganisationBodies.Company("RACE-A", organisationNumber: "777777-7777", vatNumber: null), OrganisationBodies.Company("RACE-B", organisationNumber: "7777 777 777", vatNumber: null), "Company", "RACE-A"),
             "site" => (OrganisationBodies.Sites, new { companyId = Milestone1OrganisationFixture.CompanyId, code = "RACE", name = "Race site" }, new { companyId = Milestone1OrganisationFixture.CompanyId, code = "race", name = "Race site" }, "Site", "RACE"),
-            _ => (OrganisationBodies.Warehouses, new { siteId = Milestone1OrganisationFixture.SiteId, code = "RACE", name = "Race warehouse" }, new { siteId = Milestone1OrganisationFixture.SiteId, code = "race", name = "Race warehouse" }, "Warehouse", "RACE"),
+            _ => (OrganisationBodies.Warehouses, new { companyId = Milestone1OrganisationFixture.CompanyId, siteId = Milestone1OrganisationFixture.SiteId, code = "RACE", name = "Race warehouse" }, new { companyId = Milestone1OrganisationFixture.CompanyId, siteId = Milestone1OrganisationFixture.SiteId, code = "race", name = "Race warehouse" }, "Warehouse", "RACE"),
         };
 
         TaskCompletionSource paused = new(TaskCreationOptions.RunContinuationsAsynchronously);

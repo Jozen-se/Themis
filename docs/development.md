@@ -731,7 +731,7 @@ The capability lives in `Themis.Kernel.Organisation`; the contracts in `Themis.K
 | `SITE.CREATE` | `POST /v1/kernel/sites` | `SITE.CREATE` | the company in the body |
 | `SITE.UPDATE` | `POST /v1/kernel/sites/{id}/update` | `SITE.UPDATE` | the site's company |
 | `SITE.READ` | `GET /v1/kernel/companies/{companyId}/sites/{id}`, `GET /v1/kernel/companies/{companyId}/sites` | `SITE.READ` | the company of the route |
-| `WAREHOUSE.CREATE` | `POST /v1/kernel/warehouses` | `WAREHOUSE.CREATE` | the site in the body, read from the site row (its company and id) |
+| `WAREHOUSE.CREATE` | `POST /v1/kernel/warehouses` | `WAREHOUSE.CREATE` | the site in the body, read from the site row (its company and id); a site that does not exist or belongs to another company than the body names declares the body's company, and the command is 400 |
 | `WAREHOUSE.UPDATE` | `POST /v1/kernel/warehouses/{id}/update` | `WAREHOUSE.UPDATE` | the warehouse's site, from the row |
 | `WAREHOUSE.READ` | `GET /v1/kernel/companies/{companyId}/warehouses/{id}`, `GET /v1/kernel/companies/{companyId}/warehouses[?siteId=]` | `WAREHOUSE.READ` | one warehouse: its site; a list: the site when given, else the company |
 
@@ -742,6 +742,12 @@ the record (Build Brief, Authorisation); a missing record is 404 (`chart_of_acco
 to one site creates, updates, reads and lists the warehouses of that site and nothing else; a company-wide warehouse
 list and the site list are company-scoped, which a site-limited assignment never satisfies. The lists are ordered by
 code and return at most 1,000 rows (`OrganisationRoutes.ListLimit`; paging comes with the API hardening step).
+
+For access reviews: a chart of accounts is shared by the companies that use it, so `CHART_OF_ACCOUNTS.CREATE` and
+`CHART_OF_ACCOUNTS.UPDATE` act installation-wide, and so does `COMPANY.CREATE`, which brings a new company into the
+installation. A holder of any of the three with a company-wide assignment in one company changes what every company
+sees, as a holder of `SETTING.SET` does with an installation value (RR-52); review them as installation-wide
+permissions, not as permissions of the company the assignment names.
 
 `COMPANY.CREATE` takes every attribute of the Specification's Company but `payment_tolerance` (Phase 2): code, legal
 name, organisation number, VAT number (optional), country, base currency (a seeded Currency), IANA time zone, fiscal
@@ -761,8 +767,9 @@ writes two audit events and two events: `PARTY_CREATED` (aggregate `PARTY`, no c
 aggregate) and `COMPANY_CREATED` (aggregate `COMPANY`, the new company's id) (D-44, D-50). The creator's installation
 scope does not reach the new company: commands and reads on it need an assignment there, which step 13 provides; until
 then the tests write one as test data. `CHART_OF_ACCOUNTS.CREATE` (code, name, template) and `SITE.CREATE` (company,
-code, name, optional IANA time zone, empty meaning the company's) and `WAREHOUSE.CREATE` (site, code, name, default
-flag; status Active) follow the same shape with `chart_of_accounts_code_duplicate`, `site_code_duplicate` (per
+code, name, optional IANA time zone, empty meaning the company's) and `WAREHOUSE.CREATE` (company, site, code, name,
+default flag; status Active; a site that does not exist or belongs to another company than the body names is 400
+`site_unknown` or `site_other_company`, stored as the key's result, never a foreign-key 500) follow the same shape with `chart_of_accounts_code_duplicate`, `site_code_duplicate` (per
 company) and `warehouse_code_duplicate` (per company) and the events `CHART_OF_ACCOUNTS_CREATED` (no company),
 `SITE_CREATED` and `WAREHOUSE_CREATED` (the company).
 
@@ -801,8 +808,8 @@ locks the site row, then the site's warehouses in id order, clears the previous 
 event and `WAREHOUSE_UPDATED` event (a holder of its old version gets 412 afterwards) and then writes the new one; the
 partial unique index `ux_warehouse_site_default` stays as the backstop (mapped to 422 `R-DOC-01`
 `warehouse_default_taken`). Only an Active warehouse becomes the default (422 `R-DOC-01` `warehouse_not_active`);
-clearing the flag leaves the site without a default. Two defensive 400s, `company_unknown` on `SITE.CREATE` and
-`site_unknown` on `WAREHOUSE.CREATE`, cannot be reached through the pipeline, which answers 403 or 404 first.
+clearing the flag leaves the site without a default. One defensive 400, `company_unknown` on `SITE.CREATE`, cannot be
+reached through the pipeline, which answers 403 first.
 
 The migration `20261024165237_OrganisationCommands` makes `number_series.company_id` nullable with its check, adds
 `company.organisation_number_normalised` (backfilled from `organisation_number` with the duplicate key's

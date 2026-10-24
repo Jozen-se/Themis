@@ -88,13 +88,15 @@ public sealed record CreateSite(Guid CompanyId, Code Code, string Name, string? 
 public sealed record UpdateSite(Guid Id, string Name, long ExpectedVersion, string? TimeZone = null, Code? Code = null) : ICommand<SiteInfo>, IVersionedCommand;
 
 /// <summary>
-/// WAREHOUSE.CREATE (step 3 brief, item 7): a warehouse of the site in the body. The scope is built from the loaded
-/// site row (its company and its id), never from a company id in the body. The code is unique per company
-/// (R-MD-05) and never changes (R-MD-06); status Active at create. Making it the default moves the site's default
-/// (Specification, Organisation commands).
+/// WAREHOUSE.CREATE (step 3 brief, item 7): a warehouse of the site in the body, in the company the body names. The
+/// scope is built from the loaded site row (its company and its id), never from the company id in the body; a site
+/// that does not exist or belongs to another company than the body names declares the body's company and is a 400
+/// (<c>site_unknown</c>, <c>site_other_company</c>) stored as the key's result, never a foreign-key 500 (the RR-102
+/// pattern of the settings). The code is unique per company (R-MD-05) and never changes (R-MD-06); status Active at
+/// create. Making it the default moves the site's default (Specification, Organisation commands).
 /// </summary>
 [Command("WAREHOUSE.CREATE")]
-public sealed record CreateWarehouse(Guid SiteId, Code Code, string Name, bool IsDefault = false) : ICommand<WarehouseView>;
+public sealed record CreateWarehouse(Guid CompanyId, Guid SiteId, Code Code, string Name, bool IsDefault = false) : ICommand<WarehouseView>;
 
 /// <summary>
 /// WAREHOUSE.UPDATE (step 3 brief, item 7): name and default flag on the current version; the site and the code

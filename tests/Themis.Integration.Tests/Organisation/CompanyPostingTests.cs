@@ -82,6 +82,40 @@ public sealed class CompanyPostingTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task R_MD_06_D_65_the_first_posting_alone_fixes_the_chart_of_accounts_when_the_company_has_no_posting_profile_rule_left()
+    {
+        CommandReply chart = await _host.PostAsync(OrganisationBodies.Charts, new { code = "K3", name = "K3-kontoplan" }, "chart-k3", cancellationToken: Ct);
+        Guid k3 = chart.Json!["id"]!.GetValue<Guid>();
+        Guid item = await CreateItemAsync("CP-CHART");
+        // A zero-cost adjustment posts its inventory entries and no journal entry (I-08), so no journal line references a rule.
+        (_, CommandReply posted) = await PostNewAsync("cp-chart", [Line(1, item, "10", enteredUnitCost: "0")]);
+        Assert.True(posted.Status == 200, posted.Body);
+        Assert.Equal(1L, await _host.CountAsync("kernel.inventory_entry", Ct));
+        Assert.Equal(0L, await _host.CountAsync("kernel.journal_entry", Ct));
+
+        // Test data: the fixture's posting profile rules are the other trigger of the chart (proven in CompanyCommandTests); they are
+        // taken away after the posting and put back as they were, so only the posting can decide here.
+        string rules = (string)(await _host.ScalarAsync("SELECT jsonb_agg(to_jsonb(r))::text FROM kernel.posting_profile_rule r WHERE company_id = @company", Ct, ("company", Se01)))!;
+        // The stored columns only: a generated column (expects_control) cannot be written back.
+        string columns = (string)(await _host.ScalarAsync("SELECT string_agg(column_name, ', ' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema = 'kernel' AND table_name = 'posting_profile_rule' AND is_generated = 'NEVER'", Ct))!;
+        await _host.ScalarAsync("DELETE FROM kernel.posting_profile_rule WHERE company_id = @company", Ct, ("company", Se01));
+        try
+        {
+            CommandReply blocked = await _host.PostAsync(OrganisationBodies.CompanyUpdate(Se01), OrganisationBodies.Se01Update(chartOfAccountsId: k3), "cp-chart-update", ifMatch: "\"1\"", cancellationToken: Ct);
+            Assert.Equal(422, blocked.Status);
+            Assert.Equal(("R-MD-06", "company_chart_of_accounts_fixed"), (blocked.RuleId, blocked.Code));
+            Assert.Equal(0L, await _host.ScalarAsync("SELECT count(*) FROM kernel.posting_profile_rule WHERE company_id = @company", Ct, ("company", Se01)));
+            Assert.Equal(Milestone1OrganisationFixture.ChartOfAccountsId, await _host.ScalarAsync("SELECT chart_of_accounts_id FROM kernel.company WHERE id = @id", Ct, ("id", Se01)));
+        }
+        finally
+        {
+            await _host.ScalarAsync($"INSERT INTO kernel.posting_profile_rule ({columns}) SELECT {columns} FROM jsonb_populate_recordset(NULL::kernel.posting_profile_rule, @rows::jsonb)", CancellationToken.None, ("rows", rules));
+        }
+
+        Assert.Equal(2L, await _host.ScalarAsync("SELECT count(*) FROM kernel.posting_profile_rule WHERE company_id = @company", Ct, ("company", Se01)));
+    }
+
+    [Fact]
     public async Task R_MD_06_D_65_one_error_per_fixed_attribute_when_several_change_at_once_and_the_legal_name_still_changes_after_a_posting()
     {
         Guid item = await CreateItemAsync("CP-MANY");

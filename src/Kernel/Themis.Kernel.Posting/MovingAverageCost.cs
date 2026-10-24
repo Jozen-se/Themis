@@ -27,7 +27,7 @@ internal static class MovingAverageCost
     public const string EnteredCostRequired = "entered_unit_cost_required";
 
     /// <summary>Step 1 or 2: an inbound movement of a positive quantity.</summary>
-    public static Result<Costing> Inbound(CostState state, decimal quantity, decimal? enteredUnitCost, int minorUnits, RoundingMode mode = RoundingMode.HalfAwayFromZero)
+    public static Result<Costing> Inbound(CostState state, decimal quantity, decimal? enteredUnitCost, int minorUnits, RoundingMode mode)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(quantity, 0m);
@@ -57,7 +57,7 @@ internal static class MovingAverageCost
     }
 
     /// <summary>Step 3: an outbound movement of a positive magnitude; the caller has checked the stock (R-INV-03). The cost amount is returned negative, signed like the quantity.</summary>
-    public static Costing Outbound(CostState state, decimal quantity, int minorUnits, RoundingMode mode = RoundingMode.HalfAwayFromZero)
+    public static Costing Outbound(CostState state, decimal quantity, int minorUnits, RoundingMode mode)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(quantity, 0m);

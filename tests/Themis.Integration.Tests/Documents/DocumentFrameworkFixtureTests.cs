@@ -114,7 +114,7 @@ public sealed class DocumentFrameworkFixtureTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task The_fixture_holds_the_IA_and_JE2026_series_with_an_audit_event_each_and_no_outbox_event_and_the_series_constraints_hold()
+    public async Task The_fixture_holds_the_IA_and_JE2026_series_with_an_audit_event_each_and_no_outbox_event_and_the_series_constraints_hold_D_64_an_installation_series_is_Continuous_only()
     {
         await using NpgsqlConnection connection = await PostgresFixture.OpenAsync(_db.SuperuserConnectionString, Ct);
         const string seedAudit = "FROM kernel.audit_event WHERE command_name = 'SYSTEM.SEED_FIXTURE' AND entity_type = 'NumberSeries'";
@@ -149,6 +149,10 @@ public sealed class DocumentFrameworkFixtureTests : IAsyncLifetime
         await AssertFailsAsync(migrator, CheckViolation, Series("INVENTORY_ADJUSTMENT", "Continuous", null, gapless: false, typeRequiresGapless: false, prefix: "X-", padding: 21, company: Guid.NewGuid()));
         // A gapless INVENTORY_ADJUSTMENT series per fiscal year is allowed: the type does not require gapless, a company may still choose it.
         await ExecuteAsync(migrator, Series("INVENTORY_ADJUSTMENT", "PerFiscalYear", FiscalYear, gapless: true, typeRequiresGapless: false, prefix: "IA2026-"));
+        // Milestone 2 step 3 (D-64): a series without a company belongs to the installation and is Continuous only (ck_number_series_installation_continuous).
+        const string installationSeries = "INSERT INTO kernel.number_series (id, company_id, document_type, scope, fiscal_year_id, prefix, padding, next_number, gapless, type_requires_gapless, created_at, created_by, updated_at, updated_by) VALUES";
+        await AssertFailsAsync(migrator, CheckViolation, $"{installationSeries} (gen_random_uuid(), NULL, 'INVENTORY_ADJUSTMENT', 'PerFiscalYear', '{FiscalYear}', 'X-', 6, 1, false, false, {Audit})");
+        await ExecuteAsync(migrator, $"{installationSeries} (gen_random_uuid(), NULL, 'INVENTORY_ADJUSTMENT', 'Continuous', NULL, 'X-', 6, 1, false, false, {Audit})");
         await transaction.RollbackAsync(Ct);
     }
 

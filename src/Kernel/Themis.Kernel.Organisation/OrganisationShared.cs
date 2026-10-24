@@ -48,6 +48,7 @@ internal static class OrganisationErrors
     public const string ChartUnknown = "chart_of_accounts_unknown";
     public const string CompanyUnknown = "company_unknown";
     public const string SiteUnknown = "site_unknown";
+    public const string SiteOtherCompany = "site_other_company";
 }
 
 /// <summary>Shape checks the validators share (RR-51): pure, before the transaction, never stored.</summary>

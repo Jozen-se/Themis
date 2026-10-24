@@ -54,8 +54,8 @@ public sealed class SiteWarehouseCommandTests : IAsyncLifetime
         return reply.Json!["id"]!.GetValue<Guid>();
     }
 
-    private Task<CommandReply> CreateWarehouseAsync(Guid site, string code, bool isDefault = false, string? key = null, string? subject = null) =>
-        _host.PostAsync(OrganisationBodies.Warehouses, new { siteId = site, code, name = $"{code} warehouse", isDefault }, key ?? $"warehouse-{code}-{Guid.NewGuid():N}", subject: subject, cancellationToken: Ct);
+    private Task<CommandReply> CreateWarehouseAsync(Guid site, string code, bool isDefault = false, string? key = null, string? subject = null, Guid? company = null) =>
+        _host.PostAsync(OrganisationBodies.Warehouses, new { companyId = company ?? Se01, siteId = site, code, name = $"{code} warehouse", isDefault }, key ?? $"warehouse-{code}-{Guid.NewGuid():N}", subject: subject, cancellationToken: Ct);
 
     private Task<CommandReply> UpdateWarehouseAsync(Guid id, string name, bool isDefault, string ifMatch, string? key = null, string? code = null, string? subject = null) =>
         _host.PostAsync(OrganisationBodies.WarehouseUpdate(id), new { name, isDefault, code }, key ?? $"warehouse-update-{Guid.NewGuid():N}", ifMatch: ifMatch, subject: subject, cancellationToken: Ct);
@@ -172,12 +172,22 @@ public sealed class SiteWarehouseCommandTests : IAsyncLifetime
     // ---- warehouses -----------------------------------------------------------------------------------------------
 
     [Fact]
-    public async Task WAREHOUSE_CREATE_writes_an_Active_warehouse_of_the_sites_company_with_one_audit_event_and_one_D_50_envelope_R_MD_05_refuses_a_duplicate_code_and_the_reads_are_ordered_by_code()
+    public async Task WAREHOUSE_CREATE_writes_an_Active_warehouse_of_the_sites_company_with_one_audit_event_and_one_D_50_envelope_R_MD_05_refuses_a_duplicate_code_a_site_unknown_or_of_another_company_is_400_stored_and_the_reads_are_ordered_by_code()
     {
+        CommandReply company = await _host.PostAsync(OrganisationBodies.Companies, OrganisationBodies.Company("SE02"), "company-2", cancellationToken: Ct);
+        Guid se02 = company.Json!["id"]!.GetValue<Guid>();
+        await OrganisationTestUsers.GrantFixtureAdministratorAsync(_host, se02, Ct);
+        Guid se02Site = await CreateSiteAsync("MAIN", company: se02);
+
         CommandReply reply = await CreateWarehouseAsync(MainSite, "second", key: "warehouse-1");
         CommandReply replay = await CreateWarehouseAsync(MainSite, "second", key: "warehouse-1");
         CommandReply duplicate = await CreateWarehouseAsync(MainSite, "main", key: "warehouse-dup");
-        CommandReply unknownSite = await CreateWarehouseAsync(Guid.NewGuid(), "ELSEWHERE", key: "warehouse-404");
+        Guid unknownSiteId = Guid.NewGuid();
+        CommandReply unknownSite = await CreateWarehouseAsync(unknownSiteId, "ELSEWHERE", key: "warehouse-unknown-site");
+        CommandReply unknownReplay = await CreateWarehouseAsync(unknownSiteId, "ELSEWHERE", key: "warehouse-unknown-site");
+        // The body names SE01 and a site of SE02, which the caller may also reach: the site's company decides, not the caller's assignments.
+        CommandReply otherCompanySite = await CreateWarehouseAsync(se02Site, "FOREIGN", key: "warehouse-other-company");
+        CommandReply otherCompanyReplay = await CreateWarehouseAsync(se02Site, "FOREIGN", key: "warehouse-other-company");
 
         Assert.True(reply.Status == 200, reply.Body);
         Assert.Equal("\"1\"", reply.ETag);
@@ -195,7 +205,7 @@ public sealed class SiteWarehouseCommandTests : IAsyncLifetime
         Assert.Equal(1L, await _host.ScalarAsync($"SELECT count(*) {audit}", Ct));
         Assert.Equal(id, await _host.ScalarAsync($"SELECT entity_id {audit} AND entity_type = 'Warehouse'", Ct));
         Assert.Equal("False", await _host.ScalarAsync($"SELECT changes->'isDefault'->>'after' {audit}", Ct));
-        Assert.Equal(1L, await _host.CountAsync("kernel.outbox_event", Ct));
+        Assert.Equal(1L, await _host.ScalarAsync("SELECT count(*) FROM kernel.outbox_event WHERE aggregate_type = 'WAREHOUSE'", Ct));
         Assert.Equal(("WAREHOUSE_CREATED", "WAREHOUSE", id, Se01, "WAREHOUSE.CREATE"), await OrganisationBodies.EnvelopeAsync(_host, "WAREHOUSE_CREATED", Ct));
 
         Assert.Equal(200, replay.Status);
@@ -203,9 +213,18 @@ public sealed class SiteWarehouseCommandTests : IAsyncLifetime
         Assert.Equal(reply.Body, replay.Body);
         Assert.Equal(422, duplicate.Status);
         Assert.Equal(("R-MD-05", "warehouse_code_duplicate"), (duplicate.RuleId, duplicate.Code));
-        // The scope is built from the site row; a site that does not exist is 404, not a scope (Build Brief, Authorisation).
-        Assert.Equal(404, unknownSite.Status);
-        Assert.Equal("site_not_found", unknownSite.Code);
+        // Step 3 brief, item 7: the scope is built from the site row, never from the company in the body; a site that does not
+        // exist or belongs to another company than the body names is a 400 with its own code, stored as the key's result (RR-102 pattern).
+        Assert.True(unknownSite.Status == 400, unknownSite.Body);
+        Assert.Equal("site_unknown", unknownSite.Code);
+        Assert.Null(unknownSite.RuleId);
+        Assert.Equal(400, unknownReplay.Status);
+        Assert.True(unknownReplay.Replayed);
+        Assert.True(otherCompanySite.Status == 400, otherCompanySite.Body);
+        Assert.Equal("site_other_company", otherCompanySite.Code);
+        Assert.Null(otherCompanySite.RuleId);
+        Assert.Equal(400, otherCompanyReplay.Status);
+        Assert.True(otherCompanyReplay.Replayed);
         Assert.Equal(2L, await _host.CountAsync("kernel.warehouse", Ct));
 
         // WAREHOUSE.READ: one, the company's, one site's; a site of another company is 404 under this company.
@@ -228,7 +247,7 @@ public sealed class SiteWarehouseCommandTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task The_default_warehouse_moves_within_the_site_the_previous_default_gets_its_own_version_audit_event_and_WAREHOUSE_UPDATED_event_and_clearing_the_flag_leaves_the_site_without_one()
+    public async Task R_AUD_01_R_API_02_the_default_warehouse_moves_within_the_site_the_previous_default_gets_its_own_version_audit_event_and_WAREHOUSE_UPDATED_event_UPDATE_needs_If_Match_428_and_412_and_clearing_the_flag_leaves_the_site_without_one()
     {
         // WAREHOUSE.CREATE with isDefault moves the site's default from the fixture warehouse.
         CommandReply annex = await CreateWarehouseAsync(MainSite, "ANNEX", isDefault: true, key: "warehouse-annex");
@@ -253,7 +272,11 @@ public sealed class SiteWarehouseCommandTests : IAsyncLifetime
         Assert.Equal((false, 2L), await DefaultAndVersionAsync(annexId));
         CommandReply staleAnnex = await UpdateWarehouseAsync(annexId, "Annex", isDefault: true, ifMatch: "\"1\"", key: "warehouse-annex-stale");
         Assert.Equal(412, staleAnnex.Status);
-        Assert.Equal("version_stale", staleAnnex.Code);
+        Assert.Equal(("R-API-02", "version_stale"), (staleAnnex.RuleId, staleAnnex.Code));
+        CommandReply missing = await _host.PostAsync(OrganisationBodies.WarehouseUpdate(annexId), new { name = "Annex", isDefault = true }, "warehouse-428", cancellationToken: Ct);
+        Assert.Equal(428, missing.Status);
+        Assert.Equal("if_match_required", missing.Code);
+        Assert.Equal((false, 2L), await DefaultAndVersionAsync(annexId));
         Assert.Equal(3L, await _host.ScalarAsync("SELECT count(*) FROM kernel.outbox_event WHERE event_type = 'WAREHOUSE_UPDATED'", Ct));
 
         // Keeping the flag as it is touches only the row named; clearing the default leaves the site without one.
@@ -351,7 +374,7 @@ public sealed class SiteWarehouseCommandTests : IAsyncLifetime
         Assert.Equal(400, site.Status);
         Assert.Equal(["code_required", "name_required"], site.Json!["errors"]!.AsArray().Select(error => error!["code"]!.GetValue<string>()).Order());
         Assert.Equal(400, warehouse.Status);
-        Assert.Equal(["name_required", "site_required"], warehouse.Json!["errors"]!.AsArray().Select(error => error!["code"]!.GetValue<string>()).Order());
+        Assert.Equal(["company_required", "name_required", "site_required"], warehouse.Json!["errors"]!.AsArray().Select(error => error!["code"]!.GetValue<string>()).Order());
         Assert.Equal(0L, await _host.CountAsync("kernel.idempotency_record", Ct));
     }
 

@@ -11,7 +11,9 @@ namespace Themis.Kernel.Organisation;
 /// <summary>
 /// WAREHOUSE.CREATE (milestone 2 step 3 brief, item 7): a warehouse of the site in the body; the scope resolver
 /// derived the company and the site from the site row, so the stored company is always the site's (Conventions,
-/// Company scope). The code is unique per company (R-MD-05, 422; ux_warehouse_company_code catches a race, RR-45);
+/// Company scope). A site that does not exist or belongs to another company than the body names is a 400 with its
+/// own code, stored as the key's result, never a foreign-key 500 (the resolver declared the body's company for it).
+/// The code is unique per company (R-MD-05, 422; ux_warehouse_company_code catches a race, RR-45);
 /// status Active. Making it the default moves the site's default: the site row is locked first, then the site's
 /// warehouses in id order, the previous default is cleared before the new one is written, because the partial unique
 /// index ux_warehouse_site_default cannot wait for the end of the command, and the previous default gets its new
@@ -36,6 +38,11 @@ internal sealed class CreateWarehouseHandler : ICommandHandler<CreateWarehouse, 
         if (site is null)
         {
             return Error.Validation(OrganisationErrors.SiteUnknown, $"Site {command.SiteId} does not exist.");
+        }
+
+        if (site.CompanyId != command.CompanyId)
+        {
+            return Error.Validation(OrganisationErrors.SiteOtherCompany, $"Site {command.SiteId} belongs to another company than {command.CompanyId}.");
         }
 
         // R-MD-05: the warehouse code is unique per company (Specification, Warehouse).
@@ -143,8 +150,10 @@ internal static class WarehouseDefaults
 
 /// <summary>
 /// The scopes of the warehouse requests, each from the loaded row (Build Brief, Authorisation): a create from its
-/// site (the site's company and id, never a company id in the body), an update or a read from the warehouse's site,
-/// so a site-limited assignment acts on its own site's warehouses. A missing row is 404, never a scope.
+/// site (the site's company and id, never the company id in the body), an update or a read from the warehouse's site,
+/// so a site-limited assignment acts on its own site's warehouses. For a create, a site that does not exist or belongs
+/// to another company than the body names declares the body's company, and the handler answers 400 (the RR-102
+/// pattern); for an update or a read a missing warehouse is 404, never a scope.
 /// </summary>
 internal sealed class WarehouseScopeResolver : IScopeResolver<CreateWarehouse>, IScopeResolver<UpdateWarehouse>, IScopeResolver<GetWarehouse>
 {
@@ -152,7 +161,7 @@ internal sealed class WarehouseScopeResolver : IScopeResolver<CreateWarehouse>, 
     {
         ArgumentNullException.ThrowIfNull(request);
         SiteInfo? site = await OrganisationStore.FindSiteAsync(unitOfWork, request.SiteId, companyId: null, cancellationToken);
-        return site is null ? Error.NotFound(OrganisationErrors.SiteNotFound, $"Site {request.SiteId} does not exist.") : RequestScope.ForSite(site.CompanyId, site.Id);
+        return site is null || site.CompanyId != request.CompanyId ? RequestScope.ForCompany(request.CompanyId) : RequestScope.ForSite(site.CompanyId, site.Id);
     }
 
     public async Task<Result<RequestScope>> ResolveAsync(UpdateWarehouse request, IUnitOfWork unitOfWork, CancellationToken cancellationToken)
@@ -175,6 +184,11 @@ internal sealed class CreateWarehouseValidator : ICommandValidator<CreateWarehou
     public IEnumerable<Error> Validate(CreateWarehouse command)
     {
         ArgumentNullException.ThrowIfNull(command);
+        if (OrganisationValidation.RequiredId(command.CompanyId, "company", "A warehouse's company") is { } company)
+        {
+            yield return company;
+        }
+
         if (OrganisationValidation.RequiredId(command.SiteId, "site", "A warehouse's site") is { } site)
         {
             yield return site;

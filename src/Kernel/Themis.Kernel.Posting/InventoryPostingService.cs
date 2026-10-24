@@ -75,9 +75,9 @@ internal sealed class InventoryPostingService : IPostingService
         Guid commandId = context.CommandId.Value;
         IReadOnlyList<PostingLine> lines = [.. posting.Lines.OrderBy(line => line.LineNumber)];
 
-        // R-LED-08, class 1b (D-65): the company row FOR SHARE, after the document row and before ItemCostState, joined to its
-        // currency; every company attribute the posting uses (base currency, minor units, rounding mode) comes from this
-        // statement, never from an earlier read, so a COMPANY.UPDATE of them cannot cross this posting: its versioned
+        // R-LED-08, class 1b (D-65): the company row FOR SHARE, after the document row and before ItemCostState; the base
+        // currency and the rounding mode come from that locked row and the minor units from the currency row read right
+        // after it, never from an earlier read, so a COMPANY.UPDATE of them cannot cross this posting: its versioned
         // UPDATE waits behind the share lock, and its R-MD-06 checks then see these entries.
         CompanyTerms terms = await LedgerStore.LockCompanyTermsAsync(unitOfWork, posting.CompanyId, cancellationToken);
         if (terms.BaseCurrency != posting.Currency.Value)
