@@ -54,11 +54,16 @@ public sealed class SettingScopeTests : IAsyncLifetime
             "VALUES (@id, @company, 'NORTH', 'North site', now(), @system, now(), @system, 1, '{}'::jsonb)",
             Ct, ("id", OtherSite), ("company", Company), ("system", Kernel.Contracts.Security.WellKnownUsers.System.Value));
         // A second company with its own site and warehouse, for the targets that belong to another company than the body names.
+        // Since milestone 2 step 3 a company has a party of its own (ux_company_party, D-64) and a normalised organisation number (R-MD-05).
         string audit = "now(), @system, now(), @system";
+        Guid otherParty = Guid.NewGuid();
         await _host.ScalarAsync(
-            "INSERT INTO kernel.company (id, code, party_id, legal_name, organisation_number, country_code, base_currency, time_zone, fiscal_year_start_month, chart_of_accounts_id, rounding_mode, tax_rounding_level, status, created_at, created_by, updated_at, updated_by) " +
-            $"VALUES (@id, 'SE02', @party, 'Other company', '5555555556', 'SE', 'SEK', 'Europe/Stockholm', 1, @chart, 'HalfAwayFromZero', 'Line', 'Active', {audit})",
-            Ct, ("id", OtherCompany), ("party", Milestone1OrganisationFixture.CompanyPartyId), ("chart", Milestone1OrganisationFixture.ChartOfAccountsId), ("system", Kernel.Contracts.Security.WellKnownUsers.System.Value));
+            $"INSERT INTO kernel.party (id, party_number, party_type, name, organisation_number, country_code, status, duplicate_key, created_at, created_by, updated_at, updated_by) VALUES (@id, 'P-TEST02', 'Organisation', 'Other company', '5555555556', 'SE', 'Active', '5555555556||OTHERCOMPANY|', {audit})",
+            Ct, ("id", otherParty), ("system", Kernel.Contracts.Security.WellKnownUsers.System.Value));
+        await _host.ScalarAsync(
+            "INSERT INTO kernel.company (id, code, party_id, legal_name, organisation_number, organisation_number_normalised, country_code, base_currency, time_zone, fiscal_year_start_month, chart_of_accounts_id, rounding_mode, tax_rounding_level, status, created_at, created_by, updated_at, updated_by) " +
+            $"VALUES (@id, 'SE02', @party, 'Other company', '5555555556', '5555555556', 'SE', 'SEK', 'Europe/Stockholm', 1, @chart, 'HalfAwayFromZero', 'Line', 'Active', {audit})",
+            Ct, ("id", OtherCompany), ("party", otherParty), ("chart", Milestone1OrganisationFixture.ChartOfAccountsId), ("system", Kernel.Contracts.Security.WellKnownUsers.System.Value));
         await _host.ScalarAsync($"INSERT INTO kernel.site (id, company_id, code, name, created_at, created_by, updated_at, updated_by) VALUES (@id, @company, 'MAIN', 'Other main', {audit})",
             Ct, ("id", OtherCompanySite), ("company", OtherCompany), ("system", Kernel.Contracts.Security.WellKnownUsers.System.Value));
         await _host.ScalarAsync($"INSERT INTO kernel.warehouse (id, site_id, company_id, code, name, is_default, status, created_at, created_by, updated_at, updated_by) VALUES (@id, @site, @company, 'MAIN', 'Other warehouse', true, 'Active', {audit})",

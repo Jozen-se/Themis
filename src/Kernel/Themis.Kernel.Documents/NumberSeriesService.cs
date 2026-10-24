@@ -13,7 +13,8 @@ namespace Themis.Kernel.Documents;
 /// number is the series' next_number, formatted with the prefix and the padding as a minimum width (after
 /// IA-999999 comes IA-1000000), and the row advances. A failed transaction returns its numbers with the rollback,
 /// so no gap appears. A series the company does not have is refused with R-DOC-08, naming the type and, for a
-/// per-fiscal-year series, the fiscal year; there is no fallback series or sequence (D-52).
+/// per-fiscal-year series, the fiscal year; there is no fallback series or sequence (D-52). The installation-level
+/// series (an empty company; the PARTY series of milestone 2 step 3, D-64) take the same path with company_id IS NULL.
 /// </summary>
 internal sealed class NumberSeriesService : INumberSeriesService
 {
@@ -23,7 +24,11 @@ internal sealed class NumberSeriesService : INumberSeriesService
     public Task<Result<IReadOnlyList<NumberTaken>>> TakeAsync(IUnitOfWork unitOfWork, Guid companyId, IReadOnlyList<NumberRequest> requests, DateTimeOffset now, UserId takenBy, CancellationToken cancellationToken) =>
         TakeCoreAsync(unitOfWork, companyId, requests, now, takenBy, cancellationToken).ThenResetRoleAsync(unitOfWork, cancellationToken);
 
-    private static async Task<Result<IReadOnlyList<NumberTaken>>> TakeCoreAsync(IUnitOfWork unitOfWork, Guid companyId, IReadOnlyList<NumberRequest> requests, DateTimeOffset now, UserId takenBy, CancellationToken cancellationToken)
+    // Milestone 2 step 3 (D-64): the installation-level path, the same statements with company_id IS NULL.
+    public Task<Result<IReadOnlyList<NumberTaken>>> TakeInstallationAsync(IUnitOfWork unitOfWork, IReadOnlyList<NumberRequest> requests, DateTimeOffset now, UserId takenBy, CancellationToken cancellationToken) =>
+        TakeCoreAsync(unitOfWork, companyId: null, requests, now, takenBy, cancellationToken).ThenResetRoleAsync(unitOfWork, cancellationToken);
+
+    private static async Task<Result<IReadOnlyList<NumberTaken>>> TakeCoreAsync(IUnitOfWork unitOfWork, Guid? companyId, IReadOnlyList<NumberRequest> requests, DateTimeOffset now, UserId takenBy, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(unitOfWork);
         ArgumentNullException.ThrowIfNull(requests);
@@ -41,6 +46,12 @@ internal sealed class NumberSeriesService : INumberSeriesService
             parameters[$"type{i}"] = distinct[i].DocumentType;
             if (distinct[i].FiscalYearId is { } fiscalYear)
             {
+                if (companyId is null)
+                {
+                    // Specification, NumberSeries: an installation-level series is always Continuous, so no request names a fiscal year.
+                    throw new ArgumentException("An installation-level series has no fiscal year.", nameof(requests));
+                }
+
                 parameters[$"year{i}"] = fiscalYear;
                 conditions.Add($"(document_type = @type{i} AND fiscal_year_id = @year{i})");
             }
@@ -50,11 +61,13 @@ internal sealed class NumberSeriesService : INumberSeriesService
             }
         }
 
+        // Specification, NumberSeries: the empty company is the installation level, one value of its own.
+        string companyCondition = companyId is null ? "company_id IS NULL" : "company_id = @company";
         IReadOnlyList<SeriesRow> rows = await unitOfWork.QueryAsync(DatabaseRole.Kernel,
             $"""
             SELECT id, document_type, fiscal_year_id, prefix, padding, next_number
             FROM kernel.number_series
-            WHERE company_id = @company AND ({string.Join(" OR ", conditions)})
+            WHERE {companyCondition} AND ({string.Join(" OR ", conditions)})
             ORDER BY id
             FOR UPDATE
             """,
@@ -68,8 +81,9 @@ internal sealed class NumberSeriesService : INumberSeriesService
             if (!bySeries.ContainsKey(request))
             {
                 string year = request.FiscalYearId is { } fiscalYear ? $" for fiscal year {fiscalYear}" : string.Empty;
+                string owner = companyId is { } company ? $"Company {company}" : "The installation";
                 // R-DOC-08: a command that assigns a number requires the series for its type and scope; there is no fallback (D-52).
-                return Error.Rule("R-DOC-08", SeriesMissing, $"Company {companyId} has no {request.DocumentType} number series{year}.");
+                return Error.Rule("R-DOC-08", SeriesMissing, $"{owner} has no {request.DocumentType} number series{year}.");
             }
         }
 

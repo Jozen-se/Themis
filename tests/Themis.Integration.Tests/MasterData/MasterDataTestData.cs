@@ -22,6 +22,9 @@ internal sealed class MasterDataTestData : IAsyncDisposable
 
     public Guid OtherCompany { get; } = Guid.NewGuid();
 
+    /// <summary>The other company's own party row: one company per party since milestone 2 step 3 (ux_company_party, D-64).</summary>
+    public Guid OtherParty { get; } = Guid.NewGuid();
+
     public Guid OtherSite { get; } = Guid.NewGuid();
 
     public Guid OtherWarehouse { get; } = Guid.NewGuid();
@@ -40,12 +43,14 @@ internal sealed class MasterDataTestData : IAsyncDisposable
         string system = WellKnownUsers.System.Value.ToString();
         string audit = $"now(), '{system}', now(), '{system}'";
 
+        await data.RunAsync($"INSERT INTO kernel.party (id, party_number, party_type, name, organisation_number, country_code, status, duplicate_key, created_at, created_by, updated_at, updated_by) VALUES ('{data.OtherParty}', 'P-TEST02', 'Organisation', 'Other company', '5555555556', 'SE', 'Active', '5555555556||OTHERCOMPANY|', {audit})", cancellationToken);
+        data._cleanup.Add($"DELETE FROM kernel.party WHERE id = '{data.OtherParty}'");
         await data.RunAsync(
             $"""
-            INSERT INTO kernel.company (id, code, party_id, legal_name, organisation_number, vat_number, country_code, base_currency, time_zone, fiscal_year_start_month, chart_of_accounts_id, rounding_mode, tax_rounding_level, payment_tolerance, status, created_at, created_by, updated_at, updated_by)
-            VALUES ('{data.OtherCompany}', 'SE02', '{Milestone1OrganisationFixture.CompanyPartyId}', 'Other company', '5555555556', NULL, 'SE', 'EUR', 'Europe/Stockholm', 1, '{Milestone1OrganisationFixture.ChartOfAccountsId}', 'HalfAwayFromZero', 'Line', NULL, 'Active', {audit})
+            INSERT INTO kernel.company (id, code, party_id, legal_name, organisation_number, organisation_number_normalised, vat_number, country_code, base_currency, time_zone, fiscal_year_start_month, chart_of_accounts_id, rounding_mode, tax_rounding_level, payment_tolerance, status, created_at, created_by, updated_at, updated_by)
+            VALUES ('{data.OtherCompany}', 'SE02', '{data.OtherParty}', 'Other company', '5555555556', '5555555556', NULL, 'SE', 'EUR', 'Europe/Stockholm', 1, '{Milestone1OrganisationFixture.ChartOfAccountsId}', 'HalfAwayFromZero', 'Line', NULL, 'Active', {audit})
             """, cancellationToken);
-        data._cleanup.Add($"DELETE FROM kernel.company WHERE id = '{data.OtherCompany}'");
+        data._cleanup.Insert(0, $"DELETE FROM kernel.company WHERE id = '{data.OtherCompany}'");
         await data.RunAsync($"INSERT INTO kernel.site (id, company_id, code, name, created_at, created_by, updated_at, updated_by) VALUES ('{data.OtherSite}', '{data.OtherCompany}', 'MAIN', 'Other main', {audit})", cancellationToken);
         data._cleanup.Insert(0, $"DELETE FROM kernel.site WHERE id = '{data.OtherSite}'");
         await data.RunAsync($"INSERT INTO kernel.warehouse (id, site_id, company_id, code, name, is_default, status, created_at, created_by, updated_at, updated_by) VALUES ('{data.OtherWarehouse}', '{data.OtherSite}', '{data.OtherCompany}', 'MAIN', 'Other warehouse', true, 'Active', {audit})", cancellationToken);

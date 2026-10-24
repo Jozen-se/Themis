@@ -53,7 +53,9 @@ public sealed class DocumentFrameworkFixtureTests : IAsyncLifetime
     public async Task D_40_the_registry_equals_the_catalogue_after_the_migrator_ran_INVENTORY_ADJUSTED_included_and_a_second_run_changes_nothing()
     {
         await using NpgsqlConnection connection = await PostgresFixture.OpenAsync(_db.SuperuserConnectionString, Ct);
-        const string registryAudit = "FROM kernel.audit_event WHERE command_name = 'SYSTEM.SEED_CATALOGUE' AND entity_type IN ('DocumentType', 'DocumentTransition')";
+        // The PARTY type is written by the OrganisationCommands migration of milestone 2 step 3 with an audit event of its
+        // own (SYSTEM.MIGRATE); the catalogue seeder then finds it in place and writes nothing for it (D-40, D-64).
+        const string registryAudit = "FROM kernel.audit_event WHERE command_name IN ('SYSTEM.SEED_CATALOGUE', 'SYSTEM.MIGRATE') AND entity_type IN ('DocumentType', 'DocumentTransition')";
         long expectedRows = DocumentTypes.All.Count + DocumentTypes.All.Sum(type => type.Transitions.Count);
 
         Assert.Equal((long)DocumentTypes.All.Count, await ScalarAsync(connection, "SELECT count(*) FROM kernel.document_type"));
@@ -104,7 +106,7 @@ public sealed class DocumentFrameworkFixtureTests : IAsyncLifetime
         await using NpgsqlConnection app = await PostgresFixture.OpenAsync(_db.ConnectionStringFor("themis_app"), Ct);
         await using NpgsqlTransaction appTransaction = await app.BeginTransactionAsync(Ct);
         await ExecuteAsync(app, "SET LOCAL ROLE themis_kernel");
-        Assert.Equal(2L, await ScalarAsync(app, "SELECT count(*) FROM kernel.document_type"));
+        Assert.Equal((long)DocumentTypes.All.Count, await ScalarAsync(app, "SELECT count(*) FROM kernel.document_type"));
         await AssertFailsAsync(app, InsufficientPrivilege, $"INSERT INTO kernel.document_type (id, code, number_assigned, gapless, posts_inventory, posts_general_ledger, created_at, created_by, updated_at, updated_by) VALUES (gen_random_uuid(), 'PROBE', 'OnPost', false, false, false, {Audit})");
         await AssertFailsAsync(app, InsufficientPrivilege, "UPDATE kernel.document_transition SET event_name = 'TAMPERED'");
         await AssertFailsAsync(app, InsufficientPrivilege, "DELETE FROM kernel.document_type");
@@ -117,10 +119,12 @@ public sealed class DocumentFrameworkFixtureTests : IAsyncLifetime
         await using NpgsqlConnection connection = await PostgresFixture.OpenAsync(_db.SuperuserConnectionString, Ct);
         const string seedAudit = "FROM kernel.audit_event WHERE command_name = 'SYSTEM.SEED_FIXTURE' AND entity_type = 'NumberSeries'";
 
-        Assert.Equal(2L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.number_series"));
+        // The two company series of the fixture and the installation-level PARTY series of milestone 2 step 3 (D-64).
+        Assert.Equal(3L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.number_series"));
         Assert.Equal(("IA-", 6, 1L, false, "Continuous", null, false), await SeriesAsync(connection, Milestone1NumberSeriesFixture.InventoryAdjustmentSeriesId));
         Assert.Equal(("JE2026-", 6, 1L, true, "PerFiscalYear", (Guid?)FiscalYear, true), await SeriesAsync(connection, Milestone1NumberSeriesFixture.JournalEntrySeriesId));
-        Assert.Equal(Company, await ScalarAsync(connection, "SELECT DISTINCT company_id FROM kernel.number_series"));
+        Assert.Equal(Company, await ScalarAsync(connection, "SELECT DISTINCT company_id FROM kernel.number_series WHERE company_id IS NOT NULL"));
+        Assert.Equal(1L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.number_series WHERE company_id IS NULL AND document_type = 'PARTY'"));
         Assert.Equal(2L, await ScalarAsync(connection, $"SELECT count(*) {seedAudit}"));
         Assert.Equal("JE2026-", await ScalarAsync(connection, $"SELECT changes->'prefix'->>'after' {seedAudit} AND entity_id = @id", ("id", Milestone1NumberSeriesFixture.JournalEntrySeriesId)));
         Assert.Equal(0L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.outbox_event WHERE aggregate_id IN (SELECT id FROM kernel.number_series)"));
@@ -156,7 +160,10 @@ public sealed class DocumentFrameworkFixtureTests : IAsyncLifetime
         Guid otherCompany = Guid.NewGuid();
         Guid document = Guid.NewGuid();
         Guid item = Guid.NewGuid();
-        await ExecuteAsync(connection, $"INSERT INTO kernel.company (id, code, party_id, legal_name, organisation_number, country_code, base_currency, time_zone, fiscal_year_start_month, chart_of_accounts_id, rounding_mode, tax_rounding_level, status, created_at, created_by, updated_at, updated_by) VALUES ('{otherCompany}', 'SE09', '{Milestone1OrganisationFixture.CompanyPartyId}', 'Other', '1', 'SE', 'SEK', 'Europe/Stockholm', 1, '{Milestone1OrganisationFixture.ChartOfAccountsId}', 'HalfAwayFromZero', 'Line', 'Active', {Audit})");
+        // Since milestone 2 step 3 a company has a party of its own (ux_company_party, D-64) and a normalised organisation number (R-MD-05).
+        Guid otherParty = Guid.NewGuid();
+        await ExecuteAsync(connection, $"INSERT INTO kernel.party (id, party_number, party_type, name, organisation_number, country_code, status, duplicate_key, created_at, created_by, updated_at, updated_by) VALUES ('{otherParty}', 'P-SCOPE', 'Organisation', 'Other', '1', 'SE', 'Active', '1||OTHER|', {Audit})");
+        await ExecuteAsync(connection, $"INSERT INTO kernel.company (id, code, party_id, legal_name, organisation_number, organisation_number_normalised, country_code, base_currency, time_zone, fiscal_year_start_month, chart_of_accounts_id, rounding_mode, tax_rounding_level, status, created_at, created_by, updated_at, updated_by) VALUES ('{otherCompany}', 'SE09', '{otherParty}', 'Other', '1', '1', 'SE', 'SEK', 'Europe/Stockholm', 1, '{Milestone1OrganisationFixture.ChartOfAccountsId}', 'HalfAwayFromZero', 'Line', 'Active', {Audit})");
         await ExecuteAsync(connection, $"INSERT INTO kernel.item (id, item_number, description, item_type, base_unit, lot_tracking, created_at, created_by, updated_at, updated_by) VALUES ('{item}', 'SCOPE-001', 'Scope probe', 'Stocked', 'H87', 'None', {Audit})");
         await ExecuteAsync(connection, $"INSERT INTO kernel.item_company (id, item_id, company_id, status, item_posting_group, tax_class, costing_method, sales_allowed, purchase_allowed, created_at, created_by, updated_at, updated_by) VALUES (gen_random_uuid(), '{item}', '{otherCompany}', 'Active', 'TRADE_GOODS', 'Standard', 'MovingAverage', true, true, {Audit})");
         await ExecuteAsync(connection, $"INSERT INTO kernel.document (id, company_id, document_type, status, draft_reference, document_date, currency, created_at, created_by, updated_at, updated_by) VALUES ('{document}', '{Company}', 'INVENTORY_ADJUSTMENT', 'Draft', '{document}', '2026-06-15', 'SEK', {Audit})");
@@ -228,8 +235,10 @@ public sealed class DocumentFrameworkFixtureTests : IAsyncLifetime
             await ExecuteAsync(connection, "DELETE FROM kernel.outbox_event");
             Assert.Equal(0, await Themis.Migrator.Program.RunAsync(["--connection", migrator], PostgresFixture.MigratorEnvironment));
             Assert.Equal(1L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.__ef_migrations_history WHERE \"MigrationId\" LIKE '%DocumentFrameworkTables'"));
-            Assert.Equal(2L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.document_type"));
-            Assert.Equal(0L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.number_series"));
+            // The registry rows the migrations themselves write: the two step 7 types and the PARTY type with its installation-level series (milestone 2 step 3, D-64).
+            Assert.Equal(3L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.document_type"));
+            Assert.Equal(1L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.number_series"));
+            Assert.Equal("P-", await ScalarAsync(connection, "SELECT prefix FROM kernel.number_series WHERE company_id IS NULL AND document_type = 'PARTY'"));
         }
         finally
         {

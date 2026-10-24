@@ -171,6 +171,8 @@ internal static class DocumentModel
             {
                 table.HasCheckConstraint("ck_number_series_scope", "scope IN ('Continuous', 'PerFiscalYear')");
                 table.HasCheckConstraint("ck_number_series_fiscal_year", "(scope = 'PerFiscalYear') = (fiscal_year_id IS NOT NULL)");
+                // Specification, NumberSeries: an installation-level series (empty company) is always Continuous, so the composite key to a fiscal year is never skipped (milestone 2 step 3, D-64).
+                table.HasCheckConstraint("ck_number_series_installation_continuous", "company_id IS NOT NULL OR scope = 'Continuous'");
                 table.HasCheckConstraint("ck_number_series_gapless", "type_requires_gapless = false OR gapless = true");
                 table.HasCheckConstraint("ck_number_series_journal_entry", "document_type <> 'JOURNAL_ENTRY' OR (gapless = true AND scope = 'PerFiscalYear')");
                 table.HasCheckConstraint("ck_number_series_padding", "padding BETWEEN 0 AND 20");

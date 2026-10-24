@@ -1,6 +1,6 @@
 namespace Themis.Kernel.Persistence.Entities.Organisation;
 
-/// <summary>Phase 0 Specification, Company. Base currency and time zone are immutable after the first posting.</summary>
+/// <summary>Phase 0 Specification, Company. The attributes R-MD-06 fixes (D-65) are listed in the Specification's Fixed attributes table; the commands enforce them.</summary>
 internal sealed class Company : MasterDataRow
 {
     public required string Code { get; set; }
@@ -10,6 +10,13 @@ internal sealed class Company : MasterDataRow
     public required string LegalName { get; set; }
 
     public required string OrganisationNumber { get; set; }
+
+    /// <summary>
+    /// The organisation number normalised in C# by the same function as the R-MD-01 duplicate key (uppercase letters
+    /// and digits only), so the unique key per country (R-MD-05, D-64) and the duplicate key never disagree. Written
+    /// by COMPANY.CREATE and COMPANY.UPDATE; never read as a business value.
+    /// </summary>
+    public required string OrganisationNumberNormalised { get; set; }
 
     public string? VatNumber { get; set; }
 

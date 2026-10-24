@@ -27,7 +27,7 @@ public sealed class OrganisationFixtureTests
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
-    public async Task The_fixture_holds_one_installation_party_chart_company_site_warehouse_and_fiscal_year_2026()
+    public async Task The_fixture_holds_one_installation_party_chart_company_site_warehouse_and_fiscal_year_2026_and_D_64_numbers_the_party_from_the_PARTY_series()
     {
         await using NpgsqlConnection connection = await PostgresFixture.OpenAsync(_db.SuperuserConnectionString, Ct);
 
@@ -53,6 +53,10 @@ public sealed class OrganisationFixtureTests
         Assert.Equal("SE", await ScalarAsync(connection, "SELECT country_code FROM kernel.party"));
         Assert.Equal("Organisation", await ScalarAsync(connection, "SELECT party_type FROM kernel.party"));
         Assert.Equal("5555555555|SE555555555501|THEMISFICTITIOUSFASTENERSAB|", await ScalarAsync(connection, "SELECT duplicate_key FROM kernel.party"));
+        // D-64: the fixture party takes its number from the installation-level PARTY series the migration created (P-, 6 digits), which then stands at 2.
+        Assert.Equal("P-000001", await ScalarAsync(connection, "SELECT party_number FROM kernel.party"));
+        Assert.Equal(2L, await ScalarAsync(connection, "SELECT next_number FROM kernel.number_series WHERE company_id IS NULL AND document_type = 'PARTY'"));
+        Assert.Equal("5555555555", await ScalarAsync(connection, "SELECT organisation_number_normalised FROM kernel.company"));
         Assert.Equal("THEMIS-DEV", await ScalarAsync(connection, "SELECT code FROM kernel.installation"));
         Assert.Equal("sv-SE", await ScalarAsync(connection, "SELECT default_locale FROM kernel.installation"));
         Assert.Equal("SE01", await ScalarAsync(connection, "SELECT code FROM kernel.company"));

@@ -89,6 +89,36 @@ public sealed class NumberSeriesServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task D_64_the_installation_level_PARTY_series_numbers_consecutively_after_the_fixture_party_and_a_company_scoped_request_for_it_or_an_installation_request_for_a_company_type_is_R_DOC_08()
+    {
+        NumberRequest party = new(DocumentTypes.Party);
+        await using (NpgsqlUnitOfWork first = await NpgsqlUnitOfWork.BeginAsync(_dataSource, Ct))
+        {
+            // The fixture party took P-000001 (D-64); the series has no company (company_id IS NULL) and is Continuous.
+            Result<IReadOnlyList<NumberTaken>> taken = await _service.TakeInstallationAsync(first, [party, party], Now, WellKnownUsers.System, Ct);
+            Assert.True(taken.IsSuccess);
+            Assert.Equal(["P-000002", "P-000003"], taken.Value.Select(number => number.Number));
+            Assert.Null(first.CurrentRole);
+            await first.CommitAsync(Ct);
+        }
+
+        Assert.Equal(4L, await ScalarAsync("SELECT next_number FROM kernel.number_series WHERE company_id IS NULL AND document_type = 'PARTY'"));
+
+        await using NpgsqlUnitOfWork second = await NpgsqlUnitOfWork.BeginAsync(_dataSource, Ct);
+        // R-DOC-08: the series of a type and scope must exist; a company has no PARTY series and the installation no INVENTORY_ADJUSTMENT series.
+        Result<IReadOnlyList<NumberTaken>> companyScoped = await TakeAsync(second, party);
+        Assert.True(companyScoped.IsFailure);
+        Assert.Equal(("R-DOC-08", NumberSeriesService.SeriesMissing), (companyScoped.Primary!.RuleId, companyScoped.Primary.Code));
+        Result<IReadOnlyList<NumberTaken>> installationScoped = await _service.TakeInstallationAsync(second, [Adjustment], Now, WellKnownUsers.System, Ct);
+        Assert.True(installationScoped.IsFailure);
+        Assert.Equal(("R-DOC-08", NumberSeriesService.SeriesMissing), (installationScoped.Primary!.RuleId, installationScoped.Primary.Code));
+        Assert.Contains("installation", installationScoped.Primary.Message, StringComparison.OrdinalIgnoreCase);
+        // An installation-level series is never per fiscal year (ck_number_series_installation_continuous): the request shape is refused outright.
+        await Assert.ThrowsAsync<ArgumentException>(() => _service.TakeInstallationAsync(second, [Journal], Now, WellKnownUsers.System, Ct));
+        await second.RollbackAsync(Ct);
+    }
+
+    [Fact]
     public async Task R_LED_08_two_commands_taking_both_series_in_opposite_order_complete_without_deadlock()
     {
         await using NpgsqlUnitOfWork first = await NpgsqlUnitOfWork.BeginAsync(_dataSource, Ct);

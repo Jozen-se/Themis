@@ -107,7 +107,8 @@ internal sealed class InventoryAdjustment : MasterDataRow
 /// <summary>Phase 0 Specification, NumberSeries: the locked row every number is taken from (R-DOC-07).</summary>
 internal sealed class NumberSeries : MasterDataRow
 {
-    public required Guid CompanyId { get; set; }
+    /// <summary>Empty for an installation-level series such as PARTY (Specification, NumberSeries; milestone 2 step 3, D-64).</summary>
+    public required Guid? CompanyId { get; set; }
 
     public required string DocumentType { get; set; }
 
