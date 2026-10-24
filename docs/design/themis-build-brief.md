@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Build Brief* (https://claude.ai/code/artifact/a781c405-11f8-42e1-bf7f-7090dbc9df8b), revision 100, taken 2026-10-23.
+> **Snapshot** of the live document *Themis Build Brief* (https://claude.ai/code/artifact/a781c405-11f8-42e1-bf7f-7090dbc9df8b), revision 135, taken 2026-10-24.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite rule IDs
 > without leaving the repository. Where this copy and the live document differ, the live document wins.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -15,12 +15,12 @@ This brief tells Claude Code how to start building Themis: the stack, the reposi
 
 When two sources disagree, the higher one wins and the coder reports the conflict instead of choosing.
 
-1. **Themis Foundation Design:** principles P-01 to P-11, the 57 core rules and 9 order-to-cash rules (R-xx) with their invariant or default classification, the decision log (D-xx), phases and the build constraints for the scaffold.
+1. **Themis Foundation Design:** principles P-01 to P-11, the core and order-to-cash rules (R-xx) with their invariant or default classification, the decision log (D-xx), phases and the build constraints for the scaffold.
 2. **Themis Phase 0 Specification:** entity attributes, state machines, posting profile, posting events (E-xx) and invariants (I-xx).
 3. **This brief:** stack, layout, database model and milestone scope.
 4. **Code and tests.** They implement the documents; they never redefine them.
 
-The Architecture Recommendations doc is background reading only. Where it differs from the foundation doc, the foundation doc wins (for example on the general ledger posting path, D-24).
+The Architecture Recommendations, once background reading, no longer exist (removed 2026-10-24); what was accepted from them is in the foundation doc, for example the general ledger posting path (D-24).
 
 ## Ground rules for the coder
 
@@ -55,11 +55,11 @@ Every component is decided; the coder only confirms current versions at scaffold
 | Observability | OpenTelemetry for logs, traces and metrics; health endpoints | D-25 |  |
 | Licence scan | A NuGet licence scanner in CI that fails on copyleft | D-38 | Pick the tool |
 | Local runtime | One compose file that runs with Docker Compose and Podman Compose | D-27 | Runs on the owner's Linux machine with Podman |
-| CI | Build, unit, architecture, integration and invariant tests, licence scan, on every push | D-26, D-38 | GitHub repository with GitHub Actions workflows; private until D-14 and D-36 are settled (D-42) |
+| CI | Build, unit, architecture, integration and invariant tests, licence scan, on every push | D-26, D-38 | GitHub repository with GitHub Actions workflows; public since D-14 and D-36 were settled (D-42, RR-09) |
 
 ## Repository layout
 
-Milestone 1 is kernel only. Master data that the ledgers reference (items, units, posting groups, currencies, and later parties and prices) belongs to the kernel, as the foundation's kernel domain model and P-02 say. Process modules start in Phase 1 and all follow one five-project template; until then a test-only fixture module proves the boundary rules.
+Milestone 1 is kernel only. Master data that the ledgers reference (items, units, posting groups, currencies, and later parties in Phase 0 and prices in Phase 1, D-55) belongs to the kernel, as the foundation's kernel domain model and P-02 say. Process modules start in Phase 1 and all follow one five-project template; until then a test-only fixture module proves the boundary rules.
 
 ```text
 themis/
@@ -81,7 +81,7 @@ themis/
       Themis.Kernel.Pipeline/      command and query dispatch: validation, authorisation, idempotency, transaction, audit, telemetry
       Themis.Kernel.Persistence/   the one kernel data context, unit of work, shared connection and transaction, role switching
       Themis.Kernel.Organisation/  installation, company, site, warehouse, fiscal years and periods
-      Themis.Kernel.MasterData/    items, units, item posting groups, currencies (parties and prices later in Phase 0)
+      Themis.Kernel.MasterData/    items, units, item posting groups, currencies (parties in milestone 2 step 8; prices in Phase 1, D-55)
       Themis.Kernel.Documents/     document framework (D-39, D-40): shared tables, state machine engine, numbering
       Themis.Kernel.Posting/       posting service (R-LED-07): inventory ledger, general ledger core, posting profile, costing
       Themis.Kernel.Messaging/     outbox and relay
@@ -121,7 +121,7 @@ The running application logs in as one role that owns nothing and can do nothing
 - No default privileges: every table and view gets its grants explicitly in the migration that creates it. A catalogue test compares the actual privileges with an expected privilege matrix and fails on anything extra or missing (part of I-14), so a new ledger table can never silently receive UPDATE. The one default-privilege setting is restrictive: the bootstrap script revokes EXECUTE from PUBLIC on functions that migrations create in the kernel and reporting schemas (ALTER DEFAULT PRIVILEGES FOR ROLE themis_migrator ... REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC), so a function runs only for roles its migration grants EXECUTE explicitly. Confirmed by the owner 2026-10-17.
 - Business numbers come from number series rows, not database sequences. If a migration adds a sequence, it grants USAGE explicitly.
 - No REFERENCES grants are needed: foreign keys are created by `themis_migrator`, which owns both tables.
-- Reporting views run with their owner's rights in milestone 1. How reporting views respect row-level security is decided when row-level security is added.
+- Reporting views run with their owner's rights in milestone 1. How reporting views respect row-level security is decided in milestone 2 step 13a (RR-13, RR-58).
 
 **One command, one transaction:**
 
@@ -137,7 +137,7 @@ The outbox relay is a background service with its own short transactions, runnin
 
 **What this protects, and what it does not.** It stops accidental cross-module writes and any update or delete of ledger rows, even by kernel code. It does not stop deliberately malicious code inside the application process, because `themis_app` may switch to any module role. The later option of ledger inserts only through a security-definer function closes part of that gap (D-41).
 
-Row-level security on company scope (D-28) is added later in Phase 0, after milestone 1; every company-owned table carries `company_id` from the start.
+Row-level security on company scope (D-28) is added in milestone 2 step 13a (D-67); every company-owned table carries `company_id` from the start.
 
 ## Cross-cutting conventions
 
@@ -163,7 +163,7 @@ These apply to every module from the first commit, so that later modules look th
 | Settings | Configurable defaults live in settings tables with their documented default, never in code or `appsettings`. The framework is D-58: SettingCatalog in code, values in the insert-only setting_value table, R-SET-01; the idempotency retention became its first setting and D-45 ended with milestone 2 step 2. Data and Planned definitions follow D-63. Host operating options that no company adjusts (for example Outbox:Relay:*, step 9) are not configurable defaults under P-11: they are host configuration in appsettings, with their defaults documented in code | P-11 |
 | Secrets | Environment variables or a secret store; never in the repository. Real credentials, secret values and the operational security setup (for example the secret store, keys and certificates) are handled by the owner outside any LLM or agent harness; the coder and the planner build and test against placeholders and never receive real values (owner, 2026-10-17). The security features themselves (authentication, authorisation, R-SEC rules) are built as usual | Foundation, Security section |
 | Migrations | Forward-only; a migration that drops or rewrites data needs an owner decision first. A migration's SQL is fixed once it is merged: it never reads code that can change later (grant lists, model constants), and every later change, a grant or a view included, goes in a new migration (RR-39). From step 2b, a migration that must change rows of a table guarded by the D-60 triggers disables and re-enables them inside its own script and needs the owner's review. Reference lists (currencies, units, later countries) are seeded by migrations, each row audited under the system user; system catalogues such as permissions are applied from code by Themis.Migrator on every run | P-05 |
-| Review | Every pull request passes the layers of D-59 on its head commit: the required checks with no bypass, an independent review in a separate session against REVIEW.md and the brief, the planner's conformance check, and the owner's squash merge as the sign-off, made only when the reviewer's summary names the head commit being merged. The coder never merges, approves or resolves a reviewer conversation; it answers each one with a fix commit or a reason. The pull request body labels local results as local, ticks CI only when the head commit's checks have passed, and lists every deviation from the brief and every change the brief does not ask for | D-59; RR-90, RR-91 |
+| Review | Every pull request passes the layers of D-59 on its head commit: the required checks with no bypass, an independent review in a separate session against REVIEW.md and the brief, the planner's conformance check, and the owner's squash merge as the sign-off, made only when the reviewer's summary names the head commit being merged. Review is tiered by the files a pull request changes (D-59, amended 2026-10-24): one that changes only snapshots under docs/design, the README or other documentation, or a patch or minor dependency update changing only package versions and lock files, needs the required checks, the planner's conformance check and the owner's merge, with no reviewer session; any other change to CLAUDE.md, REVIEW.md, SECURITY.md, CODEOWNERS, .github, src, db or tests, and every major dependency update, passes all layers. The coder never merges, approves or resolves a reviewer conversation; it answers each one with a fix commit or a reason. The pull request body labels local results as local, ticks CI only when the head commit's checks have passed, and lists every deviation from the brief and every change the brief does not ask for | D-59; RR-90, RR-91 |
 | CI runners | Runner images are pinned to a version (ubuntu-24.04), never a moving label such as ubuntu-latest; an upgrade is its own pull request | Owner, 2026-10-22; RR-104 |
 
 ## Milestone 1, walking skeleton: scope
@@ -247,22 +247,34 @@ Milestone 1 stays small on purpose; everything below waits for the rest of Phase
 
 ## Milestone 2: kernel complete
 
-Milestone 2 completes Phase 0 within the scope of D-55, on the skeleton milestone 1 proved. The owner approved this plan on 2026-10-19. Steps are released one at a time with their briefs. Steps 1 and 2 are merged; two hardening pull requests follow before step 3: step 2a, the interim fix (released 2026-10-22), then step 2b, database defence in depth. While steps 1 to 7 are built, the Phase 1 specification is written in parallel under D-57.
+Milestone 2 completes Phase 0 within the scope of D-55, on the skeleton milestone 1 proved. The owner approved this plan on 2026-10-19. Steps are released one at a time with their briefs. Steps 1 and 2 are merged, and so are the two hardening steps that followed them, step 2a (interim fix) and step 2b (database defence in depth); step 3 is next. Named gates (below the plan) settle the decisions each brief depends on before it is drafted (D-67). While steps 1 to 7 are built, the Phase 1 specification is written in parallel under D-57.
 
 1. **Hardening from the code review of 2026-10-18:** the fixes the owner decided in the Remediation Register, RR-39 to RR-53 and RR-56, among them frozen migration SQL with a drift test (RR-39), retry on wrapped database errors (RR-40), a zero-test guard in CI (RR-41), expired idempotency records treated as absent (RR-42), non-overlapping fiscal periods (RR-44), unique-key races as rule rejections (RR-45), value bounds (RR-46), database backstops for stock and journal balance (RR-47) and migrator diagnostics (RR-48).
 2. **Settings framework (RR-12):** setting definitions and values with scope levels; the idempotency retention becomes a setting and D-45 ends; the purge of expired idempotency records (RR-42); the document line limit (RR-54); negative stock per warehouse (D-09) defined but locked. Specification section first. Merged 2026-10-22. Followed by step 2a, the interim fix from the kernel review and the review of pull request 42 (the development setup, two 500 answers, CI and document hygiene, the step 2 follow-ups, D-63 and the D-59 review files, amended 2026-10-23: no sign-off workflow), and step 2b, database defence in depth (RR-62 to RR-64, RR-70, RR-71, RR-73, RR-77, RR-81, RR-83, RR-84, D-60), with a test seam for cleaning the test database once the D-60 triggers exist.
-3. **Organisation commands:** company, site and warehouse CREATE and UPDATE for real installations; the test/dev seeder stays for tests. Costing follows the company's rounding mode before COMPANY.UPDATE can change it (RR-74).
-4. **Chart of accounts and accounts:** CREATE, UPDATE and the master data lifecycle, with the amended R-PP-05 (D-56).
-5. **Item posting groups and posting profile rules:** CREATE and UPDATE with the R-PP-05 completeness check, the same check VALIDATE_POSTING_PROFILE runs (D-32).
-6. **Fiscal years and periods:** CREATE_YEAR, which also creates the year's number series from their templates (D-52; the migration adding prefix_template sets JE{fiscal_year}- on the existing JOURNAL_ENTRY series, a data change the owner approved on 2026-10-19; a company's first year takes the JOURNAL_ENTRY template and padding as arguments and is rejected under R-DOC-08 without them), SOFT_CLOSE, REOPEN, CLOSE, the FISCAL_PERIOD.POST_SOFT_CLOSED permission, VALIDATE_POSTING_PROFILE; postings lock the period against a concurrent close, with a lock order entry (RR-44, RR-67, R-LED-08). CLOSE_YEAR waits for the Phase 2 finance specification.
-7. **Master data lifecycle for Item, ItemCompany and Warehouse:** UPDATE, BLOCK, UNBLOCK, DEACTIVATE, REACTIVATE; postings lock the item's status against a concurrent BLOCK, with a lock order entry (RR-67).
-8. **Parties and party roles,** numbered from the installation-level party series.
-9. **INVENTORY_ADJUSTMENT REVERSE,** with the amended R-PP-03 (D-56); the posting service contract shape is settled here (RR-55), with an overflow-safe costing order (RR-75) and each posting profile rule resolved once per posting (RR-76).
+3. **Organisation commands:** company, site and warehouse CREATE and UPDATE, the chart of accounts header, and the company's own party with the installation-level PARTY series (D-64, D-65, R-MD-06); the test/dev seeder stays for tests. A real installation can use these commands only once step 13 provides its first administrator; until then they are proven with fixture users. Costing follows the company's rounding mode before COMPANY.UPDATE can change it (RR-74).
+4. **Chart of accounts and accounts:** accounts: CREATE, UPDATE and the master data lifecycle, with the amended R-PP-05 (D-56); the chart header comes with step 3. Also the command catalogue in the repository with a CI check that every command declares its permission, If-Match, audit, event and rule IDs (RR-07), and the OpenAPI document generated from code, committed and checked in CI for breaking changes (RR-10).
+5. **Item posting groups and posting profile rules:** CREATE and UPDATE with the R-PP-05 completeness check, the same check VALIDATE_POSTING_PROFILE runs (D-32), counting only the roles of posting events whose document types are built (D-67); a rule that names a ship-to scope is rejected until the EU country list exists in Phase 1 (D-55).
+6. **Fiscal years and periods:** number series commands for company and installation-level series (a new company's Continuous series, the PARTY series format), CREATE_YEAR, which also creates the year's number series from their templates (D-52; the migration adding prefix_template sets JE{fiscal_year}- on the existing JOURNAL_ENTRY series, a data change the owner approved on 2026-10-19; a company's first year takes the JOURNAL_ENTRY template and padding as arguments and is rejected under R-DOC-08 without them), SOFT_CLOSE, REOPEN, CLOSE, the FISCAL_PERIOD.POST_SOFT_CLOSED permission, VALIDATE_POSTING_PROFILE; postings lock the period against a concurrent close, with a lock order entry (RR-44, RR-67, R-LED-08); a new gapless series is rejected when its prefix overlaps the prefix of another gapless series of the same company and fiscal year, so I-09 counts each entry once (RR-106). CLOSE_YEAR waits for the Phase 2 finance specification.
+7. **Master data lifecycle for Item, ItemCompany and Warehouse (WAREHOUSE.UPDATE itself comes with step 3):** UPDATE, BLOCK, UNBLOCK, DEACTIVATE, REACTIVATE, and Company DEACTIVATE and REACTIVATE; postings lock the item's status against a concurrent BLOCK, with a lock order entry (RR-67).
+8. **Parties (PartyRole comes with Phase 1, D-55),** numbered from the installation-level party series; personal data in audit events as references to an erasable table, built before step 8's first party command (D-66); the full R-MD-01 duplicate check through its setting; COMPANY.CREATE may link an existing party; PARTY.UPDATE refuses the fields the company commands own on a company's party (D-64).
+9. **INVENTORY_ADJUSTMENT REVERSE,** with the amended R-PP-03 (D-56); the posting service contract shape is settled here (RR-55), with a reversal that reuses the original accounts and copies the amounts it carries over without rounding them again, returning outbound lines at their original cost and costing inbound lines by the moving average (D-56 note), an overflow-safe costing order (RR-75) and each posting profile rule resolved once per posting (RR-76).
 10. **STOCK_STATUS_CHANGE:** POST and REVERSE, zero-value status entries (R-INV-08).
 11. **MANUAL_JOURNAL:** POST and REVERSE, gapless numbers, no control accounts (R-ACC-01); I-06 and I-15 settled for journal lines without the INVENTORY tag (RR-77).
-12. **Lots:** lot-tracked items, lots on inventory entries and balances (an empty lot means no lot, as the balance key already allows), BLOCK_LOT and RELEASE_LOT; the backorder effects wait for reservations in Phase 1.
-13. **Users and roles administration:** role assignment commands with the segregation of duties check (R-SEC-02, RR-57), four-eyes posting (R-SEC-03, D-62) with the SoD pair grant its commands need (RR-64), and an audit trail query.
+12. **Lots:** lot-tracked items, lots on inventory entries and balances (an empty lot means no lot, as the balance key already allows), BLOCK_LOT and RELEASE_LOT; the backorder effects wait for reservations in Phase 1; Lot's certificate column comes with Attachment in Phase 1 (D-55).
+13. **Users and roles administration:** role assignment commands with the segregation of duties check (R-SEC-02, RR-57), four-eyes posting (R-SEC-03, D-62) with the SoD pair grant its commands need (RR-64), an audit trail query, user commands for an identity-provider subject (no credentials in Themis), and the installation bootstrap: the installation record, enforcing its Suspended status, and the first company with its first administrator in one transaction; SCIM 2.0 (D-12) comes before the first production installation (D-67). Followed by step 13a, row-level security on company scope (RR-13, D-28, D-67): how company context enters the transaction, FORCE ROW LEVEL SECURITY, which roles may bypass it, reporting views and BI identities (RR-58), the idempotency DELETE grant (RR-80), and tests for cross-company reads as well as writes.
 14. **Nightly invariant check and Phase 0 close:** a separate console runner of the invariant queries with its own read-only database role, exiting with a failure code on any finding; acceptance map, review and tag.
+
+**Gates (D-67).** A brief is drafted only once its gate is passed; the planner checks the remaining steps for dependencies before the step 4 brief and adds what it finds to the gates.
+
+| Gate | Before | What it settles |
+|---|---|---|
+| A | Step 3 is released | VAT rounding lock (D-65), reversal wording (D-56 note), document consistency fixes from the whole-project review. Passed 2026-10-24 |
+| B | Step 5 brief | Posting profile check scope (D-67) and the ship-to scope rejection (D-55) are decided; the dependency check of steps 5 to 7 |
+| C | Step 8 brief | Procure-to-pay walk (RR-20) and scenario catalogue (RR-17) written; the personal data field list and erasable table (D-66) |
+| D | Step 9 brief | Goods receipt posting events specified (RR-122); backorder allocation mechanism chosen, or confirmed to need no posting service hook (RR-123) |
+| E | Step 12 and 13 briefs | User commands and bootstrap design (D-67); step 13a design (RR-13) |
+| Phase 1 | Phase 1 specification is frozen | Product vision (RR-37) and volumes (RR-21) from the questionnaire; Phase 1 scope with D-48, output management (G-05) and the file store; tax determination timing and the credit exposure formula (RR-124); landed cost and the GRNI and payables invariants (RR-126); the accountant's answers (RR-25) |
+| F | Phase 0 close (step 14) | Phase 0 exit list (RR-127); every register item due before Phase 0 completes is closed |
 
 ## CLAUDE.md for the repository
 
@@ -271,7 +283,7 @@ This file goes in the repository root so every Claude Code session starts with t
 ```markdown
 # Themis ERP (working brand: Jozen)
 
-Open-source ERP for distributors of industrial fasteners and components. Backend first; the frontend comes in Phase 5.
+Open-source ERP for companies trading mainly in C-parts and components, such as industrial fasteners. Backend first; the frontend comes in Phase 5.
 
 ## Sources of truth (higher wins; report conflicts, never choose)
 1. docs/design/themis-foundation-design.md: principles P-xx, rules R-xx (invariant or configurable default), decisions D-xx, phases, build constraints
@@ -288,7 +300,6 @@ Snapshots are refreshed from the live documents at the revision the planner name
 
 Reference only (not sources of truth; the documents above win on any conflict):
 - Themis Review Remediation Register: https://claude.ai/code/artifact/91610c8f-7465-46a7-9f48-0bf2c5171ede (snapshot: docs/design/themis-review-remediation-register.md; findings RR-xx and the owner's decision on each; accepted items are already in the documents above)
-- Themis Architecture Recommendations: https://claude.ai/artifact/Lo9h7fGS2L4hbw7RsFDvDz (background input; the foundation wins where they differ)
 - Themis Capability Coverage Map: https://claude.ai/code/artifact/fb7a2e56-0e18-44ef-980b-846a9be72acd (capability checklist with gaps G-xx; nothing in it is in scope until a D-xx entry puts it there)
 - Themis Atlas: https://claude.ai/artifact/5Doff8FWHhWHKrnQtSeu7W (visual project map and system map for orientation; it decides nothing, and build progress itself lives in the README)
 - Themis Review and Audit Setup: https://claude.ai/code/artifact/cc9a06bc-0f81-4776-8ef2-dc26e27f7aa7 (how pull requests are reviewed and signed off under D-59)
@@ -310,7 +321,7 @@ Reference only (not sources of truth; the documents above win on any conflict):
 - Never change a rule or decision in code. Write "Proposed change to R-xx" in the pull request for the owner.
 - Every commit carries a Signed-off-by line matching its author (DCO, D-36). Commits you make are authored and signed off as Jozen <a07sebjo@gmail.com>, which the owner certifies; never as an AI identity.
 - No model identifiers in anything pushed. Commits and pull requests carry the session link as traceability.
-- Pull requests follow D-59: never merge, approve or resolve a reviewer conversation; answer each reviewer comment with a fix commit or a reason.
+- Pull requests follow D-59, tiered by the files they change: never merge, approve or resolve a reviewer conversation; answer each reviewer comment with a fix commit or a reason.
 - In the pull request body, label local test results as local, tick CI only when the head commit's checks have passed, and list every deviation from the brief and every change the brief does not ask for.
 
 ## Commands

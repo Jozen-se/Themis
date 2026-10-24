@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/code/artifact/237492a8-0f0a-4e9d-a8da-44f65de0a56b), revision 234, taken 2026-10-23.
+> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/code/artifact/237492a8-0f0a-4e9d-a8da-44f65de0a56b), revision 265, taken 2026-10-24.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite rule IDs
 > without leaving the repository. Where this copy and the live document differ, the live document wins.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -9,7 +9,7 @@
 
 2026-10-08 · Sebastian Hansson
 
-This spec turns the kernel in Themis Foundation Design into buildable detail: the attributes of every kernel entity, a state machine for every document type in Phases 0 to 2, and the posting profile that maps each posting event to accounts. Claude Code builds the kernel from it. Rule IDs (P-, R-, D-) refer to the foundation doc unless this spec introduces them.
+This spec turns the kernel in Themis Foundation Design into buildable detail: the attributes of every kernel entity, a state machine for every kernel and sales-side document type in Phases 0 to 2 (purchasing documents follow in the Phase 1 purchasing specification), and the posting profile that maps each posting event to accounts. Claude Code builds the kernel from it. Rule IDs (P-, R-, D-) refer to the foundation doc unless this spec introduces them.
 
 ## Conventions
 
@@ -52,14 +52,14 @@ Every entity carries the common fields below (append-only entities omit the upda
 
 - **L:** a ledger row references the entity through a chain of required (NOT NULL) foreign keys, or the posting service reads the entity's rows at posting time to determine, classify, value or post a ledger row. Ledger caches (StockBalance, ItemCostState) count as L. Data copied onto a document before posting (a price, a customer part number) does not make its source L, because posting reads the document line, not the source.
 - **M, provisional:** the entity names the two module specifications expected to need it. When the second of them is released, the entity is confirmed or scheduled to leave the kernel before that module's build starts. A provisional entity must not be read by posting or referenced by a ledger; if it is, it is L. The remediation register keeps the list, and each Phase 1 specification release closes its entries.
-- **Fails:** the entity is moved to its module, or justified, before the Phase 1 build. Phase 0 builds only part of this table: D-55 moves the M-provisional entities to Phase 1, and TaxCode, TaxRule, the EU country list, BankAccount, OpenItem and Settlement to Phase 2.
+- **Fails:** the entity is moved to its module, or justified, before the Phase 1 build. Phase 0 builds only part of this table: D-55 moves the M-provisional entities, PartyRole and the EU country list to Phase 1, and TaxCode, TaxRule, BankAccount, OpenItem and Settlement to Phase 2.
 
 | Entity | Basis | Justification |
 |---|---|---|
 | Installation | I | Deployment boundary and installation settings (D-28); no ledger carries it. |
 | Company, Site, Warehouse | L | JournalEntry, InventoryEntry and OpenItem require the company; InventoryEntry requires the warehouse, which requires its site. |
 | FiscalYear, FiscalPeriod | L | Posting sets the entry's fiscal period from the posting date and checks it is open (R-LED-04); the period requires its fiscal year. |
-| Party, PartyRole | L | OpenItem requires the party role, which requires its party; posting reads the party posting group for RECEIVABLES. |
+| Party, PartyRole | L | OpenItem requires the party role, which requires its party; posting reads the party posting group for RECEIVABLES. Milestone 2 step 8 builds Party; PartyRole comes with Phase 1 (D-55). |
 | Address | M, provisional | Sales (bill-to and ship-to; the ship-to country reaches tax and ship-to scope through the document's address snapshot, R-DOC-05) and Purchasing (supplier and delivery addresses). |
 | Contact | M, provisional | Sales and Purchasing (who receives orders, invoices and certificates). |
 | Item | L | InventoryEntry requires the item. |
@@ -75,7 +75,7 @@ Every entity carries the common fields below (append-only entities omit the upda
 | PaymentTerms | M, provisional | Sales and Purchasing; documents copy the due date that open items carry. |
 | BankAccount | L | Posting reads it for the BANK role (resolution step 7). |
 | TaxCode, TaxRule | L | Posting determines tax with them and resolves OUTPUT_VAT by tax code; the posted source line stores both (R-TAX-02). |
-| EU country list | L, not yet specified | Posting derives the ship-to scope (Domestic, EU, NonEU) from it, and tax rules and the REVENUE and COGS roles key on that scope. Reference data with validity dates (R-MD-02), seeded by migration, never a list in code (P-11). The accountant confirms the handling of special territories. To specify before any rule keyed by ship-to scope is built. |
+| EU country list | L, not yet specified | Posting derives the ship-to scope (Domestic, EU, NonEU) from it, and tax rules and the REVENUE and COGS roles key on that scope. Reference data with validity dates (R-MD-02), seeded by migration, never a list in code (P-11). The accountant confirms the handling of special territories. To specify with Phase 1, before any rule keyed by ship-to scope is built (D-55); until it exists, a posting profile rule that names a ship-to scope is rejected. |
 | PriceList, PriceListLine | M, provisional | Sales (selling prices) and Purchasing (buying prices). |
 | DocumentType, NumberSeries, Document, DocumentLine | L | Journal and inventory entries require their source document and line, which require their document type; posting takes journal entry numbers from a number series (D-39). |
 | Extension tables of the five kernel document types | L | Posting reads them to produce the journal and inventory entries of those documents (D-39). |
@@ -89,7 +89,7 @@ Every entity carries the common fields below (append-only entities omit the upda
 
 ## Organisation entities
 
-Four entities set the boundaries: an installation holds one company group's companies, a company holds sites, a site holds warehouses. There is no tenant identifier (D-28). A company's base currency and time zone cannot change after its first posting.
+Four entities set the boundaries: an installation holds one company group's companies, a company holds sites, a site holds warehouses. There is no tenant identifier (D-28). Which organisation attributes become fixed, and from when, is set out after the Warehouse table (R-MD-06, D-65).
 
 **Installation** (one per company group)
 
@@ -107,7 +107,7 @@ Four entities set the boundaries: an installation holds one company group's comp
 | `code` | Code | Y | Unique per installation. |
 | `party_id` | → Party | Y | The company's own party record; holds its addresses and contacts. |
 | `legal_name` | Name | Y |  |
-| `organisation_number` | text | Y | Format validated by the country's localisation. |
+| `organisation_number` | text | Y | Format validated by the country's localisation. Unique per country across the installation's companies (R-MD-05); fixed after the first posting (R-MD-06). |
 | `vat_number` | text | N | Required when the company is VAT registered. |
 | `country_code` | CountryCode | Y |  |
 | `base_currency` | CurrencyCode | Y | A required reference to Currency (by code). Immutable after the first posting. |
@@ -115,7 +115,7 @@ Four entities set the boundaries: an installation holds one company group's comp
 | `fiscal_year_start_month` | integer 1 to 12 | Y |  |
 | `chart_of_accounts_id` | → ChartOfAccounts | Y |  |
 | `rounding_mode` | Enum: HalfAwayFromZero, HalfEven | Y | Default HalfAwayFromZero. |
-| `tax_rounding_level` | Enum: Line, Document | Y | Pending decision D-10. |
+| `tax_rounding_level` | Enum: Line, Document | Y | Pending decision D-10. Fixed from the company's first posted tax line (R-MD-06, D-65). |
 | `payment_tolerance` | Money | N | Maximum payment difference written off automatically (R-O2C-07). |
 | `status` | Enum: Active, Inactive | Y | Lifecycle in State machines, part 1. |
 
@@ -139,6 +139,20 @@ Four entities set the boundaries: an installation holds one company group's comp
 | `is_default` | boolean | Y | At most one default warehouse per site. |
 | `status` | Enum: Active, Blocked, Inactive | Y | Blocked accepts no new movements. |
 
+**Organisation commands** (milestone 2 step 3; D-64, D-65). COMPANY.CREATE and the chart of accounts header commands (CREATE, UPDATE of name and template) are installation-scope; COMPANY.UPDATE, SITE.CREATE, SITE.UPDATE, WAREHOUSE.CREATE and WAREHOUSE.UPDATE are scoped to the company (and the site for warehouses). COMPANY.CREATE creates the company's own party in the same command: an Organisation party from the company's legal name, organisation number, VAT number and country, numbered from the installation-level PARTY series. The company commands own those four fields on that party and keep them aligned. A party is the own party of at most one company (company.party_id unique); other companies may still hold party roles on it, as intercompany trade will. Two companies never share an organisation number in the same country: a unique key on country and the normalised number, normalised by the same function as the R-MD-01 duplicate key (R-MD-05, on create and update); the full duplicate check for all parties comes with milestone 2 step 8. COMPANY.CREATE requires tax_rounding_level while D-10 is open. A posting takes every company attribute it uses (base currency, the currency's minor units, rounding mode) from its lock class 1b read, and a document whose currency differs from the locked base currency is rejected under R-DOC-01, code document_currency_not_base_currency; the draft is discarded and created again. A currency's minor units are fixed once a company or document uses it. A site has no status of its own; its address stays empty until Address exists (D-55). A warehouse never moves to another site. Making a warehouse the site's default moves the default: the site row is locked first, the previous default is cleared before the new one is set (the partial unique index cannot wait for the end of the command), and the previous default gets a new version, its audit event and its WAREHOUSE_UPDATED event; only an Active warehouse can be the default, and a site may have none.
+
+**Fixed attributes** (R-MD-06; a change after the trigger is rejected with 422 and a code naming the attribute):
+
+| Attribute | Fixed from |
+|---|---|
+| Company code, site code, warehouse code, chart of accounts code | Creation |
+| Company base_currency, time_zone, country_code, organisation_number, rounding_mode | The company's first journal entry or inventory entry |
+| Company tax_rounding_level | The company's first posted tax line: its first journal line on a tax role (OUTPUT_VAT, and INPUT_VAT once supplier invoices post). No posting writes tax in milestone 2, so the check comes with the first document that posts tax (D-65) |
+| Company chart_of_accounts_id | The company's first posting profile rule or first posting |
+| Company fiscal_year_start_month | The company's first fiscal year; changing the financial year is a later process (known limitation) |
+
+A command whose effect would fix an attribute (a posting, a posting profile rule, a fiscal year) reads the company row FOR SHARE; COMPANY.UPDATE locks the row by its versioned update, so the check and the first posting cannot cross (Lock order).
+
 ## Party entities
 
 A Party exists once per installation; what a company does with it (sell, buy, ship) lives on a PartyRole per company. Commercial terms therefore differ per company without duplicating the customer.
@@ -149,13 +163,13 @@ A Party exists once per installation; what a company does with it (sell, buy, sh
 |---|---|---|---|
 | `party_number` | Code | Y | From an installation-level number series; unique per installation. |
 | `party_type` | Enum: Organisation, Person | Y | A Person party is personal data as a whole. |
-| `name` | Name | Y | PD when the party is a Person. |
-| `organisation_number` | text | N | Used in the duplicate check. |
-| `vat_number` | text | N | Required for zero-rated EU sales. |
+| `name` | Name | Y | PD when the party is a Person; for an Organisation party, PD under D-66 (field list with milestone 2 step 8). |
+| `organisation_number` | text | N | Used in the duplicate check. PD under D-66: a sole trader's organisation number is a personal identity number. |
+| `vat_number` | text | N | Required for zero-rated EU sales. PD under D-66, since a Swedish VAT number contains the organisation number. |
 | `country_code` | CountryCode | Y |  |
 | `language` | text (BCP 47) | N | Language of documents sent to the party. |
 | `status` | Enum: Active, Blocked, Inactive | Y | Lifecycle in State machines, part 1. |
-| `duplicate_key` | text | D | Normalised organisation number, VAT number, name and postal code (R-MD-01). |
+| `duplicate_key` | text | D | Normalised organisation number, VAT number, name and postal code (R-MD-01). PD under D-66 when its sources are. |
 | `anonymised_at` | Timestamp | D | Set when personal data is erased (R-MD-03). |
 
 **PartyRole**
@@ -284,7 +298,7 @@ Item has no status of its own (D-43). There is no installation-wide block: retir
 | `lot_number` | Code | Y | Unique per item. |
 | `heat_number`, `supplier_lot_number` | text | N | Traceability to the steel melt and the supplier. |
 | `manufactured_on`, `expires_on` | Date | N |  |
-| `certificate_attachment_id` | → Attachment | N | For example an EN 10204 3.1 certificate. |
+| `certificate_attachment_id` | → Attachment | N | For example an EN 10204 3.1 certificate. Arrives with Attachment in Phase 1 (D-55); milestone 2 step 12 builds Lot without it. |
 | `status` | Enum: Released, Blocked | Y | Stock in a Blocked lot is not available (R-INV-04). |
 
 **CustomerItemReference**
@@ -401,6 +415,7 @@ Every business document shares one header, one line and one link model; fields t
 | VAT_SETTLEMENT | On post | Yes | No | Yes | None |
 | OPENING_OPEN_ITEMS | On post | Yes | No | Yes | Customer, per line |
 | JOURNAL_ENTRY | Numbering only | Yes | No | No | None |
+| PARTY | Numbering only (installation-level series) | No | No | No | None |
 
 Manual journals are gapless because they are accounting vouchers. JOURNAL_ENTRY is a numbering-only row, so journal entry series can name the registry: it has no documents, transitions, commands or events, and the state machine engine and every registry check skip rows flagged numbering only. Journal entries themselves are also numbered gapless per fiscal year (see Ledger entities).
 
@@ -509,7 +524,7 @@ Twelve entities hold the books. JournalEntry, JournalLine and InventoryEntry are
 
 | Entity | Attribute | Type | Req | Rule |
 |---|---|---|---|---|
-| ChartOfAccounts | `code`, `name` | Code, Name | Y | Installation-level; companies may share one chart. |
+| ChartOfAccounts | `code`, `name` | Code, Name | Y | Installation-level; companies may share one chart. The code is unique per installation (R-MD-05) and never changes (R-MD-06). |
 | ChartOfAccounts | `template` | text | N | Origin, for example BAS 2026. |
 | Account | `chart_id` | → ChartOfAccounts | Y |  |
 | Account | `account_number`, `name` | Code, Name | Y | Number unique per chart. |
@@ -634,6 +649,7 @@ Costing follows recording order, not posting date. A back-dated posting in an op
 | Order | Lock class | Within the class | From |
 |---|---|---|---|
 | 1 | The command's own document or master data row | One row, locked by its versioned update (If-Match) | Phase 0, milestone 1 |
+| 1b | The company row, for a command whose effect would fix a company attribute (a posting, a posting profile rule, a fiscal year) | One row, SELECT ... FOR SHARE (never FOR KEY SHARE, which an ordinary UPDATE passes); COMPANY.UPDATE holds it through class 1, where it locks the company row and then its party row; a warehouse default change locks the site row, then the warehouse rows in id order (D-65) | Phase 0, milestone 2 step 3 |
 | 2 | ItemCostState | Missing rows first inserted in one INSERT ... SELECT ... ORDER BY item_id ON CONFLICT DO NOTHING; then all rows locked with one SELECT ... ORDER BY item_id FOR UPDATE | Phase 0, milestone 1 |
 | 3 | StockBalance | Missing rows inserted the same way, then locked with one SELECT ... ORDER BY company, item, warehouse, lot, stock status FOR UPDATE before they are updated | Phase 0, milestone 1 |
 | 4 | Reservations and the source lines they claim | Id order | Phase 1 (specified there) |
@@ -663,7 +679,7 @@ One permission exists per command, plus one TYPE.READ permission per resource ty
 | SodConflict | `permission_a`, `permission_b` | Code | Y | A user may not hold both in the same company (R-SEC-02). Checked when a role or assignment changes. |
 | AuditEvent | `occurred_at`, `user_id`, `command_name` | Timestamp, → User, Code | Y | Append-only (R-AUD-01). |
 | AuditEvent | `entity_type`, `entity_id` | text, UUID | Y |  |
-| AuditEvent | `changes` | JSON (before and after per field) | Y | PD fields are masked in reads without the right permission. |
+| AuditEvent | `changes` | JSON (before and after per field) | Y | Fields classified as personal data hold a reference to an erasable value table instead of the value; anonymisation clears the values, and reads resolve references only with the right permission (D-66, specified with milestone 2 step 8). |
 | AuditEvent | `command_id` | UUID | Y | The command that wrote it. JournalEntry and InventoryEntry store the same id, so a ledger row leads to its command's audit events and idempotency key (D-51). Required for every audit event written from milestone 1 step 8 on; events written before it by migrations and seeders keep it empty, and no audit row is ever changed. |
 | AuditEvent | `idempotency_key`, `correlation_id` | text | N |  |
 | IdempotencyRecord | `key`, `user_id`, `command_name` | text, → User, Code | Y | Unique per user and key. |
@@ -726,8 +742,8 @@ The migrator reports, and never changes or deletes, a stored value that falls ou
 | idempotency.retention_days | Integer, 1 to 90 | 7 | Installation | Setting; a change applies to records written after it, existing records keep their expires_at | R-API-01, D-45 ends |
 | document.max_lines | Integer, 1 to 10,000 | 1,000 | Installation, Company | Setting | RR-54 |
 | inventory.negative_stock_allowed | Boolean | false | Company, Warehouse | Setting, locked until a costing rule for negative quantities exists | R-INV-03, D-09 |
-| company.rounding_mode | Code | HalfAwayFromZero | Company | Column, Company.rounding_mode, changed by COMPANY.UPDATE | R-MON-02 |
-| company.tax_rounding_level | Code | Set by D-10 (open); Line is the test value | Company | Column, Company.tax_rounding_level, changed by COMPANY.UPDATE | R-MON-02, D-10 |
+| company.rounding_mode | Code | HalfAwayFromZero | Company | Column, Company.rounding_mode, changed by COMPANY.UPDATE until the company's first posting (D-65) | R-MON-02 |
+| company.tax_rounding_level | Code | Set by D-10 (open); Line is the test value | Company | Column, Company.tax_rounding_level, required at COMPANY.CREATE and changed by COMPANY.UPDATE until the company's first posted tax line (D-65) | R-MON-02, D-10 |
 | security.four_eyes_posting | Set by the milestone 2 step 13 specification | None while Planned (D-63); the step 13 specification records the defaults of D-62 | Company; planned level DocumentType | Planned, milestone 2 step 13 | R-SEC-03, D-62 |
 
 Every other configurable default in the Foundation's list is in the catalogue at least once, as a Data or Planned definition.
@@ -747,7 +763,7 @@ Each transition table reads: from state, command, to state, the guards that must
 | Blocked | UNBLOCK | Active |  |  |
 | Active, Blocked | DEACTIVATE | Inactive | No open documents, no stock on hand, no open items, no active reservations | Hidden from selection lists |
 | Inactive | REACTIVATE | Active |  |  |
-| Inactive | ANONYMISE (Person parties and contacts only) | Inactive | Statutory retention period for linked records has passed | Personal data replaced; `anonymised_at` set; audit values masked |
+| Inactive | ANONYMISE (Person parties, sole-trader Organisation parties and contacts; D-66) | Inactive | Statutory retention period for linked records has passed | Personal data replaced; `anonymised_at` set; the audit values in the erasable table cleared (D-66) |
 
 **Changing master data**
 
@@ -800,7 +816,7 @@ Three kernel documents let Phase 0 put stock in, take it out and block it before
 
 | From | Command | To | Guards | Effects |
 |---|---|---|---|---|
-| Draft | POST | Posted | Items Stocked, and Active in the document's company (ItemCompany, D-43); lot given for lot-tracked items; outbound lines covered by stock in the line's stock status, and Available stock is not reserved (R-INV-03); entered_unit_cost given on inbound lines when the item has no average cost yet (R-INV-05); no entered_unit_cost on outbound lines, whose cost comes from the algorithm (R-INV-05); reason code given; at least one Open line; period open (R-LED-04); a number series for each number assigned (R-DOC-08) | InventoryEntries (AdjustmentIn, AdjustmentOut) costed by the moving average algorithm; JournalEntry per posting events E-01 and E-02; caches updated; event INVENTORY_ADJUSTED |
+| Draft | POST | Posted | Items Stocked, and Active in the document's company (ItemCompany, D-43); lot given for lot-tracked items; outbound lines covered by stock in the line's stock status, and Available stock is not reserved (R-INV-03); entered_unit_cost given on inbound lines when the item has no average cost yet (R-INV-05); no entered_unit_cost on outbound lines, whose cost comes from the algorithm (R-INV-05); reason code given; at least one Open line; period open (R-LED-04); a number series for each number assigned (R-DOC-08); the document's currency is the company's base currency as read under lock class 1b (R-DOC-01, code document_currency_not_base_currency, D-65) | InventoryEntries (AdjustmentIn, AdjustmentOut) costed by the moving average algorithm; JournalEntry per posting events E-01 and E-02; caches updated; event INVENTORY_ADJUSTED |
 | Posted | REVERSE | Reversed | The reversal must not make stock negative | Outbound lines come back in at their original cost. Inbound lines go out as outbound movements costed by the algorithm (step 3, including R-INV-07), so stock value can never turn negative. A reversing JournalEntry posts the resulting amounts to the original accounts (R-PP-03) |
 
 **STOCK_STATUS_CHANGE** (each line: item, lot, warehouse, from status, to status, quantity)
@@ -978,7 +994,7 @@ For every journal line the engine picks exactly one account, or rejects the whol
 
 **REVENUE and tax code (D-22 as amended).** REVENUE rules also carry the tax code, because ship-to scope alone cannot follow VAT treatment (R-TAX-01). An EU customer without VAT registration is taxed with SE25, so its line has the keys TRADE_GOODS, EU, SE25. With the BAS profile below, neither (TRADE_GOODS, EU, SE_EU_GOODS) nor (TRADE_GOODS, Domestic, SE25) matches it, so the command is rejected with R-PP-02 until a rule (TRADE_GOODS, EU, SE25) maps it, rather than posting to the EU revenue account. A REVENUE rule keyed by ship-to scope without a tax code, such as (TRADE_GOODS, EU, any), would match first and hide that gap, so REVENUE rules should always set the tax code. The configuration check below finds such gaps in advance.
 
-**Configuration check.** The VALIDATE_POSTING_PROFILE command lists every combination of active item groups, party groups, ship-to scopes, tax codes and reason codes that would fail step 4. It also warns when the key order lets one rule hide another, for example a (TRADE_GOODS, any) rule hiding an (any, EU) rule. It runs before go-live, after any change to the profile, as a guard on SOFT_CLOSE, and on every command that creates or changes an item posting group, party posting group or tax code; such a command is rejected if the profile would become incomplete (R-PP-05). A gap therefore stops a master data change, never a shipment (D-24, D-32).
+**Configuration check.** The VALIDATE_POSTING_PROFILE command lists every combination of active item groups, party groups, ship-to scopes, tax codes and reason codes that would fail step 4. It counts only the roles of posting events whose document types are built; the roles of other events are listed as information, not as gaps (D-67). It also warns when the key order lets one rule hide another, for example a (TRADE_GOODS, any) rule hiding an (any, EU) rule. It runs before go-live, after any change to the profile, as a guard on SOFT_CLOSE, and on every command that creates or changes an item posting group, party posting group or tax code; such a command is rejected if the profile would become incomplete (R-PP-05). A gap therefore stops a master data change, never a shipment (D-24, D-32).
 
 ## Posting rules per event
 
@@ -1004,11 +1020,11 @@ Thirteen posting events cover Phases 0 to 2 on the sales side (goods-receipt eve
 
 **Worked example for E-11.** An invoice of EUR 100 is posted at rate 11.00 (receivables +1,100 SEK). The payment of EUR 100 arrives at rate 11.50 (bank +1,150 SEK, receivables -1,150 SEK). After settlement both open items are 0 in EUR, but receivables show -50 SEK, so E-11 posts receivables debit 50 and REALISED_FX credit 50. Receivables are back at 0 and match the open items (I-07).
 
-**Reversals** post the original lines with opposite signs and the original accounts (R-PP-03).
+**Reversals** post to the original accounts (R-PP-03) and copy the amounts they carry over, never rounding them again: a journal reversal negates the original lines; an INVENTORY_ADJUSTMENT reversal returns outbound lines at their original cost and costs inbound lines by the moving average (costing step 3, including R-INV-07), as its state machine states (D-56).
 
 ## Example account mapping for Sweden (BAS)
 
-If Sweden is confirmed as the first localisation (D-13), the default profile maps to the BAS 2026 chart for a trading company. Seven roles have a clear BAS account; the cost-of-goods and adjustment accounts need an accountant's choice (D-20).
+With Sweden as the first localisation (D-13), the default profile maps to the BAS 2026 chart for a trading company. Seven roles have a clear BAS account; the cost-of-goods and adjustment accounts need an accountant's choice (D-20).
 
 Account names are as written in [BAS kontoplan 2026 v2](https://www.bas.se/wp-content/uploads/2026/04/BAS_kontoplan_2026_v2.pdf).
 
@@ -1054,7 +1070,7 @@ Fifteen invariants define "the books are correct". Each is an automated test aft
 
 ## New rules and decisions introduced by this spec
 
-This spec adds 17 rules and 9 decisions. Both are mirrored into the foundation doc, which stays the single catalogue of rules and decisions.
+This spec adds the rules and decisions below; the project index keeps the counts. Both are mirrored into the foundation doc, which stays the single catalogue of rules and decisions.
 
 **Rules**
 
@@ -1082,7 +1098,7 @@ This spec adds 17 rules and 9 decisions. Both are mirrored into the foundation d
 
 | ID | Decision | Status |
 |---|---|---|
-| D-14 | Product name: Themis, with Jozen as the working brand | Decided 2026-10-08; trademark check pending, because Themis is already used by governance, risk and compliance software |
+| D-14 | Product name: Themis, with Jozen as the working brand | Decided 2026-10-08; no trademark check before going public (owner, 2026-10-18; foundation decision log) |
 | D-15 | Journal amounts are signed, debit positive, instead of separate debit and credit columns | Decided (foundation decision log) |
 | D-16 | Type-specific header fields live in one-to-one extension tables, not JSON | Decided (foundation decision log) |
 | D-17 | Identifiers are UUID v7 | Decided (foundation decision log) |

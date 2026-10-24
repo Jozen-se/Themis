@@ -1,6 +1,6 @@
 # Themis ERP (working brand: Jozen)
 
-Open-source ERP for distributors of industrial fasteners and components. Backend first; the frontend comes in Phase 5.
+Open-source ERP for companies trading mainly in C-parts and components, such as industrial fasteners. Backend first; the frontend comes in Phase 5.
 
 ## Sources of truth (higher wins; report conflicts, never choose)
 1. docs/design/themis-foundation-design.md: principles P-xx, rules R-xx (invariant or configurable default), decisions D-xx, phases, build constraints
@@ -17,7 +17,6 @@ Snapshots are refreshed from the live documents at the revision the planner name
 
 Reference only (not sources of truth; the documents above win on any conflict):
 - Themis Review Remediation Register: https://claude.ai/code/artifact/91610c8f-7465-46a7-9f48-0bf2c5171ede (snapshot: docs/design/themis-review-remediation-register.md; findings RR-xx and the owner's decision on each; accepted items are already in the documents above)
-- Themis Architecture Recommendations: https://claude.ai/artifact/Lo9h7fGS2L4hbw7RsFDvDz (background input; the foundation wins where they differ)
 - Themis Capability Coverage Map: https://claude.ai/code/artifact/fb7a2e56-0e18-44ef-980b-846a9be72acd (capability checklist with gaps G-xx; nothing in it is in scope until a D-xx entry puts it there)
 - Themis Atlas: https://claude.ai/artifact/5Doff8FWHhWHKrnQtSeu7W (visual project map and system map for orientation; it decides nothing, and build progress itself lives in the README)
 - Themis Review and Audit Setup: https://claude.ai/code/artifact/cc9a06bc-0f81-4776-8ef2-dc26e27f7aa7 (how pull requests are reviewed and signed off under D-59)
@@ -39,7 +38,7 @@ Reference only (not sources of truth; the documents above win on any conflict):
 - Never change a rule or decision in code. Write "Proposed change to R-xx" in the pull request for the owner.
 - Every commit carries a Signed-off-by line matching its author (DCO, D-36). Commits you make are authored and signed off as Jozen <a07sebjo@gmail.com>, which the owner certifies; never as an AI identity.
 - No model identifiers in anything pushed. Commits and pull requests carry the session link as traceability.
-- Pull requests follow D-59: never merge, approve or resolve a reviewer conversation; answer each reviewer comment with a fix commit or a reason.
+- Pull requests follow D-59, tiered by the files they change: never merge, approve or resolve a reviewer conversation; answer each reviewer comment with a fix commit or a reason.
 - In the pull request body, label local test results as local, tick CI only when the head commit's checks have passed, and list every deviation from the brief and every change the brief does not ask for.
 
 ## Commands
