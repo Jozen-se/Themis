@@ -74,6 +74,14 @@ public sealed class Program
         app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();
         app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") }).AllowAnonymous();
         app.MapQuery<GetCompany, CompanyInfo>(OrganisationRoutes.Company);
+        // Milestone 2 step 3: the organisation commands and reads (D-64, D-65).
+        app.MapCommandRoutes(OrganisationRoutes.Commands);
+        app.MapQuery<GetChartOfAccounts, ChartOfAccountsView>(OrganisationRoutes.ChartOfAccounts);
+        app.MapQuery<ListChartsOfAccounts, IReadOnlyList<ChartOfAccountsView>>(OrganisationRoutes.ChartsOfAccounts);
+        app.MapQuery<GetSite, SiteInfo>(OrganisationRoutes.Site);
+        app.MapQuery<ListSites, IReadOnlyList<SiteInfo>>(OrganisationRoutes.CompanySites);
+        app.MapQuery<GetWarehouse, WarehouseView>(OrganisationRoutes.Warehouse);
+        app.MapQuery<ListWarehouses, IReadOnlyList<WarehouseView>>(OrganisationRoutes.CompanyWarehouses);
         app.MapCommandRoutes(MasterDataRoutes.Commands);
         app.MapQuery<GetItem, ItemView>(MasterDataRoutes.Item);
         app.MapQuery<GetItemByNumber, ItemView>(MasterDataRoutes.ItemByNumber);

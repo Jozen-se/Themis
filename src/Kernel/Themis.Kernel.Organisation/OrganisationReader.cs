@@ -12,7 +12,7 @@ namespace Themis.Kernel.Organisation;
 /// </summary>
 internal sealed class OrganisationReader : IOrganisationReader
 {
-    private const string CompanyColumns = "id, code, legal_name, country_code, base_currency, time_zone, fiscal_year_start_month, rounding_mode, tax_rounding_level, status, version";
+    internal const string CompanyColumns = "id, code, party_id, legal_name, organisation_number, vat_number, country_code, base_currency, time_zone, fiscal_year_start_month, chart_of_accounts_id, rounding_mode, tax_rounding_level, status, version";
 
     // RR-62: every read hands the connection back as themis_app on successful return.
     public Task<CompanyInfo?> GetCompanyAsync(IUnitOfWork unitOfWork, Guid companyId, CancellationToken cancellationToken) =>
@@ -41,7 +41,7 @@ internal sealed class OrganisationReader : IOrganisationReader
         IReadOnlyList<WarehouseInfo> rows = await unitOfWork.QueryAsync(DatabaseRole.Kernel,
             $"""
             SELECT w.id, w.code, w.name, w.is_default, w.status,
-                   s.id, s.company_id, s.code, s.name, s.time_zone,
+                   s.id, s.company_id, s.code, s.name, s.time_zone, s.version,
                    {string.Join(", ", CompanyColumns.Split(", ").Select(column => "c." + column))}
             FROM kernel.warehouse w
             JOIN kernel.site s ON s.id = w.site_id AND s.company_id = w.company_id
@@ -55,8 +55,8 @@ internal sealed class OrganisationReader : IOrganisationReader
                 reader.GetString(2),
                 reader.GetBoolean(3),
                 Enum.Parse<MasterDataStatus>(reader.GetString(4)),
-                new SiteInfo(reader.GetGuid(5), reader.GetGuid(6), Code.From(reader.GetString(7)), reader.GetString(8), reader.IsDBNull(9) ? null : reader.GetString(9)),
-                ReadCompany(reader, offset: 10)),
+                new SiteInfo(reader.GetGuid(5), reader.GetGuid(6), Code.From(reader.GetString(7)), reader.GetString(8), reader.IsDBNull(9) ? null : reader.GetString(9), reader.GetInt64(10)),
+                ReadCompany(reader, offset: 11)),
             cancellationToken);
         return rows.Count == 0 ? null : rows[0];
     }
@@ -98,18 +98,23 @@ internal sealed class OrganisationReader : IOrganisationReader
         return rows[0];
     }
 
-    private static CompanyInfo ReadCompany(DbDataReader reader) => ReadCompany(reader, offset: 0);
+    internal static CompanyInfo ReadCompany(DbDataReader reader) => ReadCompany(reader, offset: 0);
 
-    private static CompanyInfo ReadCompany(DbDataReader reader, int offset) => new(
+    /// <summary>Reads <see cref="CompanyColumns"/> from the given offset; the commands and the reads share it.</summary>
+    internal static CompanyInfo ReadCompany(DbDataReader reader, int offset) => new(
         reader.GetGuid(offset),
         Code.From(reader.GetString(offset + 1)),
-        reader.GetString(offset + 2),
-        CountryCode.From(reader.GetString(offset + 3)),
-        CurrencyCode.From(reader.GetString(offset + 4)),
-        reader.GetString(offset + 5),
-        reader.GetInt32(offset + 6),
-        Enum.Parse<RoundingMode>(reader.GetString(offset + 7)),
-        Enum.Parse<TaxRoundingLevel>(reader.GetString(offset + 8)),
-        Enum.Parse<CompanyStatus>(reader.GetString(offset + 9)),
-        reader.GetInt64(offset + 10));
+        reader.GetGuid(offset + 2),
+        reader.GetString(offset + 3),
+        reader.GetString(offset + 4),
+        reader.IsDBNull(offset + 5) ? null : reader.GetString(offset + 5),
+        CountryCode.From(reader.GetString(offset + 6)),
+        CurrencyCode.From(reader.GetString(offset + 7)),
+        reader.GetString(offset + 8),
+        reader.GetInt32(offset + 9),
+        reader.GetGuid(offset + 10),
+        Enum.Parse<RoundingMode>(reader.GetString(offset + 11)),
+        Enum.Parse<TaxRoundingLevel>(reader.GetString(offset + 12)),
+        Enum.Parse<CompanyStatus>(reader.GetString(offset + 13)),
+        reader.GetInt64(offset + 14));
 }

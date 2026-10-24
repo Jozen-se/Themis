@@ -33,10 +33,10 @@ internal static class SettingCatalog
             "Whether stock on hand may go below zero. Off, and locked until a costing rule for negative quantities exists.",
             DecisionId: "D-09", LockedReason: "Allowing negative stock first needs a costing rule for negative quantities (D-09)."),
         new(SettingKeys.CompanyRoundingMode, SettingValueType.Code, "HalfAwayFromZero", CompanyOnly, SettingBacking.Column, "R-MON-02",
-            "The company's rounding mode for amounts; Company.rounding_mode, changed by COMPANY.UPDATE.",
+            "The company's rounding mode for amounts; Company.rounding_mode, set by COMPANY.CREATE (this default when left out) and changed by COMPANY.UPDATE until the company's first posting (R-MD-06, D-65).",
             AllowedValues: ["HalfAwayFromZero", "HalfEven"], ColumnName: "company.rounding_mode"),
         new(SettingKeys.CompanyTaxRoundingLevel, SettingValueType.Code, null, CompanyOnly, SettingBacking.Column, "R-MON-02",
-            "Whether VAT rounds per line or per document total; Company.tax_rounding_level, changed by COMPANY.UPDATE. The default waits for D-10; Line is the test value.",
+            "Whether VAT rounds per line or per document total; Company.tax_rounding_level, required at COMPANY.CREATE and changed by COMPANY.UPDATE until the company's first posted tax line (R-MD-06, D-65). The default waits for D-10; Line is the test value.",
             DecisionId: "D-10", AllowedValues: ["Line", "Document"], ColumnName: "company.tax_rounding_level"),
 
         // Data-backed: the default is rows of an entity, changed by that entity's commands; the definition holds no copy

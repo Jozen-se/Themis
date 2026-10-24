@@ -77,7 +77,7 @@ public sealed class FiscalCalendarTests
     [InlineData("2026-03-29T00:30:00Z", "2026-03-29")]
     public void R_TIME_01_the_business_date_of_an_instant_is_its_calendar_date_in_the_company_time_zone(string instant, string expected)
     {
-        CompanyInfo company = new(Guid.NewGuid(), Code.From("SE01"), "Test", CountryCode.From("SE"), CurrencyCode.From("SEK"), "Europe/Stockholm", 1, RoundingMode.HalfAwayFromZero, TaxRoundingLevel.Line, CompanyStatus.Active, 1);
+        CompanyInfo company = new(Guid.NewGuid(), Code.From("SE01"), Guid.NewGuid(), "Test", "555555-5555", null, CountryCode.From("SE"), CurrencyCode.From("SEK"), "Europe/Stockholm", 1, Guid.NewGuid(), RoundingMode.HalfAwayFromZero, TaxRoundingLevel.Line, CompanyStatus.Active, 1);
 
         BusinessDate date = new OrganisationReader().BusinessDateFor(company, DateTimeOffset.Parse(instant, System.Globalization.CultureInfo.InvariantCulture));
 

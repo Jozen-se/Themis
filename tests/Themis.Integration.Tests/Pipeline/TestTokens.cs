@@ -67,4 +67,9 @@ internal static class TestUsers
     public static Guid SettingsAdministrator => Milestone1IdentityFixture.SettingsAdministratorId;
 
     public const string SettingsAdministratorSubject = Milestone1IdentityFixture.SettingsAdministratorSubject;
+
+    /// <summary>The fixture user who holds ORGANISATION_ADMINISTRATOR (milestone 2 step 3).</summary>
+    public static Guid OrganisationAdministrator => Milestone1IdentityFixture.OrganisationAdministratorId;
+
+    public const string OrganisationAdministratorSubject = Milestone1IdentityFixture.OrganisationAdministratorSubject;
 }

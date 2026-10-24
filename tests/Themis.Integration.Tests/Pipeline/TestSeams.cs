@@ -5,6 +5,7 @@ using Themis.Kernel.Contracts.Persistence;
 using Themis.Kernel.Contracts.Settings;
 using Themis.Kernel.MasterData;
 using Themis.Kernel.Messaging;
+using Themis.Kernel.Organisation;
 using Themis.Kernel.Posting;
 using Themis.Kernel.Primitives;
 using Themis.Kernel.Settings;
@@ -102,4 +103,29 @@ internal sealed class TestSettingWriteSeam : ISettingWriteSeam
 
     public Task AfterVersionCheckAsync(string key, SettingLevel level, CancellationToken cancellationToken) =>
         AfterVersionCheck is { } hook ? hook(key, level, cancellationToken) : Task.CompletedTask;
+}
+
+/// <summary>
+/// The organisation create seam of the step 3 race tests (RR-45): holds the first of two creates with the same code or
+/// organisation number after its pre-checks while a second commits, so the first meets the unique index. Nothing set
+/// means nothing happens.
+/// </summary>
+internal sealed class TestOrganisationCreateSeam : IOrganisationCreateSeam
+{
+    public Func<string, Code, CancellationToken, Task>? AfterDuplicateChecks { get; set; }
+
+    public Task AfterDuplicateChecksAsync(string entityType, Code code, CancellationToken cancellationToken) =>
+        AfterDuplicateChecks is { } hook ? hook(entityType, code, cancellationToken) : Task.CompletedTask;
+}
+
+/// <summary>
+/// The company update seam of the D-65 concurrency tests (milestone 2 step 3): holds COMPANY.UPDATE after its versioned
+/// UPDATE, with the company row locked, while a posting starts and waits on its FOR SHARE. Nothing set means nothing happens.
+/// </summary>
+internal sealed class TestCompanyUpdateSeam : ICompanyUpdateSeam
+{
+    public Func<Guid, CancellationToken, Task>? AfterVersionedUpdate { get; set; }
+
+    public Task AfterVersionedUpdateAsync(Guid companyId, CancellationToken cancellationToken) =>
+        AfterVersionedUpdate is { } hook ? hook(companyId, cancellationToken) : Task.CompletedTask;
 }

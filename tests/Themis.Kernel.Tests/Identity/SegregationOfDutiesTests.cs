@@ -55,7 +55,8 @@ public sealed class SegregationOfDutiesTests
         IdentityFixtureDefinition fixture = Milestone1IdentityFixture.For(Milestone1OrganisationFixture.CompanyId);
 
         Assert.True(SegregationOfDuties.CheckFixture(fixture, Conflicts).IsSuccess);
-        Assert.Equal(3, fixture.Users.Count);
+        // The clerk, the preparer, the settings administrator (RR-101) and, since milestone 2 step 3, the organisation administrator.
+        Assert.Equal(4, fixture.Users.Count);
         Dictionary<Guid, RoleDefinition> roles = fixture.Roles.ToDictionary(role => role.Id);
         HashSet<string> clerk = [.. fixture.Assignments.Where(a => a.UserId == Milestone1IdentityFixture.ClerkId).SelectMany(a => roles[a.RoleId].Permissions)];
         HashSet<string> preparer = [.. fixture.Assignments.Where(a => a.UserId == Milestone1IdentityFixture.PreparerId).SelectMany(a => roles[a.RoleId].Permissions)];
@@ -69,6 +70,13 @@ public sealed class SegregationOfDutiesTests
         Assert.Equal(["SETTING.CLEAR", "SETTING.READ", "SETTING.SET"], settingsAdministrator.Order(StringComparer.Ordinal));
         Assert.DoesNotContain(clerk, p => p.StartsWith("SETTING.", StringComparison.Ordinal));
         Assert.DoesNotContain(preparer, p => p.StartsWith("SETTING.", StringComparison.Ordinal));
+        // Milestone 2 step 3: the organisation administrator holds the organisation commands and reads and nothing else; the clerk holds none of them.
+        HashSet<string> organisationAdministrator = [.. fixture.Assignments.Where(a => a.UserId == Milestone1IdentityFixture.OrganisationAdministratorId).SelectMany(a => roles[a.RoleId].Permissions)];
+        Assert.Equal(
+            ["CHART_OF_ACCOUNTS.CREATE", "CHART_OF_ACCOUNTS.READ", "CHART_OF_ACCOUNTS.UPDATE", "COMPANY.CREATE", "COMPANY.READ", "COMPANY.UPDATE", "SITE.CREATE", "SITE.READ", "SITE.UPDATE", "WAREHOUSE.CREATE", "WAREHOUSE.READ", "WAREHOUSE.UPDATE"],
+            organisationAdministrator.Order(StringComparer.Ordinal));
+        Assert.DoesNotContain(clerk, p => p.StartsWith("COMPANY.", StringComparison.Ordinal) && p != "COMPANY.READ");
+        Assert.DoesNotContain(clerk, p => p.StartsWith("SITE.", StringComparison.Ordinal) || p.StartsWith("WAREHOUSE.", StringComparison.Ordinal) || p.StartsWith("CHART_OF_ACCOUNTS.", StringComparison.Ordinal));
         Assert.Equal(clerk.Where(p => p is not "INVENTORY_ADJUSTMENT.POST" and not "ITEM.CREATE").Order(), preparer.Order());
         Assert.All(fixture.Assignments, assignment => Assert.Null(assignment.SiteId));
         Assert.All(fixture.Assignments, assignment => Assert.Equal(Milestone1OrganisationFixture.CompanyId, assignment.CompanyId));
