@@ -129,12 +129,6 @@ internal sealed class PostInventoryAdjustmentHandler : ICommandHandler<PostInven
             postingLines.Add(new PostingLine(line.Id, line.LineNumber, line.ItemId, item.ItemPostingGroup, line.WarehouseId, line.StockStatus, line.QuantityBase, line.EnteredUnitCost));
         }
 
-        int? minorUnits = await DocumentStore.CurrencyMinorUnitsAsync(unitOfWork, before.Currency, cancellationToken);
-        if (minorUnits is null)
-        {
-            return Error.Validation("currency_unknown", $"Currency {before.Currency} is not a currency.");
-        }
-
         DateTimeOffset now = context.Now;
         UserId by = context.Principal.UserId;
 
@@ -145,7 +139,8 @@ internal sealed class PostInventoryAdjustmentHandler : ICommandHandler<PostInven
         }
 
         // R-LED-05, R-LED-07: the posting service writes the ledgers and caches, or the whole command rolls back.
-        InventoryAdjustmentPosting posting = new(before.Id, before.CompanyId, CurrencyCode.From(before.Currency), minorUnits.Value, new BusinessDate(postingDate), new BusinessDate(before.DocumentDate), period.Value.Id, period.Value.FiscalYearId, reasonCode, postingLines);
+        // D-65: the currency's minor units and the rounding mode are the posting service's to read, under its lock of the company row.
+        InventoryAdjustmentPosting posting = new(before.Id, before.CompanyId, CurrencyCode.From(before.Currency), new BusinessDate(postingDate), new BusinessDate(before.DocumentDate), period.Value.Id, period.Value.FiscalYearId, reasonCode, postingLines);
         Result<PostingOutcome> outcome = await _posting.PostInventoryAdjustmentAsync(posting, context, cancellationToken);
         if (outcome.IsFailure)
         {

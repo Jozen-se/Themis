@@ -24,15 +24,15 @@ public sealed record PostingLine(Guid LineId, int LineNumber, Guid ItemId, Code 
 
 /// <summary>
 /// What the document framework hands the posting service for INVENTORY_ADJUSTMENT.POST after the guards passed and
-/// the document row is locked (lock class 1): the document, its company and currency with the currency's minor
-/// units (R-MON-02), the posting and document dates, the fiscal period and year of the posting date (R-LED-04), the
+/// the document row is locked (lock class 1): the document, its company and the document's currency (compared with
+/// the base currency the posting reads under lock class 1b, D-65; the minor units and the rounding mode come from
+/// that read too), the posting and document dates, the fiscal period and year of the posting date (R-LED-04), the
 /// reason code and the Open lines in line number order.
 /// </summary>
 public sealed record InventoryAdjustmentPosting(
     Guid DocumentId,
     Guid CompanyId,
     CurrencyCode Currency,
-    int MinorUnits,
     BusinessDate PostingDate,
     BusinessDate DocumentDate,
     Guid FiscalPeriodId,

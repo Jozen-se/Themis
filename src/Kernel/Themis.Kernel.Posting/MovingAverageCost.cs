@@ -17,7 +17,9 @@ internal sealed record Costing(decimal CostAmount, CostState Next);
 /// stock is above 0, the stored average only at zero stock, rejected without either), outbound (step 3: the full
 /// remaining value when the movement empties the stock, R-INV-07, else q x value / quantity as one exact decimal
 /// expression), and the average after every movement (step 6: value / quantity rounded half away from zero to 10
-/// decimals, kept at zero stock). Costs are rounded to the currency's minor unit at these points only (R-MON-02).
+/// decimals, kept at zero stock). Costs are rounded to the currency's minor unit at these points only, in the
+/// company's rounding mode (R-MON-02, RR-74); the informational average and unit cost keep the Specification's rule,
+/// half away from zero at 10 decimals.
 /// </summary>
 internal static class MovingAverageCost
 {
@@ -25,7 +27,7 @@ internal static class MovingAverageCost
     public const string EnteredCostRequired = "entered_unit_cost_required";
 
     /// <summary>Step 1 or 2: an inbound movement of a positive quantity.</summary>
-    public static Result<Costing> Inbound(CostState state, decimal quantity, decimal? enteredUnitCost, int minorUnits)
+    public static Result<Costing> Inbound(CostState state, decimal quantity, decimal? enteredUnitCost, int minorUnits, RoundingMode mode = RoundingMode.HalfAwayFromZero)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(quantity, 0m);
@@ -33,17 +35,17 @@ internal static class MovingAverageCost
         if (enteredUnitCost is { } unitCost)
         {
             // Step 1: cost = q x entered unit cost, rounded to the currency's minor unit.
-            cost = DecimalRounding.Round(quantity * unitCost, minorUnits);
+            cost = DecimalRounding.Round(quantity * unitCost, minorUnits, mode);
         }
         else if (state.Quantity > 0)
         {
             // Step 2: while stock is above 0, q x value / quantity, computed exactly and then rounded; never the stored average.
-            cost = DecimalRounding.Round(quantity * state.Value / state.Quantity, minorUnits);
+            cost = DecimalRounding.Round(quantity * state.Value / state.Quantity, minorUnits, mode);
         }
         else if (state.AverageCost is { } average)
         {
             // Step 2 at zero stock: the stored average is the fallback.
-            cost = DecimalRounding.Round(quantity * average, minorUnits);
+            cost = DecimalRounding.Round(quantity * average, minorUnits, mode);
         }
         else
         {
@@ -55,13 +57,13 @@ internal static class MovingAverageCost
     }
 
     /// <summary>Step 3: an outbound movement of a positive magnitude; the caller has checked the stock (R-INV-03). The cost amount is returned negative, signed like the quantity.</summary>
-    public static Costing Outbound(CostState state, decimal quantity, int minorUnits)
+    public static Costing Outbound(CostState state, decimal quantity, int minorUnits, RoundingMode mode = RoundingMode.HalfAwayFromZero)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(quantity, 0m);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(quantity, state.Quantity);
         // R-INV-07: emptying the stock takes the full remaining value, so stock value never turns negative.
-        decimal cost = quantity == state.Quantity ? state.Value : DecimalRounding.Round(quantity * state.Value / state.Quantity, minorUnits);
+        decimal cost = quantity == state.Quantity ? state.Value : DecimalRounding.Round(quantity * state.Value / state.Quantity, minorUnits, mode);
         return new Costing(-cost, After(state.Quantity - quantity, state.Value - cost, state.AverageCost));
     }
 

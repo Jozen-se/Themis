@@ -140,7 +140,7 @@ public sealed class RolePerStatementTests : IAsyncLifetime
         {
             Assert.True(IdempotencyKey.TryFrom("rr62-posting", out IdempotencyKey key));
             CommandContext context = new(CommandId.New(), CorrelationIds.Fresh(), principal.Value, key, TimeProvider.System.GetUtcNow(), unitOfWork);
-            InventoryAdjustmentPosting posting = new(Guid.NewGuid(), Company, CurrencyCode.From("SEK"), 2, june, june, Milestone1OrganisationFixture.PeriodId(6), Milestone1OrganisationFixture.FiscalYearId, ReasonCode.CountDifference, []);
+            InventoryAdjustmentPosting posting = new(Guid.NewGuid(), Company, CurrencyCode.From("SEK"), june, june, Milestone1OrganisationFixture.PeriodId(6), Milestone1OrganisationFixture.FiscalYearId, ReasonCode.CountDifference, []);
             Result<PostingOutcome> posted = await services.GetRequiredService<IPostingService>().PostInventoryAdjustmentAsync(posting, context, Ct);
             Assert.True(posted.IsSuccess);
             await After("IPostingService.PostInventoryAdjustmentAsync");

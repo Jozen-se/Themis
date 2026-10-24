@@ -46,6 +46,27 @@ public sealed class MovingAverageCostTests
     }
 
     [Fact]
+    public void RR_74_half_way_amounts_round_in_the_companys_mode_HalfEven_to_the_even_cent_HalfAwayFromZero_away_and_the_default_is_HalfAwayFromZero()
+    {
+        // Inbound: 1 x 2.125 and 1 x 2.135 (R-MON-02 at the company's minor units).
+        Costing awayLow = MovingAverageCost.Inbound(CostState.Empty, 1m, 2.125m, Minor, RoundingMode.HalfAwayFromZero).Value;
+        Costing evenLow = MovingAverageCost.Inbound(CostState.Empty, 1m, 2.125m, Minor, RoundingMode.HalfEven).Value;
+        Costing evenHigh = MovingAverageCost.Inbound(CostState.Empty, 1m, 2.135m, Minor, RoundingMode.HalfEven).Value;
+        Costing implicitDefault = MovingAverageCost.Inbound(CostState.Empty, 1m, 2.125m, Minor).Value;
+        Assert.Equal((2.13m, 2.13m), (awayLow.CostAmount, awayLow.Next.Value));
+        Assert.Equal((2.12m, 2.12m), (evenLow.CostAmount, evenLow.Next.Value));
+        Assert.Equal((2.14m, 2.14m), (evenHigh.CostAmount, evenHigh.Next.Value));
+        Assert.Equal(awayLow, implicitDefault);
+
+        // Outbound: TEST-002's step 8 (1 x 6.03 / 6 = 1.005) rounds to 1.01 away from zero and to 1.00 half even; the stock value follows.
+        Costing stock = MovingAverageCost.Inbound(MovingAverageCost.Inbound(CostState.Empty, 3m, 1.00m, Minor).Value.Next, 3m, 1.01m, Minor).Value;
+        Costing away = MovingAverageCost.Outbound(stock.Next, 1m, Minor, RoundingMode.HalfAwayFromZero);
+        Costing even = MovingAverageCost.Outbound(stock.Next, 1m, Minor, RoundingMode.HalfEven);
+        Assert.Equal((-1.01m, 5m, 5.02m), (away.CostAmount, away.Next.Quantity, away.Next.Value));
+        Assert.Equal((-1.00m, 5m, 5.03m), (even.CostAmount, even.Next.Quantity, even.Next.Value));
+    }
+
+    [Fact]
     public void R_INV_05_TEST_003_value_over_quantity_is_used_while_stock_is_above_0_never_the_stored_average()
     {
         Costing step10 = MovingAverageCost.Inbound(CostState.Empty, 100_000_000m, 0.01m, Minor).Value;

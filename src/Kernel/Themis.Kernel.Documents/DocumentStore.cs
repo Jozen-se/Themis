@@ -126,10 +126,6 @@ internal static class DocumentStore
         return rows.Count == 0 ? null : rows[0];
     }
 
-    /// <summary>The minor units of a currency (R-MON-02), or null when the currency does not exist.</summary>
-    public static async Task<int?> CurrencyMinorUnitsAsync(IUnitOfWork unitOfWork, string currency, CancellationToken cancellationToken) =>
-        await unitOfWork.ScalarAsync(DatabaseRole.Kernel, "SELECT minor_units FROM kernel.currency WHERE code = @code", new Dictionary<string, object?> { ["code"] = currency }, cancellationToken) as int?;
-
     /// <summary>Lock class 1 of a posting (R-LED-08): the versioned update that increments the version once (R-API-02); 0 rows means the version moved since it was read.</summary>
     public static Task<int> LockForPostingAsync(IUnitOfWork unitOfWork, Guid id, long expectedVersion, DateTimeOffset now, UserId by, CancellationToken cancellationToken) =>
         unitOfWork.ExecuteAsync(DatabaseRole.Kernel,

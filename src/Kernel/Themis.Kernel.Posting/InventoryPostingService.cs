@@ -10,9 +10,12 @@ namespace Themis.Kernel.Posting;
 
 /// <summary>
 /// The kernel posting service for INVENTORY_ADJUSTMENT.POST (R-LED-05, R-LED-07; step 8 brief): after the document
-/// framework ran the guards and locked the document row (class 1), it takes the locks of classes 2 and 3 in the
-/// lock order (R-LED-08), so every stock and cost check runs on locked rows; costs the Open lines in line order with
-/// the moving average algorithm, carrying the cost state and stock from line to line (R-INV-05, R-INV-07, R-INV-09);
+/// framework ran the guards and locked the document row (class 1), it reads the company row FOR SHARE (class 1b,
+/// D-65), taking the base currency, its minor units and the rounding mode from that locked read and rejecting a
+/// document whose currency is not the base currency, then takes the locks of classes 2 and 3 in the lock order
+/// (R-LED-08), so every stock and cost check runs on locked rows; costs the Open lines in line order with the moving
+/// average algorithm in the company's rounding mode (RR-74, R-MON-02), carrying the cost state and stock from line
+/// to line (R-INV-05, R-INV-07, R-INV-09);
 /// refuses an outbound line that would take its balance key below 0, Available stock less its reservations
 /// (R-INV-03, R-INV-04); resolves both accounts of every line with a non-zero cost (R-PP-01, R-PP-02, D-49) and
 /// builds the one journal entry of the document in memory (E-01, E-02; D-15); takes the numbers as the last lock
@@ -27,6 +30,7 @@ internal sealed class InventoryPostingService : IPostingService
     public const string SeriesMissing = "number_series_missing";
     public const string JournalDescription = "Inventory adjustment";
     public const string AmountOutOfRange = "amount_out_of_range";
+    public const string CurrencyNotBase = "document_currency_not_base_currency";
 
     private const string NumericValueOutOfRange = "22003";
 
@@ -71,6 +75,17 @@ internal sealed class InventoryPostingService : IPostingService
         Guid commandId = context.CommandId.Value;
         IReadOnlyList<PostingLine> lines = [.. posting.Lines.OrderBy(line => line.LineNumber)];
 
+        // R-LED-08, class 1b (D-65): the company row FOR SHARE, after the document row and before ItemCostState, joined to its
+        // currency; every company attribute the posting uses (base currency, minor units, rounding mode) comes from this
+        // statement, never from an earlier read, so a COMPANY.UPDATE of them cannot cross this posting: its versioned
+        // UPDATE waits behind the share lock, and its R-MD-06 checks then see these entries.
+        CompanyTerms terms = await LedgerStore.LockCompanyTermsAsync(unitOfWork, posting.CompanyId, cancellationToken);
+        if (terms.BaseCurrency != posting.Currency.Value)
+        {
+            // Specification, INVENTORY_ADJUSTMENT POST: a guard without a rule of its own, under R-DOC-01 with a code naming it.
+            return Error.Rule("R-DOC-01", CurrencyNotBase, $"The document's currency {posting.Currency} is not the company's base currency {terms.BaseCurrency}; discard the draft and create it again.");
+        }
+
         // R-LED-08, classes 2 and 3: every row the lines touch, inserted when missing and locked in key order, before any check reads it.
         Dictionary<Guid, CostStateRow> costStates = (await LedgerStore.LockCostStatesAsync(unitOfWork, posting.CompanyId, [.. lines.Select(line => line.ItemId)], now, by, cancellationToken)).ToDictionary(row => row.ItemId);
         Dictionary<BalanceKey, BalanceRow> balances = (await LedgerStore.LockBalancesAsync(unitOfWork, posting.CompanyId, [.. lines.Select(line => new BalanceKey(line.ItemId, line.WarehouseId, line.StockStatus))], now, by, cancellationToken)).ToDictionary(row => row.Key);
@@ -89,7 +104,7 @@ internal sealed class InventoryPostingService : IPostingService
             if (line.QuantityBase > 0)
             {
                 movement = MovementType.AdjustmentIn;
-                Result<Costing> inbound = MovingAverageCost.Inbound(state[line.ItemId], line.QuantityBase, line.EnteredUnitCost, posting.MinorUnits);
+                Result<Costing> inbound = MovingAverageCost.Inbound(state[line.ItemId], line.QuantityBase, line.EnteredUnitCost, terms.MinorUnits, terms.RoundingMode);
                 if (inbound.IsFailure)
                 {
                     return Result<PostingOutcome>.Failure(inbound.Errors.Select(error => Error.Rule(error.RuleId!, error.Code, $"Line {line.LineNumber}: {error.Message}", details)));
@@ -109,7 +124,7 @@ internal sealed class InventoryPostingService : IPostingService
                     return Error.Rule("R-INV-03", StockInsufficient, $"Line {line.LineNumber}: {quantity} exceeds the {available} {line.StockStatus} on hand of item {line.ItemId} in warehouse {line.WarehouseId}.", details);
                 }
 
-                costing = MovingAverageCost.Outbound(state[line.ItemId], quantity, posting.MinorUnits);
+                costing = MovingAverageCost.Outbound(state[line.ItemId], quantity, terms.MinorUnits, terms.RoundingMode);
             }
 
             state[line.ItemId] = costing.Next;
