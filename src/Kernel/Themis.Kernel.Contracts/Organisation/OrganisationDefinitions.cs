@@ -59,9 +59,13 @@ public enum FiscalPeriodStatus
 /// </summary>
 public sealed record InstallationDefinition(Guid Id, Code Code, string Name, InstallationStatus Status, string DefaultLocale);
 
+/// <summary>
+/// A party as the fixture defines it. Its number is not part of the definition: the seeder takes it from the
+/// installation-level PARTY series through the same numbering path COMPANY.CREATE uses (milestone 2 step 3, D-64),
+/// so no fixed number can collide with a number the series hands out.
+/// </summary>
 public sealed record PartyDefinition(
     Guid Id,
-    Code PartyNumber,
     PartyType PartyType,
     string Name,
     string? OrganisationNumber,
@@ -73,12 +77,14 @@ public sealed record PartyDefinition(
 
 public sealed record ChartOfAccountsDefinition(Guid Id, Code Code, string Name, string? Template);
 
+/// <summary>A company as the fixture defines it; the normalised organisation number is computed by the fixture with the duplicate key's function (R-MD-05, D-64), like the party's duplicate key.</summary>
 public sealed record CompanyDefinition(
     Guid Id,
     Code Code,
     Guid PartyId,
     string LegalName,
     string OrganisationNumber,
+    string OrganisationNumberNormalised,
     string? VatNumber,
     CountryCode CountryCode,
     CurrencyCode BaseCurrency,

@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Themis.Kernel.Contracts.Organisation;
+using Themis.Kernel.Contracts.Persistence;
 using Themis.Kernel.Persistence.Entities;
 using Themis.Kernel.Persistence.Entities.Organisation;
 using Themis.Kernel.Primitives;
@@ -13,7 +14,11 @@ namespace Themis.Kernel.Persistence.Seeding;
 /// Writes an <see cref="OrganisationFixtureDefinition"/> as themis_migrator, in one transaction, idempotently: a row
 /// whose id already exists is left untouched, so the seed can run on every start of Themis.Migrator. The seed is
 /// not a command, so it writes no outbox event, but every row it inserts gets one audit event with command name
-/// SYSTEM.SEED_FIXTURE (R-AUD-01). Only the migrator seeds (brief, Migrations); the application never does.
+/// SYSTEM.SEED_FIXTURE (R-AUD-01). Only the migrator seeds (brief, Migrations); the application never does. The
+/// party's number is taken from the installation-level PARTY series through the delegate ApplyAsync receives, the
+/// numbering service COMPANY.CREATE uses, on this seeder's own connection and transaction (milestone 2 step 3,
+/// D-64), so the fixture never holds a fixed number that a later party could collide with; a re-run finds the party
+/// and takes no number.
 /// </summary>
 internal static class OrganisationFixtureSeeder
 {
@@ -21,9 +26,10 @@ internal static class OrganisationFixtureSeeder
 
     private static readonly JsonSerializerOptions ChangesJson = new(JsonSerializerDefaults.Web);
 
-    public static async Task<int> ApplyAsync(string migratorConnectionString, OrganisationFixtureDefinition fixture, DateTimeOffset now, UserId seededBy, CancellationToken cancellationToken)
+    public static async Task<int> ApplyAsync(string migratorConnectionString, OrganisationFixtureDefinition fixture, Func<IUnitOfWork, CancellationToken, Task<string>> takePartyNumber, DateTimeOffset now, UserId seededBy, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(fixture);
+        ArgumentNullException.ThrowIfNull(takePartyNumber);
         await using KernelDbContext context = KernelDbContextFactory.ForMigrations(migratorConnectionString);
         await using IDbContextTransaction transaction = await context.Database.BeginTransactionAsync(cancellationToken);
 
@@ -46,10 +52,17 @@ internal static class OrganisationFixtureSeeder
         }, cancellationToken);
 
         PartyDefinition party = fixture.CompanyParty;
-        inserted += await AddIfMissingAsync(context, commandId, "Party", party, party.Id, now, by, () => new Party
+        string? partyNumber = null;
+        if (!await context.Parties.AnyAsync(row => row.Id == party.Id, cancellationToken))
+        {
+            // D-64: the number comes from the PARTY series, locked and advanced in this transaction (last lock class, R-LED-08).
+            partyNumber = await takePartyNumber(new SeedingUnitOfWork(context.Database.GetDbConnection(), transaction.GetDbTransaction()), cancellationToken);
+        }
+
+        inserted += await AddIfMissingAsync(context, commandId, "Party", new { party.Id, PartyNumber = partyNumber, party.PartyType, party.Name, party.OrganisationNumber, party.VatNumber, party.CountryCode, party.Language, party.Status, party.DuplicateKey }, party.Id, now, by, () => new Party
         {
             Id = party.Id,
-            PartyNumber = party.PartyNumber.Value,
+            PartyNumber = partyNumber!,
             PartyType = party.PartyType.ToString(),
             Name = party.Name,
             OrganisationNumber = party.OrganisationNumber,
@@ -84,6 +97,7 @@ internal static class OrganisationFixtureSeeder
             PartyId = company.PartyId,
             LegalName = company.LegalName,
             OrganisationNumber = company.OrganisationNumber,
+            OrganisationNumberNormalised = company.OrganisationNumberNormalised,
             VatNumber = company.VatNumber,
             CountryCode = company.CountryCode.Value,
             BaseCurrency = company.BaseCurrency.Value,

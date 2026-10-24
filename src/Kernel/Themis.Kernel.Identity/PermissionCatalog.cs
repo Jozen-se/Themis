@@ -24,6 +24,17 @@ internal static class PermissionCatalog
     public const string SettingSet = "SETTING.SET";
     public const string SettingClear = "SETTING.CLEAR";
     public const string SettingRead = "SETTING.READ";
+    public const string CompanyCreate = "COMPANY.CREATE";
+    public const string CompanyUpdate = "COMPANY.UPDATE";
+    public const string ChartOfAccountsCreate = "CHART_OF_ACCOUNTS.CREATE";
+    public const string ChartOfAccountsUpdate = "CHART_OF_ACCOUNTS.UPDATE";
+    public const string ChartOfAccountsRead = "CHART_OF_ACCOUNTS.READ";
+    public const string SiteCreate = "SITE.CREATE";
+    public const string SiteUpdate = "SITE.UPDATE";
+    public const string SiteRead = "SITE.READ";
+    public const string WarehouseCreate = "WAREHOUSE.CREATE";
+    public const string WarehouseUpdate = "WAREHOUSE.UPDATE";
+    public const string WarehouseRead = "WAREHOUSE.READ";
 
     // The specification's v1 conflict pairs name these commands of later steps and phases; they are pairs, not permissions, until their commands exist.
     public const string CustomerSetCreditLimit = "CUSTOMER.SET_CREDIT_LIMIT";
@@ -48,6 +59,20 @@ internal static class PermissionCatalog
             new(SettingSet, PermissionRiskLevel.Sensitive),
             new(SettingClear, PermissionRiskLevel.Sensitive),
             new(SettingRead, PermissionRiskLevel.Normal),
+            // Step 3 brief (milestone 2): COMPANY.CREATE, COMPANY.UPDATE and the chart header commands are Sensitive; COMPANY.CREATE
+            // and the chart commands act installation-wide (RR-52), as access reviews treat SETTING.SET. The site and warehouse
+            // commands and the four read permissions are Normal.
+            new(CompanyCreate, PermissionRiskLevel.Sensitive),
+            new(CompanyUpdate, PermissionRiskLevel.Sensitive),
+            new(ChartOfAccountsCreate, PermissionRiskLevel.Sensitive),
+            new(ChartOfAccountsUpdate, PermissionRiskLevel.Sensitive),
+            new(ChartOfAccountsRead, PermissionRiskLevel.Normal),
+            new(SiteCreate, PermissionRiskLevel.Normal),
+            new(SiteUpdate, PermissionRiskLevel.Normal),
+            new(SiteRead, PermissionRiskLevel.Normal),
+            new(WarehouseCreate, PermissionRiskLevel.Normal),
+            new(WarehouseUpdate, PermissionRiskLevel.Normal),
+            new(WarehouseRead, PermissionRiskLevel.Normal),
         ],
         [
             // The specification's example conflict pairs for v1 (R-SEC-02), each stored with its codes in order.

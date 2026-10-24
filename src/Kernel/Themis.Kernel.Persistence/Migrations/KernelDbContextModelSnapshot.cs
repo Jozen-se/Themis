@@ -570,7 +570,7 @@ namespace Themis.Kernel.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<Guid>("CompanyId")
+                    b.Property<Guid?>("CompanyId")
                         .HasColumnType("uuid")
                         .HasColumnName("company_id");
 
@@ -658,6 +658,8 @@ namespace Themis.Kernel.Persistence.Migrations
                             t.HasCheckConstraint("ck_number_series_fiscal_year", "(scope = 'PerFiscalYear') = (fiscal_year_id IS NOT NULL)");
 
                             t.HasCheckConstraint("ck_number_series_gapless", "type_requires_gapless = false OR gapless = true");
+
+                            t.HasCheckConstraint("ck_number_series_installation_continuous", "company_id IS NOT NULL OR scope = 'Continuous'");
 
                             t.HasCheckConstraint("ck_number_series_journal_entry", "document_type <> 'JOURNAL_ENTRY' OR (gapless = true AND scope = 'PerFiscalYear')");
 
@@ -1644,6 +1646,12 @@ namespace Themis.Kernel.Persistence.Migrations
                         .HasColumnType("character varying(50)")
                         .HasColumnName("organisation_number");
 
+                    b.Property<string>("OrganisationNumberNormalised")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("organisation_number_normalised");
+
                     b.Property<Guid>("PartyId")
                         .HasColumnType("uuid")
                         .HasColumnName("party_id");
@@ -1706,7 +1714,13 @@ namespace Themis.Kernel.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_company_code");
 
-                    b.HasIndex("PartyId");
+                    b.HasIndex("PartyId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_company_party");
+
+                    b.HasIndex("CountryCode", "OrganisationNumberNormalised")
+                        .IsUnique()
+                        .HasDatabaseName("ux_company_country_organisation_number");
 
                     b.ToTable("company", "kernel", t =>
                         {
@@ -3286,7 +3300,6 @@ namespace Themis.Kernel.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("CompanyId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
                         .HasConstraintName("fk_number_series_company");
 
                     b.HasOne("Themis.Kernel.Persistence.Entities.Documents.DocumentType", null)

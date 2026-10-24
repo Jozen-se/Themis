@@ -3,7 +3,6 @@ using Npgsql;
 using Themis.Kernel.Contracts.Security;
 using Themis.Kernel.Organisation;
 using Themis.Kernel.Persistence;
-using Themis.Kernel.Persistence.Seeding;
 
 namespace Themis.Integration.Tests.Hardening;
 
@@ -72,9 +71,17 @@ public sealed partial class MigrationDriftTests
         try
         {
             await KernelMigrations.ApplyUpToAsync(Migrator(database), MigrationBeforeHardening, Ct);
-            await OrganisationFixtureSeeder.ApplyAsync(Migrator(database), Milestone1OrganisationFixture.Definition, TimeProvider.System.GetUtcNow(), WellKnownUsers.System, Ct);
+            // The database stands at the schema before hardening, which the fixture seeder no longer writes (the company's
+            // organisation_number_normalised and the PARTY series arrive with milestone 2 step 3), so the rows the overlap needs
+            // are written here in that schema's shape: the party, the chart, the company and fiscal year 2026 of the fixture.
             Guid overlap = Guid.NewGuid();
             string system = WellKnownUsers.System.Value.ToString();
+            string audit = $"now(), '{system}', now(), '{system}'";
+            await ExecuteAsync(Migrator(database), $"INSERT INTO kernel.party (id, party_number, party_type, name, organisation_number, country_code, status, duplicate_key, created_at, created_by, updated_at, updated_by) VALUES ('{Milestone1OrganisationFixture.CompanyPartyId}', 'P-000001', 'Organisation', '{Milestone1OrganisationFixture.LegalName}', '{Milestone1OrganisationFixture.OrganisationNumber}', 'SE', 'Active', 'FIXTURE', {audit})");
+            await ExecuteAsync(Migrator(database), $"INSERT INTO kernel.chart_of_accounts (id, code, name, created_at, created_by, updated_at, updated_by) VALUES ('{Milestone1OrganisationFixture.ChartOfAccountsId}', 'BAS', 'BAS-kontoplan', {audit})");
+            await ExecuteAsync(Migrator(database), $"INSERT INTO kernel.company (id, code, party_id, legal_name, organisation_number, country_code, base_currency, time_zone, fiscal_year_start_month, chart_of_accounts_id, rounding_mode, tax_rounding_level, status, created_at, created_by, updated_at, updated_by) VALUES ('{Milestone1OrganisationFixture.CompanyId}', 'SE01', '{Milestone1OrganisationFixture.CompanyPartyId}', '{Milestone1OrganisationFixture.LegalName}', '{Milestone1OrganisationFixture.OrganisationNumber}', 'SE', 'SEK', 'Europe/Stockholm', 1, '{Milestone1OrganisationFixture.ChartOfAccountsId}', 'HalfAwayFromZero', 'Line', 'Active', {audit})");
+            await ExecuteAsync(Migrator(database), $"INSERT INTO kernel.fiscal_year (id, company_id, code, start_date, end_date, status, created_at, created_by, updated_at, updated_by) VALUES ('{Milestone1OrganisationFixture.FiscalYearId}', '{Milestone1OrganisationFixture.CompanyId}', '2026', '2026-01-01', '2026-12-31', 'Open', {audit})");
+            await ExecuteAsync(Migrator(database), $"INSERT INTO kernel.fiscal_period (id, fiscal_year_id, company_id, period_number, start_date, end_date, status, created_at, created_by, updated_at, updated_by) VALUES (gen_random_uuid(), '{Milestone1OrganisationFixture.FiscalYearId}', '{Milestone1OrganisationFixture.CompanyId}', 6, '2026-06-01', '2026-06-30', 'Open', {audit})");
             await ExecuteAsync(Migrator(database), $"INSERT INTO kernel.fiscal_period (id, fiscal_year_id, company_id, period_number, start_date, end_date, status, created_at, created_by, updated_at, updated_by) VALUES ('{overlap}', '{Milestone1OrganisationFixture.FiscalYearId}', '{Milestone1OrganisationFixture.CompanyId}', 13, '2026-06-20', '2026-07-10', 'Open', now(), '{system}', now(), '{system}')");
 
             (int exitCode, string error) = await RunMigratorAsync(database);

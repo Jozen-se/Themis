@@ -66,6 +66,7 @@ internal static class OrganisationModel
             entity.Property(e => e.PartyId).HasColumnName("party_id");
             entity.Property(e => e.LegalName).HasColumnName("legal_name").HasMaxLength(NameLength);
             entity.Property(e => e.OrganisationNumber).HasColumnName("organisation_number").HasMaxLength(50);
+            entity.Property(e => e.OrganisationNumberNormalised).HasColumnName("organisation_number_normalised").HasMaxLength(50);
             entity.Property(e => e.VatNumber).HasColumnName("vat_number").HasMaxLength(50);
             entity.Property(e => e.CountryCode).HasColumnName("country_code").HasMaxLength(2);
             entity.Property(e => e.BaseCurrency).HasColumnName("base_currency").HasMaxLength(3);
@@ -77,6 +78,9 @@ internal static class OrganisationModel
             entity.Property(e => e.PaymentTolerance).HasColumnName("payment_tolerance").HasColumnType("numeric(20,4)");
             entity.Property(e => e.Status).HasColumnName("status").HasMaxLength(20);
             entity.HasIndex(e => e.Code).IsUnique().HasDatabaseName("ux_company_code");
+            // D-64: a party is the own party of at most one company; two companies never share an organisation number in one country (R-MD-05).
+            entity.HasIndex(e => e.PartyId).IsUnique().HasDatabaseName("ux_company_party");
+            entity.HasIndex(e => new { e.CountryCode, e.OrganisationNumberNormalised }).IsUnique().HasDatabaseName("ux_company_country_organisation_number");
             entity.HasOne<Party>().WithMany().HasForeignKey(e => e.PartyId).HasConstraintName("fk_company_party").OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<ChartOfAccounts>().WithMany().HasForeignKey(e => e.ChartOfAccountsId).HasConstraintName("fk_company_chart_of_accounts").OnDelete(DeleteBehavior.Restrict);
             entity.ToTable(table =>

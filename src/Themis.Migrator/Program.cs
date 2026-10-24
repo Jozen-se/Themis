@@ -140,7 +140,13 @@ public static class Program
             {
                 // The milestone 1 fixtures (brief, steps 3 and 4), written by the migrator only and idempotent.
                 OrganisationFixtureDefinition organisation = Milestone1OrganisationFixture.Definition;
-                int inserted = await OrganisationFixtureSeeder.ApplyAsync(connectionString, organisation, now, WellKnownUsers.System, CancellationToken.None);
+                // D-64: the fixture party's number comes from the PARTY series through the numbering service COMPANY.CREATE uses.
+                NumberSeriesService numbering = new();
+                int inserted = await OrganisationFixtureSeeder.ApplyAsync(connectionString, organisation, async (unitOfWork, cancellationToken) =>
+                {
+                    Result<IReadOnlyList<NumberTaken>> taken = await numbering.TakeInstallationAsync(unitOfWork, [new NumberRequest(DocumentTypes.Party)], now, WellKnownUsers.System, cancellationToken);
+                    return taken.IsSuccess ? taken.Value[0].Number : throw new InvalidOperationException($"The PARTY series is missing: {taken.Primary}");
+                }, now, WellKnownUsers.System, CancellationToken.None);
                 Console.WriteLine($"Fixture '{fixture}' (organisation): {inserted} row(s) inserted, the rest already present.");
 
                 // R-SEC-02: a role or an assignment that would give one user both permissions of a conflict pair is refused.

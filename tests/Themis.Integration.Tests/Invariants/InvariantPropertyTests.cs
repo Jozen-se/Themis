@@ -69,8 +69,12 @@ public sealed class InvariantPropertyTests : IAsyncLifetime
     {
         _template = await _db.CreateSeededDatabaseAsync(Ct);
         string system = WellKnownUsers.System.Value.ToString();
-        await ExecuteAsync(new NpgsqlConnectionStringBuilder(_template) { Username = "themis_migrator", Password = PostgresFixture.TestRolePassword }.ConnectionString,
+        string migrator = new NpgsqlConnectionStringBuilder(_template) { Username = "themis_migrator", Password = PostgresFixture.TestRolePassword }.ConnectionString;
+        await ExecuteAsync(migrator,
             $"INSERT INTO kernel.warehouse (id, site_id, company_id, code, name, is_default, status, created_at, created_by, updated_at, updated_by) VALUES ('{SecondWarehouse}', '{Milestone1OrganisationFixture.SiteId}', '{Company}', 'PROP-W2', 'Property fixture warehouse 2', false, 'Active', now(), '{system}', now(), '{system}')");
+        // RR-74 (milestone 2 step 3): the property runs post under HalfEven, switched on SE01 in the template before its first
+        // posting, which R-MD-06 still allows (a company created by command cannot post before steps 5 and 6).
+        await ExecuteAsync(migrator, $"UPDATE kernel.company SET rounding_mode = 'HalfEven' WHERE id = '{Company}'");
     }
 
     public async ValueTask DisposeAsync() => await _db.DropDatabaseAsync(_template, CancellationToken.None);

@@ -5,6 +5,12 @@ using Themis.Kernel.Primitives;
 
 namespace Themis.Kernel.Posting;
 
+/// <summary>
+/// The company attributes a posting uses, read under the FOR SHARE of lock class 1b (D-65): the base currency, its
+/// minor units (R-MON-02) and the rounding mode (RR-74). Nothing else may change them while the share lock is held.
+/// </summary>
+internal sealed record CompanyTerms(string BaseCurrency, int MinorUnits, RoundingMode RoundingMode);
+
 /// <summary>A locked ItemCostState row (lock class 2).</summary>
 internal sealed record CostStateRow(Guid Id, Guid ItemId, CostState State, long Version);
 
@@ -30,6 +36,30 @@ internal sealed record InventoryEntryRow(Guid Id, Guid ItemId, Guid WarehouseId,
 /// </summary>
 internal static class LedgerStore
 {
+    /// <summary>
+    /// Lock class 1b (D-65, Lock order): SELECT ... FOR SHARE of the company row alone, never FOR KEY SHARE, which an
+    /// ordinary UPDATE passes. A COMPANY.UPDATE's versioned UPDATE of the row waits until this transaction ends; a
+    /// posting that waited behind a committed update reads the row as the update left it. The currency's minor units are
+    /// read in a second statement: a join inside the locking statement would be re-checked against the currency row read
+    /// before the wait, so a base currency changed meanwhile would make the locked row vanish instead of being seen.
+    /// </summary>
+    public static async Task<CompanyTerms> LockCompanyTermsAsync(IUnitOfWork unitOfWork, Guid companyId, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<(string Currency, RoundingMode Mode)> rows = await unitOfWork.QueryAsync(DatabaseRole.Kernel,
+            "SELECT base_currency, rounding_mode FROM kernel.company WHERE id = @company FOR SHARE",
+            new Dictionary<string, object?> { ["company"] = companyId },
+            reader => (reader.GetString(0), Enum.Parse<RoundingMode>(reader.GetString(1))),
+            cancellationToken);
+        if (rows.Count != 1)
+        {
+            throw new InvalidOperationException($"Company {companyId} has no row to lock for posting (D-65).");
+        }
+
+        (string currency, RoundingMode mode) = rows[0];
+        object? minorUnits = await unitOfWork.ScalarAsync(DatabaseRole.Kernel, "SELECT minor_units FROM kernel.currency WHERE code = @code", new Dictionary<string, object?> { ["code"] = currency }, cancellationToken);
+        return minorUnits is int units ? new CompanyTerms(currency, units, mode) : throw new InvalidOperationException($"Currency {currency} of company {companyId} has no row (fk_company_base_currency).");
+    }
+
     /// <summary>Lock class 2: insert the missing ItemCostState rows in one ordered statement, then lock them all in one SELECT ... ORDER BY item_id FOR UPDATE.</summary>
     public static async Task<IReadOnlyList<CostStateRow>> LockCostStatesAsync(IUnitOfWork unitOfWork, Guid companyId, IReadOnlyList<Guid> itemIds, DateTimeOffset now, UserId by, CancellationToken cancellationToken)
     {

@@ -17,7 +17,7 @@ public enum NumberSeriesScope
 /// </summary>
 public sealed record NumberSeriesDefinition(
     Guid Id,
-    Guid CompanyId,
+    Guid? CompanyId,
     string DocumentType,
     NumberSeriesScope Scope,
     Guid? FiscalYearId,
@@ -46,6 +46,13 @@ public sealed record NumberTaken(NumberRequest Request, Guid SeriesId, string Nu
 public interface INumberSeriesService
 {
     Task<Result<IReadOnlyList<NumberTaken>>> TakeAsync(IUnitOfWork unitOfWork, Guid companyId, IReadOnlyList<NumberRequest> requests, DateTimeOffset now, UserId takenBy, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The same for the installation-level series, those with an empty company (milestone 2 step 3, D-64): the PARTY
+    /// series of party numbers. Continuous only, so a request never names a fiscal year; the same one-statement
+    /// FOR UPDATE and the same rejection under R-DOC-08 when the series does not exist.
+    /// </summary>
+    Task<Result<IReadOnlyList<NumberTaken>>> TakeInstallationAsync(IUnitOfWork unitOfWork, IReadOnlyList<NumberRequest> requests, DateTimeOffset now, UserId takenBy, CancellationToken cancellationToken);
 }
 
 /// <summary>The one way a number is written (Specification, NumberSeries): the prefix, then the sequence padded to at least the padding width.</summary>

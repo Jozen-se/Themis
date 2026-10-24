@@ -1,5 +1,6 @@
 using Npgsql;
 using Testcontainers.PostgreSql;
+using Themis.Kernel.Organisation;
 
 namespace Themis.Integration.Tests;
 
@@ -69,12 +70,52 @@ public sealed class PostgresFixture : IAsyncLifetime
     /// Removes every row the pipeline tests wrote, the ledgers and caches of step 8 included, through the cleanup seam
     /// (the D-60 triggers refuse even the table owner), so each test class starts from empty tables; the seeded rows stay,
     /// and the seeded number series are wound back to their first number (version 1) since numbering tests advance them.
+    /// Since milestone 2 step 3 it also removes the companies, parties, sites, warehouses, charts and role assignments
+    /// the organisation command tests create, restores SE01, its party, site, warehouse and chart to the fixture's values
+    /// at version 1, and winds the PARTY series back to the number after the fixture's party, not to 1, since the fixture
+    /// party took P-000001 from it (D-64).
     /// </summary>
     public async Task TruncateAsync(CancellationToken cancellationToken) =>
         await CleanupAsync(
             "TRUNCATE kernel.idempotency_record, kernel.outbox_event, kernel.setting_value, kernel.journal_line, kernel.journal_entry, kernel.inventory_entry, kernel.stock_balance, kernel.item_cost_state, kernel.document_line, kernel.inventory_adjustment, kernel.document, kernel.item_company, kernel.item, fixture.counter; " +
             "DELETE FROM kernel.audit_event WHERE command_name NOT LIKE 'SYSTEM.%'; " +
-            "UPDATE kernel.number_series SET next_number = 1, version = 1", cancellationToken);
+            OrganisationCleanupSql +
+            "UPDATE kernel.number_series SET next_number = CASE WHEN company_id IS NULL AND document_type = 'PARTY' THEN 2 ELSE 1 END, version = 1", cancellationToken);
+
+    /// <summary>The organisation rows the step 3 tests create, removed, and the fixture's own rows restored (milestone 2 step 3).</summary>
+    private static string OrganisationCleanupSql
+    {
+        get
+        {
+            Guid company = Milestone1OrganisationFixture.CompanyId;
+            Guid party = Milestone1OrganisationFixture.CompanyPartyId;
+            Guid chart = Milestone1OrganisationFixture.ChartOfAccountsId;
+            Guid site = Milestone1OrganisationFixture.SiteId;
+            Guid warehouse = Milestone1OrganisationFixture.WarehouseId;
+            string legalName = Milestone1OrganisationFixture.LegalName.Replace("'", "''", StringComparison.Ordinal);
+            string organisationNumber = Milestone1OrganisationFixture.OrganisationNumber;
+            string vatNumber = Milestone1OrganisationFixture.VatNumber;
+            string normalised = DuplicateKeys.Normalise(organisationNumber);
+            string duplicateKey = DuplicateKeys.ForParty(organisationNumber, vatNumber, Milestone1OrganisationFixture.LegalName, postalCode: null);
+            return
+                $"DELETE FROM kernel.role_assignment WHERE company_id <> '{company}'; " +
+                $"DELETE FROM kernel.number_series WHERE company_id IS NOT NULL AND company_id <> '{company}'; " +
+                $"DELETE FROM kernel.posting_profile_rule WHERE company_id <> '{company}'; " +
+                $"DELETE FROM kernel.account WHERE chart_id <> '{chart}'; " +
+                $"DELETE FROM kernel.fiscal_period WHERE company_id <> '{company}'; " +
+                $"DELETE FROM kernel.fiscal_year WHERE company_id <> '{company}'; " +
+                $"DELETE FROM kernel.warehouse WHERE id <> '{warehouse}'; " +
+                $"DELETE FROM kernel.site WHERE id <> '{site}'; " +
+                $"DELETE FROM kernel.company WHERE id <> '{company}'; " +
+                $"DELETE FROM kernel.party WHERE id <> '{party}'; " +
+                $"DELETE FROM kernel.chart_of_accounts WHERE id <> '{chart}'; " +
+                $"UPDATE kernel.company SET legal_name = '{legalName}', organisation_number = '{organisationNumber}', organisation_number_normalised = '{normalised}', vat_number = '{vatNumber}', country_code = 'SE', base_currency = 'SEK', time_zone = 'Europe/Stockholm', fiscal_year_start_month = 1, chart_of_accounts_id = '{chart}', rounding_mode = 'HalfAwayFromZero', tax_rounding_level = 'Line', status = 'Active', version = 1 WHERE id = '{company}'; " +
+                $"UPDATE kernel.party SET name = '{legalName}', organisation_number = '{organisationNumber}', vat_number = '{vatNumber}', country_code = 'SE', duplicate_key = '{duplicateKey}', status = 'Active', version = 1 WHERE id = '{party}'; " +
+                $"UPDATE kernel.site SET name = 'Main site', time_zone = NULL, version = 1 WHERE id = '{site}'; " +
+                $"UPDATE kernel.warehouse SET name = 'Main warehouse', is_default = true, status = 'Active', version = 1 WHERE id = '{warehouse}'; " +
+                $"UPDATE kernel.chart_of_accounts SET name = 'BAS-kontoplan', template = 'BAS 2026', version = 1 WHERE id = '{chart}'; ";
+        }
+    }
 
     /// <summary>
     /// The test cleanup seam of milestone 2 step 2b (docs/development/test-seams.md; D-60): runs the statements as the

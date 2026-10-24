@@ -5,7 +5,8 @@ namespace Themis.Kernel.Organisation;
 
 /// <summary>
 /// The organisation fixture of milestone 1 step 3 (approved step brief): installation THEMIS-DEV (sv-SE, Active);
-/// the company's own party (Organisation, SE, a fixed party number until the series of step 7); company SE01 with a
+/// the company's own party (Organisation, SE; its number comes from the installation-level PARTY series when the
+/// seeder inserts it, milestone 2 step 3, D-64, so the first fixture party is P-000001); company SE01 with a
 /// clearly fictitious legal name and organisation number, SE, SEK, Europe/Stockholm, fiscal year start month 1,
 /// HalfAwayFromZero, tax rounding level Line (test value until D-10), no payment tolerance, chart BAS (header only),
 /// Active; one site; one default warehouse; fiscal year 2026 (2026-01-01 to 2026-12-31), Open, 12 monthly periods,
@@ -52,7 +53,6 @@ internal static class Milestone1OrganisationFixture
             new InstallationDefinition(InstallationId, Code.From(InstallationCode), "Themis development installation", InstallationStatus.Active, "sv-SE"),
             new PartyDefinition(
                 CompanyPartyId,
-                Code.From("P-000001"),
                 PartyType.Organisation,
                 LegalName,
                 OrganisationNumber,
@@ -68,6 +68,7 @@ internal static class Milestone1OrganisationFixture
                 CompanyPartyId,
                 LegalName,
                 OrganisationNumber,
+                DuplicateKeys.Normalise(OrganisationNumber),
                 VatNumber,
                 sweden,
                 CurrencyCode.From("SEK"),

@@ -56,12 +56,16 @@ public sealed record DocumentTypeDefinition(
 /// to kernel.document_type and kernel.document_transition by Themis.Migrator on every run; the state machine engine
 /// and event naming read the tables. INVENTORY_ADJUSTMENT has its four transitions (POST registered here, its
 /// command built in step 8, R-LED-05); JOURNAL_ENTRY is a numbering-only row so that journal entry series can name
-/// it. The engine and every registry check skip numbering-only rows.
+/// it. The engine and every registry check skip numbering-only rows. PARTY (milestone 2 step 3, D-64) is the
+/// second numbering-only row, so the installation-level party series can name it; its row is inserted by the
+/// migration that seeds the series, because the migrator applies migrations before it writes the registry, and the
+/// seeder aligns it afterwards like every other row.
 /// </summary>
 public static class DocumentTypes
 {
     public const string InventoryAdjustment = "INVENTORY_ADJUSTMENT";
     public const string JournalEntry = "JOURNAL_ENTRY";
+    public const string Party = "PARTY";
 
     public const string CreateVerb = "CREATE";
     public const string UpdateVerb = "UPDATE";
@@ -81,6 +85,8 @@ public static class DocumentTypes
             new(PostVerb, DocumentStatus.Draft, DocumentStatus.Posted, InventoryAdjustedEvent),
         ]),
         new(JournalEntry, NumberAssignment.NumberingOnly, Gapless: true, PostsInventory: false, PostsGeneralLedger: false, PartyRole: null, []),
+        // Specification, NumberSeries: party numbers are not legal document numbers, so the PARTY series is not gapless.
+        new(Party, NumberAssignment.NumberingOnly, Gapless: false, PostsInventory: false, PostsGeneralLedger: false, PartyRole: null, []),
     ];
 
     public static DocumentTypeDefinition? Find(string code) => All.FirstOrDefault(type => string.Equals(type.Code, code, StringComparison.Ordinal));

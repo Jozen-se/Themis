@@ -33,23 +33,25 @@ public sealed class IdentityFixtureTests
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
-    public async Task RR_101_the_fixture_holds_the_system_user_the_clerk_the_preparer_the_settings_administrator_four_roles_and_their_assignments_in_SE01()
+    public async Task RR_101_the_fixture_holds_the_system_user_the_clerk_the_preparer_the_settings_and_organisation_administrators_five_roles_and_their_assignments_in_SE01()
     {
         await using NpgsqlConnection connection = await PostgresFixture.OpenAsync(_db.SuperuserConnectionString, Ct);
 
-        Assert.Equal(4L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.user_account"));
+        // The system user, the clerk, the preparer, the settings administrator (RR-101) and the organisation administrator (milestone 2 step 3).
+        Assert.Equal(5L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.user_account"));
         Assert.Equal("Active", await ScalarAsync(connection, "SELECT status FROM kernel.user_account WHERE id = @id", ("id", WellKnownUsers.System.Value)));
         Assert.Equal(true, await ScalarAsync(connection, "SELECT is_service_account FROM kernel.user_account WHERE id = @id", ("id", WellKnownUsers.System.Value)));
         Assert.Equal(WellKnownUsers.SystemSubject, await ScalarAsync(connection, "SELECT external_subject FROM kernel.user_account WHERE id = @id", ("id", WellKnownUsers.System.Value)));
         Assert.Equal(Milestone1IdentityFixture.ClerkSubject, await ScalarAsync(connection, "SELECT external_subject FROM kernel.user_account WHERE id = @id", ("id", Milestone1IdentityFixture.ClerkId)));
         Assert.Equal(Milestone1IdentityFixture.PreparerSubject, await ScalarAsync(connection, "SELECT external_subject FROM kernel.user_account WHERE id = @id", ("id", Milestone1IdentityFixture.PreparerId)));
         Assert.Equal(Milestone1IdentityFixture.SettingsAdministratorSubject, await ScalarAsync(connection, "SELECT external_subject FROM kernel.user_account WHERE id = @id", ("id", Milestone1IdentityFixture.SettingsAdministratorId)));
+        Assert.Equal(Milestone1IdentityFixture.OrganisationAdministratorSubject, await ScalarAsync(connection, "SELECT external_subject FROM kernel.user_account WHERE id = @id", ("id", Milestone1IdentityFixture.OrganisationAdministratorId)));
 
         // The integration tests' fixture bootstrap adds the test-only FIXTURE_TESTER role for the fixture module's touch command (FixtureSchema); the seeded rows are counted without it.
-        Assert.Equal(4L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.role WHERE id <> @fixture", ("fixture", FixtureSchema.TouchRoleId)));
-        Assert.Equal(12L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.role_permission WHERE role_id <> @fixture", ("fixture", FixtureSchema.TouchRoleId)));
-        Assert.Equal(5L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.role_assignment WHERE role_id <> @fixture", ("fixture", FixtureSchema.TouchRoleId)));
-        Assert.Equal(5L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.role_assignment WHERE company_id = @company AND site_id IS NULL AND valid_to IS NULL AND role_id <> @fixture", ("company", Milestone1OrganisationFixture.CompanyId), ("fixture", FixtureSchema.TouchRoleId)));
+        Assert.Equal(5L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.role WHERE id <> @fixture", ("fixture", FixtureSchema.TouchRoleId)));
+        Assert.Equal(24L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.role_permission WHERE role_id <> @fixture", ("fixture", FixtureSchema.TouchRoleId)));
+        Assert.Equal(6L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.role_assignment WHERE role_id <> @fixture", ("fixture", FixtureSchema.TouchRoleId)));
+        Assert.Equal(6L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.role_assignment WHERE company_id = @company AND site_id IS NULL AND valid_to IS NULL AND role_id <> @fixture", ("company", Milestone1OrganisationFixture.CompanyId), ("fixture", FixtureSchema.TouchRoleId)));
         Assert.Equal(new DateOnly(2026, 1, 1), await ScalarAsync(connection, "SELECT min(valid_from) FROM kernel.role_assignment"));
         Assert.Equal(WellKnownUsers.System.Value, await ScalarAsync(connection, "SELECT DISTINCT assigned_by FROM kernel.role_assignment"));
 
@@ -64,6 +66,9 @@ public sealed class IdentityFixtureTests
         Assert.Equal(1L, await ScalarAsync(connection, permissionsOf, ("user", Milestone1IdentityFixture.SettingsAdministratorId), ("permission", "SETTING.SET")));
         Assert.Equal(0L, await ScalarAsync(connection, permissionsOf, ("user", Milestone1IdentityFixture.ClerkId), ("permission", "SETTING.SET")));
         Assert.Equal(0L, await ScalarAsync(connection, permissionsOf, ("user", Milestone1IdentityFixture.ClerkId), ("permission", "SETTING.READ")));
+        // Milestone 2 step 3: the organisation commands belong to the organisation administrator, not to the clerk.
+        Assert.Equal(1L, await ScalarAsync(connection, permissionsOf, ("user", Milestone1IdentityFixture.OrganisationAdministratorId), ("permission", "COMPANY.CREATE")));
+        Assert.Equal(0L, await ScalarAsync(connection, permissionsOf, ("user", Milestone1IdentityFixture.ClerkId), ("permission", "COMPANY.CREATE")));
     }
 
     [Fact]
@@ -106,12 +111,13 @@ public sealed class IdentityFixtureTests
         // The settings tests register test-only definitions (test.*) in the shared database through the same seeder; they are not the catalogue's.
         const string catalogueAudit = "FROM kernel.audit_event WHERE command_name = 'SYSTEM.SEED_CATALOGUE' AND NOT (entity_type = 'SettingDefinition' AND entity_id IN (SELECT id FROM kernel.setting_definition WHERE key LIKE 'test.%'))";
 
-        // 3 users (the settings administrator since milestone 2 step 2a, RR-101), 4 roles (the settings administrator role
-        // since milestone 2 step 2), 12 role permissions, 5 assignments.
-        Assert.Equal(3L + 4L + 12L + 5L, await ScalarAsync(connection, $"SELECT count(*) {fixtureAudit}"));
-        Assert.Equal(24L, await ScalarAsync(connection, $"SELECT count(DISTINCT entity_id) {fixtureAudit}"));
+        // 4 users (the settings administrator since milestone 2 step 2a, RR-101; the organisation administrator since
+        // milestone 2 step 3), 5 roles, 24 role permissions, 6 assignments.
+        Assert.Equal(4L + 5L + 24L + 6L, await ScalarAsync(connection, $"SELECT count(*) {fixtureAudit}"));
+        Assert.Equal(39L, await ScalarAsync(connection, $"SELECT count(DISTINCT entity_id) {fixtureAudit}"));
         // SYSTEM.SEED_CATALOGUE also covers the document type registry since step 7 (D-40): one event per type and per transition.
-        long registryRows = DocumentTypes.All.Count + DocumentTypes.All.Sum(type => type.Transitions.Count);
+        // The PARTY type is written by the OrganisationCommands migration (milestone 2 step 3, SYSTEM.MIGRATE), not by the catalogue seeder.
+        long registryRows = DocumentTypes.All.Count(type => type.Code != DocumentTypes.Party) + DocumentTypes.All.Sum(type => type.Transitions.Count);
         // Since milestone 2 step 2 it also covers the settings catalogue (D-58): one event per definition.
         Assert.Equal(PermissionCatalog.Definition.Permissions.Count + PermissionCatalog.Definition.Conflicts.Count + registryRows + SettingCatalog.Definitions.Count, await ScalarAsync(connection, $"SELECT count(*) {catalogueAudit}"));
         Assert.Equal(WellKnownUsers.System.Value, await ScalarAsync(connection, $"SELECT DISTINCT user_id {fixtureAudit}"));
@@ -120,8 +126,8 @@ public sealed class IdentityFixtureTests
 
         Assert.Equal(0, await Themis.Migrator.Program.RunAsync(["--connection", _db.ConnectionStringFor("themis_migrator"), "--fixture", "milestone-1"], PostgresFixture.MigratorEnvironment));
 
-        Assert.Equal(24L, await ScalarAsync(connection, $"SELECT count(*) {fixtureAudit}"));
-        Assert.Equal(4L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.user_account"));
+        Assert.Equal(39L, await ScalarAsync(connection, $"SELECT count(*) {fixtureAudit}"));
+        Assert.Equal(5L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.user_account"));
         Assert.Equal((long)PermissionCatalog.Definition.Permissions.Count, await ScalarAsync(connection, "SELECT count(*) FROM kernel.permission WHERE code NOT LIKE 'FIXTURE.%'"));
     }
 

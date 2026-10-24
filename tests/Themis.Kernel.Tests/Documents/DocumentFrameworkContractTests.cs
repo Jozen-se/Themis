@@ -31,12 +31,17 @@ public sealed class DocumentFrameworkContractTests
         new(company ?? Company, BusinessDate.Parse("2026-06-15"), ReasonCode.CountDifference, Warehouse, externalReference, null, lines);
 
     [Fact]
-    public void D_40_the_registry_lists_INVENTORY_ADJUSTMENT_with_four_transitions_and_JOURNAL_ENTRY_as_numbering_only()
+    public void D_40_D_64_the_registry_lists_INVENTORY_ADJUSTMENT_with_four_transitions_and_JOURNAL_ENTRY_and_PARTY_as_numbering_only()
     {
         DocumentTypeDefinition adjustment = DocumentTypes.Get(DocumentTypes.InventoryAdjustment);
         DocumentTypeDefinition journal = DocumentTypes.Get(DocumentTypes.JournalEntry);
+        DocumentTypeDefinition party = DocumentTypes.Get(DocumentTypes.Party);
 
-        Assert.Equal(2, DocumentTypes.All.Count);
+        Assert.Equal(3, DocumentTypes.All.Count);
+        // D-64: party numbers are not legal document numbers, so the PARTY row is numbering only and not gapless (Specification, NumberSeries).
+        Assert.True(party.IsNumberingOnly);
+        Assert.False(party.Gapless);
+        Assert.Empty(party.Transitions);
         Assert.Equal(NumberAssignment.OnPost, adjustment.NumberAssigned);
         Assert.False(adjustment.Gapless);
         Assert.True(adjustment.PostsInventory);

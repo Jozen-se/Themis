@@ -78,13 +78,15 @@ runs only in tests and local development, never as part of a production migratio
 a fixture loads only when `DOTNET_ENVIRONMENT` is `Development`, `Test` or `Testing` (any letter case); unset means
 Production, and the run stops with exit code 9 before it opens a connection. The tests name their environment
 (`Testing`) when they call the migrator in process. It is one installation
-`THEMIS-DEV` (sv-SE), the company's own party `P-000001` (Themis Fictitious Fasteners AB, organisation number
-555555-5555, SE), the chart of accounts `BAS` (header only), company `SE01` (SEK, Europe/Stockholm, fiscal year start
-month 1, HalfAwayFromZero, tax rounding level Line as a test value until D-10, no payment tolerance), site `MAIN`,
-default warehouse `MAIN` and fiscal year 2026 with 12 monthly periods, period 1 Closed and periods 2 to 12 Open. Every
-value is test data with fixed identifiers; the rows are written by `themis_migrator` with the system user as
-`created_by`, each with one audit event under command name `SYSTEM.SEED_FIXTURE` (R-AUD-01), and a second run
-inserts nothing. Its definition lives in `Themis.Kernel.Organisation` (`Milestone1OrganisationFixture`) and the
+`THEMIS-DEV` (sv-SE), the company's own party (Themis Fictitious Fasteners AB, organisation number 555555-5555, SE;
+since milestone 2 step 3 its number `P-000001` is taken from the installation-level PARTY series the
+`OrganisationCommands` migration creates, through `NumberSeriesService` on the seeder's own connection, so the series
+stands at 2 after the fixture, D-64), the chart of accounts `BAS` (header only), company `SE01` (SEK,
+Europe/Stockholm, fiscal year start month 1, HalfAwayFromZero, tax rounding level Line as a test value until D-10, no
+payment tolerance), site `MAIN`, default warehouse `MAIN` and fiscal year 2026 with 12 monthly periods, period 1 Closed
+and periods 2 to 12 Open. Every value but the party number is test data with fixed identifiers; the rows are written by
+`themis_migrator` with the system user as `created_by`, each with one audit event under command name
+`SYSTEM.SEED_FIXTURE` (R-AUD-01), and a second run inserts nothing. Its definition lives in `Themis.Kernel.Organisation` (`Milestone1OrganisationFixture`) and the
 writer in `Themis.Kernel.Persistence` (`OrganisationFixtureSeeder`). The identity fixture of step 4 (users, roles
 and assignments, see Identity below) is seeded with it by `IdentitySeeder`, after the segregation-of-duties check
 (R-SEC-02); a fixture that fails the check makes the migrator exit with code 4. The master data fixture of step 5
@@ -101,6 +103,7 @@ The organisation reads (`IOrganisationReader` in Contracts, implemented in `Them
 company, the warehouse with its site and company, the business date of a UTC instant in the company's time zone
 (R-TIME-01) and the fiscal period of a business date, rejected with R-LED-04 outside every fiscal year. The company
 is also served by `GET /v1/kernel/companies/{id}` (permission `COMPANY.READ`), the first query of the pipeline.
+Since milestone 2 step 3 the organisation is also written through the API: see Organisation commands below.
 
 Migrations live in `src/Kernel/Themis.Kernel.Persistence/Migrations` and are generated with the pinned tool:
 
@@ -208,7 +211,8 @@ compares every table privilege in `kernel`, `reporting` and `fixture` with the d
 
 The command pipeline tests start an in-memory host (`tests/Themis.Integration.Tests/Pipeline`) wired like
 `Themis.Host`, with the fixture module's two commands on `/v1/fixture/counters`, the kernel's own commands and
-queries (the company read, `ITEM.CREATE` and the item reads, the inventory adjustments) and the real identity
+queries (the company read, `ITEM.CREATE` and the item reads, the inventory adjustments, the settings, and since
+milestone 2 step 3 the organisation commands and reads) and the real identity
 capability behind the test token issuer: the tests mint bearer tokens for the fixture's users (see Identity below).
 Create shares `ITEM.CREATE` with the real command and touch runs under the test-only permission `FIXTURE.TOUCH` (see
 Documents below); the post stand-in of step 4 retired in step 8, whose permission tests run against the real
@@ -216,7 +220,8 @@ Documents below); the post stand-in of step 4 retired in step 8, whose permissio
 The fixture commands take a `failure` member that injects a rejection, an exception, a serialization failure on the
 first attempt or a write to a kernel table after the business write, so the tests prove what the pipeline leaves
 behind in each case. The test implementations of the kernel's seams (the posting hook's `PostingFailureSwitch` and
-`TestPostingHook`, the relay's `TestOutboxRelaySeam`) live in `tests/Themis.Integration.Tests/Pipeline/TestSeams.cs`
+`TestPostingHook`, the relay's `TestOutboxRelaySeam`, the organisation create and company update seams of milestone 2
+step 3) live in `tests/Themis.Integration.Tests/Pipeline/TestSeams.cs`
 and are registered before the kernel's registrations, which keep them; the register of every test-only part is
 `docs/development/test-seams.md` (Build Brief, Test seams).
 
@@ -484,7 +489,12 @@ per company, type and fiscal year (`NULLS NOT DISTINCT`), gapless where the type
 `type_requires_gapless` is tied to the registry by a composite foreign key), JOURNAL_ENTRY series always gapless and
 PerFiscalYear. `--fixture milestone-1` seeds two series for SE01 under `SYSTEM.SEED_FIXTURE`: INVENTORY_ADJUSTMENT
 continuous, prefix `IA-`, padding 6, not gapless (`IA-000001` first), and JOURNAL_ENTRY per fiscal year 2026, prefix
-`JE2026-`, padding 6, gapless (`JE2026-000001` first). Posting is the first caller (see Posting below).
+`JE2026-`, padding 6, gapless (`JE2026-000001` first). Posting is the first caller (see Posting below). Since
+milestone 2 step 3 a series may belong to the installation instead of a company (`company_id` empty, Continuous only,
+`ck_number_series_installation_continuous`): the `OrganisationCommands` migration registers the numbering-only type
+PARTY and one installation-level PARTY series (prefix `P-`, padding 6, not gapless) with an audit event each under
+`SYSTEM.MIGRATE`, and `INumberSeriesService.TakeInstallationAsync` takes from such a series (D-64); a company-scoped
+request for a type the company has no series of, or an installation request for a company type, is R-DOC-08.
 
 The fixture module's touch command no longer stands in for INVENTORY_ADJUSTMENT.UPDATE: the optimistic concurrency
 and ETag tests run against the real command, while the touch command keeps the failure injection under the
@@ -681,9 +691,10 @@ installation only; stamped on the record at insert, so a change applies to recor
 `document.max_lines` (1,000, 1 to 10,000, installation or company; inventory adjustment CREATE and UPDATE reject more
 lines with 400 `line_limit_exceeded`, stored as the key's result), `inventory.negative_stock_allowed` (false, company
 or warehouse, locked until a costing rule for negative quantities exists, D-09), and the Column-backed
-`company.rounding_mode` and `company.tax_rounding_level`, readable through SETTING.READ with source Column and changed
-only by COMPANY.UPDATE (milestone 2 step 3; D-10 stays open). Every other configurable default of the list is a Data
-or Planned definition.
+`company.rounding_mode` and `company.tax_rounding_level`, readable through SETTING.READ with source Column, set by
+COMPANY.CREATE (the rounding mode from this documented default when the body leaves it out, P-11) and changed by
+COMPANY.UPDATE until the company's first posting, or first posted tax line for the VAT level (milestone 2 step 3;
+R-MD-06, D-65; D-10 stays open). Every other configurable default of the list is a Data or Planned definition.
 
 The purge of expired idempotency records (RR-42; R-AUD-01 as amended by D-58) is a pass beside the relay
 (`IdempotencyPurgePass`, `Themis.Kernel.Messaging`), run by the host's `IdempotencyPurgeHostedService` on a timer
@@ -700,7 +711,119 @@ run with the purge disabled and call the pass directly.
 Test seams: the definition seam (`ISettingDefinitionSeam`) lets the integration tests add a history-bearing
 definition and one writable at every level beside the catalogue, and the write seam (`ISettingWriteSeam`) pauses a
 write after its version check for the race test (docs/development/test-seams.md). Not in step 2: unlocking negative
-stock, moving the rounding columns, any Planned definition's feature, a settings cache, COMPANY.UPDATE (step 3).
+stock, moving the rounding columns, any Planned definition's feature, a settings cache; COMPANY.UPDATE came with step 3.
+
+## Organisation commands
+
+Milestone 2 step 3 brings the organisation commands (step 3 brief; D-64, D-65, R-MD-06, RR-74): the chart of accounts
+header, the company, the site and the warehouse get CREATE and UPDATE and a read each, all through the command pipeline
+with its permission, Idempotency-Key, If-Match on changes, audit events and outbox event (Build Brief, Conventions).
+The capability lives in `Themis.Kernel.Organisation`; the contracts in `Themis.Kernel.Contracts.Organisation`
+(`OrganisationCommands.cs`, `OrganisationRoutes`).
+
+| Command or read | Route | Permission (risk) | Scope |
+|---|---|---|---|
+| `CHART_OF_ACCOUNTS.CREATE` | `POST /v1/kernel/charts-of-accounts` | `CHART_OF_ACCOUNTS.CREATE` (Sensitive) | installation |
+| `CHART_OF_ACCOUNTS.UPDATE` | `POST /v1/kernel/charts-of-accounts/{id}/update` | `CHART_OF_ACCOUNTS.UPDATE` (Sensitive) | installation |
+| `CHART_OF_ACCOUNTS.READ` | `GET /v1/kernel/charts-of-accounts/{id}`, `GET /v1/kernel/charts-of-accounts` | `CHART_OF_ACCOUNTS.READ` | installation |
+| `COMPANY.CREATE` | `POST /v1/kernel/companies` | `COMPANY.CREATE` (Sensitive) | installation |
+| `COMPANY.UPDATE` | `POST /v1/kernel/companies/{id}/update` | `COMPANY.UPDATE` (Sensitive) | the company of the record |
+| `SITE.CREATE` | `POST /v1/kernel/sites` | `SITE.CREATE` | the company in the body |
+| `SITE.UPDATE` | `POST /v1/kernel/sites/{id}/update` | `SITE.UPDATE` | the site's company |
+| `SITE.READ` | `GET /v1/kernel/companies/{companyId}/sites/{id}`, `GET /v1/kernel/companies/{companyId}/sites` | `SITE.READ` | the company of the route |
+| `WAREHOUSE.CREATE` | `POST /v1/kernel/warehouses` | `WAREHOUSE.CREATE` | the site in the body, read from the site row (its company and id); a site that does not exist or belongs to another company than the body names declares the body's company, and the command is 400 |
+| `WAREHOUSE.UPDATE` | `POST /v1/kernel/warehouses/{id}/update` | `WAREHOUSE.UPDATE` | the warehouse's site, from the row |
+| `WAREHOUSE.READ` | `GET /v1/kernel/companies/{companyId}/warehouses/{id}`, `GET /v1/kernel/companies/{companyId}/warehouses[?siteId=]` | `WAREHOUSE.READ` | one warehouse: its site; a list: the site when given, else the company |
+
+Installation scope is satisfied by a company-wide assignment in any company and by nothing less (D-47, RR-52): a
+site-limited assignment gets 403 `out_of_scope` on the creates. A command on an existing record takes its scope from
+the record (Build Brief, Authorisation); a missing record is 404 (`chart_of_accounts_not_found`, `company_not_found`,
+`site_not_found`, `warehouse_not_found`), never a scope. The warehouse scope is the site, so an administrator limited
+to one site creates, updates, reads and lists the warehouses of that site and nothing else; a company-wide warehouse
+list and the site list are company-scoped, which a site-limited assignment never satisfies. The lists are ordered by
+code and return at most 1,000 rows (`OrganisationRoutes.ListLimit`; paging comes with the API hardening step).
+
+For access reviews: a chart of accounts is shared by the companies that use it, so `CHART_OF_ACCOUNTS.CREATE` and
+`CHART_OF_ACCOUNTS.UPDATE` act installation-wide, and so does `COMPANY.CREATE`, which brings a new company into the
+installation. A holder of any of the three with a company-wide assignment in one company changes what every company
+sees, as a holder of `SETTING.SET` does with an installation value (RR-52); review them as installation-wide
+permissions, not as permissions of the company the assignment names.
+
+`COMPANY.CREATE` takes every attribute of the Specification's Company but `payment_tolerance` (Phase 2): code, legal
+name, organisation number, VAT number (optional), country, base currency (a seeded Currency), IANA time zone, fiscal
+year start month, chart of accounts, VAT rounding level (required while D-10 is open, D-65) and rounding mode (the
+documented default of `company.rounding_mode` when left out, read as a setting, P-11). In the same command it writes
+the company's own party (D-64): an Organisation party from the legal name, organisation number, VAT number and
+country, in the installation's default locale, numbered from the installation-level PARTY series as the last lock
+class (R-LED-08); no duplicate check against other parties runs before step 8. The code is unique per installation and
+the organisation number per country, compared normalised like the duplicate key (R-MD-05, 422 `company_code_duplicate`
+or `organisation_number_duplicate`; the column `organisation_number_normalised` and the unique indexes
+`ux_company_code` and `ux_company_country_organisation_number` catch a race, RR-45; `ux_company_party` keeps one
+company per party). An unknown currency or chart is 400 `base_currency_unknown` or `chart_of_accounts_unknown`,
+found inside the transaction and stored as the key's result; shape errors (`legal_name_required`, `time_zone_invalid`
+for anything but an IANA name, a Windows id included, `fiscal_year_start_month_out_of_range`,
+`tax_rounding_level_required` and the like) are refused before the transaction and not stored (RR-51). The command
+writes two audit events and two events: `PARTY_CREATED` (aggregate `PARTY`, no company: an installation-scope
+aggregate) and `COMPANY_CREATED` (aggregate `COMPANY`, the new company's id) (D-44, D-50). The creator's installation
+scope does not reach the new company: commands and reads on it need an assignment there, which step 13 provides; until
+then the tests write one as test data. `CHART_OF_ACCOUNTS.CREATE` (code, name, template) and `SITE.CREATE` (company,
+code, name, optional IANA time zone, empty meaning the company's) and `WAREHOUSE.CREATE` (company, site, code, name,
+default flag; status Active; a site that does not exist or belongs to another company than the body names is 400
+`site_unknown` or `site_other_company`, stored as the key's result, never a foreign-key 500) follow the same shape with `chart_of_accounts_code_duplicate`, `site_code_duplicate` (per
+company) and `warehouse_code_duplicate` (per company) and the events `CHART_OF_ACCOUNTS_CREATED` (no company),
+`SITE_CREATED` and `WAREHOUSE_CREATED` (the company).
+
+The UPDATE commands restate the record's changeable attributes on its current version (R-API-02: `If-Match`, 412
+`version_stale` when stale, 428 `if_match_required` when missing, neither stored). A code in the body that differs
+from the stored one is 422 under R-MD-06 (`chart_of_accounts_code_fixed`, `company_code_fixed`, `site_code_fixed`,
+`warehouse_code_fixed`); an equal code in any case is ignored. `COMPANY.UPDATE` changes every attribute until its
+trigger has fired (D-65): the first fiscal year fixes the fiscal year start month
+(`company_fiscal_year_start_month_fixed`), the first posting profile rule or posting fixes the chart
+(`company_chart_of_accounts_fixed`), the first posting fixes base currency, time zone, country, organisation number and
+rounding mode (`company_base_currency_fixed`, `company_time_zone_fixed`, `company_country_code_fixed`,
+`company_organisation_number_fixed`, `company_rounding_mode_fixed`), one 422 error per blocked attribute, stored as the
+key's result. The VAT rounding level is fixed from the first posted tax line, which milestone 2 never writes, so it
+still changes. The organisation number is rechecked against the other companies of the country on change
+(`organisation_number_duplicate`). The company's own party follows the legal name, organisation number, VAT number and
+country in the same command, with its duplicate key recomputed, its own audit event and `PARTY_UPDATED` only when one
+of them changed (D-64); `COMPANY_UPDATED` always. Status changes, `WAREHOUSE.BLOCK` and the rest of the lifecycle come
+with step 7; `PARTY.UPDATE`, which refuses the fields the company commands own, with step 8.
+
+Lock order, class 1 and 1b (D-65, R-LED-08): the versioned UPDATE of the company row is class 1; a posting locks the
+company row with `SELECT ... FOR SHARE` (never FOR KEY SHARE, which an ordinary UPDATE passes) right after it ordered
+its lines and reads base currency and rounding mode from that row, and the currency's minor units in a second
+statement (a join inside the locking statement would be re-checked against the currency row read before the wait).
+So the two commands serialise without deadlock in either order: a posting first makes the update wait, and the update
+then reads the committed posting in its own statements after the UPDATE returned and answers 422; an update first makes
+the posting wait, and the posting then meets the new row. Costing rounds every money amount in the company's rounding
+mode (RR-74; the unit cost itself stays at 10 decimals half away from zero), and a draft whose currency is no longer
+the company's base currency is rejected on POST with 422 `R-DOC-01` `document_currency_not_base_currency` (discard it
+and create it again); the POST handler no longer looks the currency up itself. `InventoryAdjustmentPosting` lost its
+`MinorUnits` for that reason. The `CompanyInfo` read gains `PartyId`, `OrganisationNumber`, `VatNumber` and
+`ChartOfAccountsId`; `SiteInfo` gains `Version`; the new `WarehouseView` and `ChartOfAccountsView` are what the
+commands and queries return.
+
+A site's default warehouse moves within the site: `WAREHOUSE.CREATE` with the flag or `WAREHOUSE.UPDATE` setting it
+locks the site row, then the site's warehouses in id order, clears the previous default with its own version, audit
+event and `WAREHOUSE_UPDATED` event (a holder of its old version gets 412 afterwards) and then writes the new one; the
+partial unique index `ux_warehouse_site_default` stays as the backstop (mapped to 422 `R-DOC-01`
+`warehouse_default_taken`). Only an Active warehouse becomes the default (422 `R-DOC-01` `warehouse_not_active`);
+clearing the flag leaves the site without a default. One defensive 400, `company_unknown` on `SITE.CREATE`, cannot be
+reached through the pipeline, which answers 403 first.
+
+The migration `20261024165237_OrganisationCommands` makes `number_series.company_id` nullable with its check, adds
+`company.organisation_number_normalised` (backfilled from `organisation_number` with the duplicate key's
+normalisation), the two unique indexes, and the PARTY type and series. The milestone 1 fixture gains a fifth user,
+the organisation administrator (`44444444-4444-4444-8444-444444444444`, subject
+`ffffffff-4444-4444-8444-ffffffffffff`, test tokens only), who holds the new role ORGANISATION_ADMINISTRATOR
+(`00000000-0000-7000-8000-000000000305`, the eleven new permissions and COMPANY.READ) company-wide in SE01 through
+assignment `00000000-0000-7000-8000-000000000407`; the clerk holds none of them. A real installation can use these
+commands only once step 13 provides its first administrator. Test seams: the organisation create seam
+(`IOrganisationCreateSeam`) holds a create after its duplicate checks for the RR-45 race tests, and the company update
+seam (`ICompanyUpdateSeam`) holds `COMPANY.UPDATE` after its versioned UPDATE for the D-65 concurrency tests
+(docs/development/test-seams.md). Not in step 3: company, site and warehouse status changes, party commands and the
+party duplicate check, fiscal year and number series commands, the chart's accounts, addresses, paging of the lists,
+the first administrator of a real installation.
 
 ## Reporting
 

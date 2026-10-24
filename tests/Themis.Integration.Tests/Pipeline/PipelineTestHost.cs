@@ -98,6 +98,10 @@ internal sealed class PipelineTestHost : IAsyncDisposable
 
     public TestSettingWriteSeam SettingWriteSeam => Services.GetRequiredService<TestSettingWriteSeam>();
 
+    public TestOrganisationCreateSeam OrganisationCreateSeam => Services.GetRequiredService<TestOrganisationCreateSeam>();
+
+    public TestCompanyUpdateSeam CompanyUpdateSeam => Services.GetRequiredService<TestCompanyUpdateSeam>();
+
     /// <summary>Starts the host against the fixture's database, or against <paramref name="database"/> on the same server when named.</summary>
     public static async Task<PipelineTestHost> StartAsync(PostgresFixture db, string? database = null)
     {
@@ -132,6 +136,11 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         builder.Services.AddSingleton<ISettingDefinitionSeam>(provider => provider.GetRequiredService<TestSettingDefinitionSeam>());
         builder.Services.AddSingleton<TestSettingWriteSeam>();
         builder.Services.AddSingleton<ISettingWriteSeam>(provider => provider.GetRequiredService<TestSettingWriteSeam>());
+        // Milestone 2 step 3: the organisation create seam (RR-45) and the company update seam (D-65).
+        builder.Services.AddSingleton<TestOrganisationCreateSeam>();
+        builder.Services.AddSingleton<IOrganisationCreateSeam>(provider => provider.GetRequiredService<TestOrganisationCreateSeam>());
+        builder.Services.AddSingleton<TestCompanyUpdateSeam>();
+        builder.Services.AddSingleton<ICompanyUpdateSeam>(provider => provider.GetRequiredService<TestCompanyUpdateSeam>());
         // RR-62: the dispatcher's role probe (docs/development/test-seams.md).
         builder.Services.AddScoped<RoleProbeRecorder>();
         builder.Services.AddScoped<IScopeResolver<RoleProbe>, RoleProbeScopeResolver>();
@@ -154,6 +163,13 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         app.MapCommandRoutes(RoleProbeRoutes.Commands);
         app.MapQuery<WriteAttemptQuery, long>(WriteAttemptQueryRoutes.Query);
         app.MapQuery<GetCompany, CompanyInfo>(OrganisationRoutes.Company);
+        app.MapCommandRoutes(OrganisationRoutes.Commands);
+        app.MapQuery<GetChartOfAccounts, ChartOfAccountsView>(OrganisationRoutes.ChartOfAccounts);
+        app.MapQuery<ListChartsOfAccounts, IReadOnlyList<ChartOfAccountsView>>(OrganisationRoutes.ChartsOfAccounts);
+        app.MapQuery<GetSite, SiteInfo>(OrganisationRoutes.Site);
+        app.MapQuery<ListSites, IReadOnlyList<SiteInfo>>(OrganisationRoutes.CompanySites);
+        app.MapQuery<GetWarehouse, WarehouseView>(OrganisationRoutes.Warehouse);
+        app.MapQuery<ListWarehouses, IReadOnlyList<WarehouseView>>(OrganisationRoutes.CompanyWarehouses);
         app.MapCommandRoutes(MasterDataRoutes.Commands);
         app.MapQuery<GetItem, ItemView>(MasterDataRoutes.Item);
         app.MapQuery<GetItemByNumber, ItemView>(MasterDataRoutes.ItemByNumber);
@@ -215,10 +231,34 @@ internal sealed class PipelineTestHost : IAsyncDisposable
 
     /// <summary>
     /// The settings routes default to the settings administrator, the fixture user who holds SETTINGS_ADMINISTRATOR
-    /// since the clerk no longer does (RR-101); every other route defaults to the clerk. A test that names a subject gets it.
+    /// since the clerk no longer does (RR-101); the organisation routes of milestone 2 step 3 (the chart of accounts,
+    /// site and warehouse routes, the company create and update, and the site and warehouse reads under a company) to
+    /// the organisation administrator, who holds ORGANISATION_ADMINISTRATOR; every other route, the company read and
+    /// the item routes under a company among them, defaults to the clerk. A test that names a subject gets it.
     /// </summary>
-    private static string DefaultSubject(string path) =>
-        path.StartsWith("/v1/kernel/settings", StringComparison.Ordinal) ? TestUsers.SettingsAdministratorSubject : TestUsers.ClerkSubject;
+    private static string DefaultSubject(string path)
+    {
+        if (path.StartsWith("/v1/kernel/settings", StringComparison.Ordinal))
+        {
+            return TestUsers.SettingsAdministratorSubject;
+        }
+
+        return IsOrganisationRoute(path) ? TestUsers.OrganisationAdministratorSubject : TestUsers.ClerkSubject;
+    }
+
+    private static bool IsOrganisationRoute(string path)
+    {
+        string route = path.Split('?')[0];
+        if (route.StartsWith("/v1/kernel/charts-of-accounts", StringComparison.Ordinal) || route.StartsWith("/v1/kernel/sites", StringComparison.Ordinal) || route.StartsWith("/v1/kernel/warehouses", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        string[] segments = route.Trim('/').Split('/');
+        // /v1/kernel/companies (create), /v1/kernel/companies/{id}/update, /v1/kernel/companies/{id}/sites[/{id}] and /warehouses[/{id}].
+        return segments.Length >= 3 && segments[0] == "v1" && segments[1] == "kernel" && segments[2] == "companies"
+            && (segments.Length == 3 || (segments.Length >= 5 && segments[4] is "update" or "sites" or "warehouses"));
+    }
 
     /// <summary>A request with no token at all.</summary>
     public Task<CommandReply> PostAnonymousAsync(string path, object? body, string? idempotencyKey, CancellationToken cancellationToken = default) =>
