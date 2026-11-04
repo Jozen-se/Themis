@@ -45,19 +45,7 @@ public sealed partial class MigrationGoldenScriptTests
         string? previous = index == 0 ? null : all[index - 1];
         string script = KernelMigrations.GenerateScript(previous, migrationId);
         string generated = Normalise(script);
-        string path = Path.Combine(GoldenDirectory(), migrationId + ".sql");
-
-        // RR-39, RR-137: record mode writes only a golden file that does not exist yet (a new migration's), as generated:
-        // line endings and the trailing newline normalised, the product version not masked. The comparison masks it on
-        // both sides. A merged file is never rewritten under any EF version; an approved change, reviewed by the owner
-        // under RR-39, deletes the file and records it again.
-        if (Environment.GetEnvironmentVariable(RecordVariable) == "1")
-        {
-            RecordIfMissing(path, script);
-        }
-
-        Assert.True(File.Exists(path), $"No golden script for {migrationId}; a new migration commits its own, generated with {RecordVariable}=1 (RR-39).");
-        string golden = Normalise(File.ReadAllText(path));
+        string golden = Normalise(ReadGolden(GoldenDirectory(), migrationId, script, Environment.GetEnvironmentVariable(RecordVariable) == "1"));
         Assert.True(golden == generated, $"The generated script of {migrationId} differs from db/migrations/golden/{migrationId}.sql. A merged migration's SQL is fixed (RR-39); a provider or EF upgrade that changes the generated script needs the owner's review before the golden file is updated.{Environment.NewLine}{FirstDifference(golden, generated)}");
     }
 
@@ -101,6 +89,7 @@ public sealed partial class MigrationGoldenScriptTests
     [Fact]
     public void RR_137_record_mode_writes_a_missing_golden_file_as_generated_and_never_rewrites_an_existing_one()
     {
+        // The same ReadGolden the RR-39 theory calls, so the record switch itself is under test, not a helper beside it.
         string directory = Directory.CreateTempSubdirectory("themis-golden-").FullName;
         try
         {
@@ -109,13 +98,17 @@ public sealed partial class MigrationGoldenScriptTests
             File.WriteAllText(existing, merged);
             string newer = "INSERT INTO kernel.__ef_migrations_history (\"MigrationId\", \"ProductVersion\")\r\nVALUES ('20260101000000_Old', '10.0.99');\r\n\r\n";
 
-            RecordIfMissing(existing, newer);
+            Assert.Equal(merged, ReadGolden(directory, "existing", newer, record: true));
             Assert.Equal(merged, File.ReadAllText(existing));
 
-            string missing = Path.Combine(directory, "missing.sql");
-            RecordIfMissing(missing, newer);
+            // Without record mode a missing file is not written; the theory fails on it instead.
+            Assert.Throws<FileNotFoundException>(() => ReadGolden(directory, "missing", newer, record: false));
+            Assert.False(File.Exists(Path.Combine(directory, "missing.sql")));
+
             // As generated: line endings and the trailing newline normalised, the real version kept, not the placeholder.
-            Assert.Equal("INSERT INTO kernel.__ef_migrations_history (\"MigrationId\", \"ProductVersion\")\nVALUES ('20260101000000_Old', '10.0.99');\n", File.ReadAllText(missing));
+            string recorded = "INSERT INTO kernel.__ef_migrations_history (\"MigrationId\", \"ProductVersion\")\nVALUES ('20260101000000_Old', '10.0.99');\n";
+            Assert.Equal(recorded, ReadGolden(directory, "missing", newer, record: true));
+            Assert.Equal(recorded, File.ReadAllText(Path.Combine(directory, "missing.sql")));
         }
         finally
         {
@@ -131,13 +124,26 @@ public sealed partial class MigrationGoldenScriptTests
         Assert.Empty(stray);
     }
 
-    /// <summary>RR-39, RR-137: writes the script as generated when the golden file does not exist yet; an existing file is never rewritten.</summary>
-    private static void RecordIfMissing(string path, string script)
+    /// <summary>
+    /// RR-39, RR-137: returns the golden file of a migration. In record mode it first writes the file when it does not
+    /// exist yet (a new migration's), as generated: line endings and the trailing newline normalised, the product version
+    /// not masked; the comparison masks it on both sides. A merged file is never rewritten under any EF version; an
+    /// approved change, reviewed by the owner under RR-39, deletes the file and records it again.
+    /// </summary>
+    private static string ReadGolden(string directory, string migrationId, string script, bool record)
     {
-        if (!File.Exists(path))
+        string path = Path.Combine(directory, migrationId + ".sql");
+        if (record && !File.Exists(path))
         {
             File.WriteAllText(path, NormaliseLineEndings(script).TrimEnd() + "\n");
         }
+
+        if (!File.Exists(path))
+        {
+            throw new FileNotFoundException($"No golden script for {migrationId}; a new migration commits its own, generated with {RecordVariable}=1 (RR-39).", path);
+        }
+
+        return File.ReadAllText(path);
     }
 
     private static string NormaliseLineEndings(string script) => script.Replace("\r\n", "\n", StringComparison.Ordinal);

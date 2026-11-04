@@ -96,8 +96,8 @@ jobs:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "${HEAD_REF}"
 
-      # RR-134: the DCO check on the new head. dco.yml takes the head from the dispatched ref and derives the base as its
-      # merge base with main, so the commit just pushed is the end of the range it checks and no input is passed.
+      # RR-134: the DCO check on the new head. dco.yml takes the head from the dispatched ref and checks the commits on it
+      # that main does not have, so the commit just pushed is the end of the range it checks and no input is passed.
       - name: Run the DCO check on the new head
         if: ${{ !cancelled() && steps.head.outputs.own == 'true' }}
         env:

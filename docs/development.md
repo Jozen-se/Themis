@@ -920,6 +920,6 @@ Every commit carries a `Signed-off-by` line matching its author (Developer Certi
 fails when one lacks it; dependabot[bot], github-actions[bot] and merge commits are exempt, squash commits on `main`
 are not checked. When the Dependabot lock files workflow pushes a regenerated commit, it dispatches the DCO workflow on
 that commit, as it dispatches CI, so "DCO sign-off" reports on the new head (RR-134). A dispatched run takes no input:
-`.github/scripts/dco-dispatch.sh` derives the base as the head's merge base with `refs/remotes/origin/main`, named by its
-full ref so a tag cannot shadow it. `.github/scripts/dco-check-selftest.sh` proves the script on synthetic repositories. See
+`.github/scripts/dco-dispatch.sh` checks `refs/remotes/origin/main..<head>`, the commits on the head that main does not
+have, with main named by its full ref so a tag cannot shadow it. `.github/scripts/dco-check-selftest.sh` proves the script on synthetic repositories. See
 `CONTRIBUTING.md`.

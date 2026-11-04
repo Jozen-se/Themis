@@ -103,7 +103,7 @@ git -C "$repo" checkout -q work
 git -C "$repo" merge -q --no-ff --no-edit main
 expect "D-36: a merge commit passes without a sign-off" 0 "$repo"
 
-# RR-134: the dispatch path. The base is derived as the merge base with the main branch's full ref.
+# RR-134: the dispatch path. The range is <main full ref>..<head>, the commits on the head that main does not have.
 dispatch="$(cd "$(dirname "$0")" && pwd)/dco-dispatch.sh"
 drepo="$work/dispatch"
 new_repo "$drepo"

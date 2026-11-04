@@ -7,8 +7,8 @@
 # this workflow on the new head, as it does CI. A workflow_dispatch run checks out the tip of the ref it was dispatched
 # on; github.sha is that commit, and the run's check runs (job names "DCO sign-off" and "DCO check self-test") attach
 # to it, which is the commit the ruleset looks at. A dispatch takes no input: the head is the dispatched commit and
-# .github/scripts/dco-dispatch.sh derives the base as its merge base with refs/remotes/origin/main, so no caller can
-# choose the range.
+# .github/scripts/dco-dispatch.sh checks refs/remotes/origin/main..<head>, the commits on the head that main does not
+# have, so no caller can choose the range.
 name: DCO
 
 on:
