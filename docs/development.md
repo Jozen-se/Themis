@@ -123,7 +123,10 @@ keep this honest:
   equals its committed file, with the EF product version and the line endings normalised. A new migration adds its
   file with `THEMIS_GOLDEN_RECORD=1 dotnet test --project tests/Themis.Kernel.Tests --filter-class
   Themis.Kernel.Tests.Migrations.MigrationGoldenScriptTests`; a changed script of a merged migration, also one caused
-  by a provider or EF upgrade, needs the owner's review before the file is updated. The product version is the one
+  by a provider or EF upgrade, needs the owner's review before the file is updated. Each file holds the real product
+  version, and the comparison masks it on both sides. `THEMIS_GOLDEN_RECORD=1` writes the script as generated and only
+  the files that do not exist yet, so a merged file never changes; an approved change is delete, then record, reviewed
+  by the owner under RR-39 (RR-137). The product version is the one
   value an EF patch update changes in every script, so only that literal of the history insert is masked; until
   RR-135 the mask's pattern expected a quoted table name and matched nothing, and a guard test now proves it matches
   every golden file exactly once.
