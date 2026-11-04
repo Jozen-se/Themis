@@ -70,8 +70,25 @@ jobs:
           git push origin "HEAD:${HEAD_REF}"
           echo "changed=true" >> "$GITHUB_OUTPUT"
 
+      # RR-134: the dispatches run whenever the branch head is this workflow's own lock-file commit, not only when this
+      # run made it, so "Re-run jobs" dispatches again; each dispatch runs on its own (!cancelled()), so a failed CI
+      # dispatch does not skip the DCO one.
+      - name: Find whether the branch head is this workflow's lock-file commit
+        id: head
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          git fetch -q origin "${HEAD_REF}"
+          author="$(git log -1 --format='%an <%ae>' FETCH_HEAD)"
+          subject="$(git log -1 --format='%s' FETCH_HEAD)"
+          if [ "$author" = "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>" ] && [ "$subject" = "deps: regenerate the NuGet lock files after Dependabot's update" ]; then
+            echo "own=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "own=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Run CI on the new head
-        if: steps.commit.outputs.changed == 'true'
+        if: ${{ !cancelled() && steps.head.outputs.own == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
@@ -80,7 +97,7 @@ jobs:
       # RR-134: the DCO check on the new head. The base is the pull request's base commit; dco.yml takes the head from
       # the dispatched ref itself, so the commit just pushed is the end of the range it checks.
       - name: Run the DCO check on the new head
-        if: steps.commit.outputs.changed == 'true'
+        if: ${{ !cancelled() && steps.head.outputs.own == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}

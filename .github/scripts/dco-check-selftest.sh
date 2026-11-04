@@ -2,7 +2,9 @@
 # Proves the DCO check (D-36) on synthetic repositories: a signed commit passes, an unsigned commit fails, a sign-off
 # by another identity fails, a sign-off with the e-mail in another case passes, dependabot[bot] and
 # github-actions[bot] commits pass without a sign-off, an impostor using a bot's name with a non-GitHub address fails,
-# and a merge commit passes without a sign-off. Run by .github/workflows/dco.yml and by hand:
+# and a merge commit passes without a sign-off. The dispatch wrapper (dco-dispatch.sh, RR-134) fails an unsigned
+# branch with the real base and refuses a malformed base or one not on main, so base = head cannot pass it.
+# Run by .github/workflows/dco.yml and by hand:
 #   .github/scripts/dco-check-selftest.sh
 set -euo pipefail
 
@@ -89,6 +91,35 @@ commit "$repo" m.txt "Alice Example" "alice@example.com" "Signed on main" -s
 git -C "$repo" checkout -q work
 git -C "$repo" merge -q --no-ff --no-edit main
 expect "a merge commit passes without a sign-off" 0 "$repo"
+
+# RR-134: the dispatch path, on a fresh repository whose work branch holds one unsigned commit.
+dispatch="$(cd "$(dirname "$0")" && pwd)/dco-dispatch.sh"
+expect_dispatch() {
+  local name="$1" expected="$2" dir="$3" base="$4" actual=0
+  (cd "$dir" && "$dispatch" "$base" "$(git rev-parse work)" main) >"$work/$name.log" 2>&1 || actual=$?
+  if [ "$actual" -eq "$expected" ]; then
+    echo "pass: $name (exit $actual)"
+  else
+    echo "FAIL: $name expected exit $expected, got $actual"
+    sed 's/^/    /' "$work/$name.log"
+    failures=$((failures + 1))
+  fi
+}
+drepo="$work/dispatch"
+new_repo "$drepo"
+commit "$drepo" u.txt "Alice Example" "alice@example.com" "Unsigned"
+expect_dispatch "dispatch with the real base fails an unsigned branch" 1 "$drepo" "$(git -C "$drepo" rev-parse main)"
+expect_dispatch "dispatch with base = head is refused, not passed" 2 "$drepo" "$(git -C "$drepo" rev-parse work)"
+expect_dispatch "dispatch with a malformed base is refused" 2 "$drepo" "main"
+git -C "$drepo" checkout -q main
+git -C "$drepo" branch -q -D work
+git -C "$drepo" branch -q work
+git -C "$drepo" checkout -q work
+commit "$drepo" s.txt "Alice Example" "alice@example.com" "Signed" -s
+git -C "$drepo" checkout -q main
+commit "$drepo" n.txt "Alice Example" "alice@example.com" "Main moves on" -s
+git -C "$drepo" checkout -q work
+expect_dispatch "dispatch passes a signed branch after main moved on" 0 "$drepo" "$(git -C "$drepo" merge-base main work)"
 
 if [ "$failures" -gt 0 ]; then
   echo "DCO self-test: $failures case(s) failed."

@@ -68,16 +68,28 @@ public sealed partial class MigrationGoldenScriptTests
     [Fact]
     public void RR_135_only_the_product_version_value_is_ignored_and_any_other_change_to_a_merged_script_still_fails()
     {
-        string golden = File.ReadAllText(Path.Combine(GoldenDirectory(), KernelMigrations.All()[^1] + ".sql"));
-        string migrationId = KernelMigrations.All()[^1];
+        // A golden file that exists: the newest committed one, not the newest migration, whose file a record run may not have written yet.
+        string path = Directory.GetFiles(GoldenDirectory(), "*.sql").Order(StringComparer.Ordinal).Last();
+        string migrationId = Path.GetFileNameWithoutExtension(path);
+        string golden = File.ReadAllText(path);
         string versionOnly = ProductVersion().Replace(golden, "${1}10.0.999$2");
 
         Assert.NotEqual(golden, versionOnly);
         Assert.Equal(Normalise(golden), Normalise(versionOnly));
-        // The migration id in the same row, a statement elsewhere and an appended statement are all still compared.
-        Assert.NotEqual(Normalise(golden), Normalise(golden.Replace($"'{migrationId}'", "'20990101000000_Other'", StringComparison.Ordinal)));
-        Assert.NotEqual(Normalise(golden), Normalise(golden.Replace("kernel.", "kernel2.", StringComparison.Ordinal)));
-        Assert.NotEqual(Normalise(golden), Normalise(golden + "\nDROP TABLE kernel.company;\n"));
+
+        // Each mutation leaves the history row intact and still masked, so a difference can only come from the mutated text.
+        string[] mutations =
+        [
+            golden.Replace($"'{migrationId}'", "'20990101000000_Other'", StringComparison.Ordinal),
+            golden.Insert(golden.IndexOf('\n', StringComparison.Ordinal) + 1, "SELECT 1;\n"),
+            golden.Insert(ProductVersion().Match(golden).Index, "DROP TABLE kernel.company;\n"),
+            golden.TrimEnd() + "\nDROP TABLE kernel.company;\n",
+        ];
+        foreach (string mutated in mutations)
+        {
+            Assert.True(ProductVersion().IsMatch(mutated), "The mutation removed the history row the mask needs.");
+            Assert.NotEqual(Normalise(golden), Normalise(mutated));
+        }
     }
 
     [Fact]

@@ -7,7 +7,8 @@
 # this workflow on the new head, as it does CI. A workflow_dispatch run checks out the tip of the ref it was dispatched
 # on; github.sha is that commit, and the run's check runs (job names "DCO sign-off" and "DCO check self-test") attach
 # to it, which is the commit the ruleset looks at. The dispatcher passes the pull request's base commit; the head is
-# never taken from an input but is always the dispatched commit itself.
+# never taken from an input but is always the dispatched commit itself, and .github/scripts/dco-dispatch.sh refuses a
+# base that is not a commit on main, so a dispatcher can widen the checked range but never shrink it.
 name: DCO
 
 on:
@@ -47,17 +48,10 @@ jobs:
           DISPATCHED_SHA: ${{ github.sha }}
         run: |
           if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
-            if ! [[ "${DISPATCH_BASE}" =~ ^[0-9a-f]{40}$ ]]; then
-              echo "::error title=DCO dispatch input::The base input must be a 40-character commit SHA (RR-134)."
-              exit 2
-            fi
-            base="${DISPATCH_BASE}"
-            head="${DISPATCHED_SHA}"
+            .github/scripts/dco-dispatch.sh "${DISPATCH_BASE}" "${DISPATCHED_SHA}" origin/main
           else
-            base="${PR_BASE}"
-            head="${PR_HEAD}"
+            .github/scripts/dco-check.sh "${PR_BASE}" "${PR_HEAD}"
           fi
-          .github/scripts/dco-check.sh "$base" "$head"
 
   self-test:
     name: DCO check self-test
