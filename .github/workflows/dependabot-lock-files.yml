@@ -34,6 +34,11 @@ jobs:
     if: github.actor == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    # RR-134: the lock-file commit's identity and subject, written by the commit step and matched by the head step, in one place.
+    env:
+      LOCK_COMMIT_NAME: "github-actions[bot]"
+      LOCK_COMMIT_EMAIL: "41898282+github-actions[bot]@users.noreply.github.com"
+      LOCK_COMMIT_SUBJECT: "deps: regenerate the NuGet lock files after Dependabot's update"
     steps:
       - name: Check out the pull request branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -53,22 +58,19 @@ jobs:
 
       # RR-85: the branch name reaches the shell only through an environment variable, quoted, never as ${{ }} in run:.
       - name: Commit and push the lock files when they changed
-        id: commit
         env:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           if git diff --quiet -- '**/packages.lock.json'; then
             echo "Lock files already consistent; nothing to commit."
-            echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "${LOCK_COMMIT_NAME}"
+          git config user.email "${LOCK_COMMIT_EMAIL}"
           git add -- '**/packages.lock.json'
-          git commit -m "deps: regenerate the NuGet lock files after Dependabot's update" \
+          git commit -m "${LOCK_COMMIT_SUBJECT}" \
             -m "Lock files of projects that receive the updated packages transitively, regenerated with dotnet restore --force-evaluate by the Dependabot lock files workflow (D-38)."
           git push origin "HEAD:${HEAD_REF}"
-          echo "changed=true" >> "$GITHUB_OUTPUT"
 
       # RR-134: the dispatches run whenever the branch head is this workflow's own lock-file commit, not only when this
       # run made it, so "Re-run jobs" dispatches again; each dispatch runs on its own (!cancelled()), so a failed CI
@@ -81,7 +83,7 @@ jobs:
           git fetch -q origin "${HEAD_REF}"
           author="$(git log -1 --format='%an <%ae>' FETCH_HEAD)"
           subject="$(git log -1 --format='%s' FETCH_HEAD)"
-          if [ "$author" = "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>" ] && [ "$subject" = "deps: regenerate the NuGet lock files after Dependabot's update" ]; then
+          if [ "$author" = "${LOCK_COMMIT_NAME} <${LOCK_COMMIT_EMAIL}>" ] && [ "$subject" = "${LOCK_COMMIT_SUBJECT}" ]; then
             echo "own=true" >> "$GITHUB_OUTPUT"
           else
             echo "own=false" >> "$GITHUB_OUTPUT"
@@ -94,12 +96,11 @@ jobs:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "${HEAD_REF}"
 
-      # RR-134: the DCO check on the new head. The base is the pull request's base commit; dco.yml takes the head from
-      # the dispatched ref itself, so the commit just pushed is the end of the range it checks.
+      # RR-134: the DCO check on the new head. dco.yml takes the head from the dispatched ref and derives the base as its
+      # merge base with main, so the commit just pushed is the end of the range it checks and no input is passed.
       - name: Run the DCO check on the new head
         if: ${{ !cancelled() && steps.head.outputs.own == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: gh workflow run dco.yml --repo "$GITHUB_REPOSITORY" --ref "${HEAD_REF}" -f base="${BASE_SHA}"
+        run: gh workflow run dco.yml --repo "$GITHUB_REPOSITORY" --ref "${HEAD_REF}"
