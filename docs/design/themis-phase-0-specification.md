@@ -954,7 +954,7 @@ Added with purchasing: GOODS_RECEIVED_NOT_INVOICED in Phase 1 (goods receipt); P
 
 | Key | Where it lives | Values |
 |---|---|---|
-| Item posting group | `Item``Company``.item_posting_group`, validated against the ItemPostingGroup list (code, name) | Configurable, for example TRADE_GOODS, FREIGHT |
+| Item posting group | `ItemCompany.item_posting_group`, validated against the ItemPostingGroup list (code, name) | Configurable, for example TRADE_GOODS, FREIGHT |
 | Party posting group | `PartyRole.party_posting_group` | Fixed: Domestic, EU, NonEU |
 | Ship-to scope | Derived per line from company country and ship-to country, exactly as for TaxRule | Fixed: Domestic, EU, NonEU |
 | Tax code | The line's resolved `tax_code_id` | Per company, for example SE25 |

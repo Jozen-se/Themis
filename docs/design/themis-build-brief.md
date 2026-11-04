@@ -208,27 +208,27 @@ Each step is its own INVENTORY_ADJUSTMENT document with reason code CountDiffere
 
 **Checklist**
 
-- The compose file, `Themis.Migrator` and `dotnet run` start the system with Docker Compose and with Podman Compose; the health endpoint reports healthy.
-- CI is green: build with warnings as errors, unit, architecture, integration and invariant tests, licence scan.
-- A user without INVENTORY_ADJUSTMENT.POST is rejected with 403 and ruleId R-SEC-01.
-- ITEM.CREATE works; a duplicate item number is rejected with R-MD-05.
-- Posting an adjustment writes the document status, inventory entries, one balanced journal entry, the audit events and the outbox event in one transaction, and all 13 reference steps match to the last decimal.
-- A failure injected after the inventory entries and before commit leaves nothing behind (R-LED-05).
-- An adjustment whose lines all have zero cost posts its inventory entries and no journal entry, as I-08 allows.
-- A Scrap adjustment with a non-zero cost, which no posting profile rule maps, is rejected with R-PP-02 naming the role, the keys and the date, and nothing is saved (step 6 proves the resolver part, step 8 the end-to-end part); posting dated in period 1, which is Closed, is rejected with R-LED-04.
-- Journal entry numbers are gapless per fiscal year, also when a posting fails mid-transaction (R-DOC-07, I-09).
-- Replaying a command with the same Idempotency-Key returns the first result and posts nothing twice; a concurrent duplicate gets 409; the same key with a different request is rejected (R-API-01, R-API-04).
-- A command with a stale If-Match version is rejected (R-API-02).
-- All money, quantity and cost values in JSON responses are strings, and integers such as versions stay numbers (D-37).
-- Role and privilege test I-14 passes: the actual grants equal the expected privilege matrix; `themis_fixture` cannot write to `kernel`; `themis_kernel` cannot update or delete journal or inventory entries; `themis_app` cannot write any table without switching role.
-- Property-based runs of random adjustment sequences keep I-01, I-02, I-03, I-04, I-06, I-08, I-09 and I-15 true.
-- The reporting view returns stock quantity and value per item and warehouse (D-54, I-15 holds), and `themis_reporting` holds no privilege on any `kernel` table.
-- An illegal reference from the fixture module into a kernel internal project makes the architecture tests fail.
-- Every log line of a command carries the command name and correlation id (relay lines as in the Observability convention), and traces are visible in the console exporter.
-- Two adjustments on the same items, posted concurrently with their lines in opposite order, both commit without deadlock (R-LED-08).
-- A serialization failure injected on the first attempt is retried once, and the adjustment posts exactly once with one outbox event (D-41).
-- Creating an item writes one ITEM_CREATED outbox event, and every other state-changing command in the milestone writes its event (D-44).
-- A CI check fails when code, tests, database scripts or build files cite a rule, principle, decision, invariant or event ID that does not exist in docs/design, or when a snapshot lacks its revision stamp (review RR-08).
+- [ ] The compose file, `Themis.Migrator` and `dotnet run` start the system with Docker Compose and with Podman Compose; the health endpoint reports healthy.
+- [ ] CI is green: build with warnings as errors, unit, architecture, integration and invariant tests, licence scan.
+- [ ] A user without INVENTORY_ADJUSTMENT.POST is rejected with 403 and ruleId R-SEC-01.
+- [ ] ITEM.CREATE works; a duplicate item number is rejected with R-MD-05.
+- [ ] Posting an adjustment writes the document status, inventory entries, one balanced journal entry, the audit events and the outbox event in one transaction, and all 13 reference steps match to the last decimal.
+- [ ] A failure injected after the inventory entries and before commit leaves nothing behind (R-LED-05).
+- [ ] An adjustment whose lines all have zero cost posts its inventory entries and no journal entry, as I-08 allows.
+- [ ] A Scrap adjustment with a non-zero cost, which no posting profile rule maps, is rejected with R-PP-02 naming the role, the keys and the date, and nothing is saved (step 6 proves the resolver part, step 8 the end-to-end part); posting dated in period 1, which is Closed, is rejected with R-LED-04.
+- [ ] Journal entry numbers are gapless per fiscal year, also when a posting fails mid-transaction (R-DOC-07, I-09).
+- [ ] Replaying a command with the same Idempotency-Key returns the first result and posts nothing twice; a concurrent duplicate gets 409; the same key with a different request is rejected (R-API-01, R-API-04).
+- [ ] A command with a stale If-Match version is rejected (R-API-02).
+- [ ] All money, quantity and cost values in JSON responses are strings, and integers such as versions stay numbers (D-37).
+- [ ] Role and privilege test I-14 passes: the actual grants equal the expected privilege matrix; `themis_fixture` cannot write to `kernel`; `themis_kernel` cannot update or delete journal or inventory entries; `themis_app` cannot write any table without switching role.
+- [ ] Property-based runs of random adjustment sequences keep I-01, I-02, I-03, I-04, I-06, I-08, I-09 and I-15 true.
+- [ ] The reporting view returns stock quantity and value per item and warehouse (D-54, I-15 holds), and `themis_reporting` holds no privilege on any `kernel` table.
+- [ ] An illegal reference from the fixture module into a kernel internal project makes the architecture tests fail.
+- [ ] Every log line of a command carries the command name and correlation id (relay lines as in the Observability convention), and traces are visible in the console exporter.
+- [ ] Two adjustments on the same items, posted concurrently with their lines in opposite order, both commit without deadlock (R-LED-08).
+- [ ] A serialization failure injected on the first attempt is retried once, and the adjustment posts exactly once with one outbox event (D-41).
+- [ ] Creating an item writes one ITEM_CREATED outbox event, and every other state-changing command in the milestone writes its event (D-44).
+- [ ] A CI check fails when code, tests, database scripts or build files cite a rule, principle, decision, invariant or event ID that does not exist in docs/design, or when a snapshot lacks its revision stamp (review RR-08).
 
 ## Out of scope, and what the coder must not decide alone
 
