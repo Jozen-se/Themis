@@ -2,8 +2,9 @@
 # Proves the DCO check (D-36) on synthetic repositories: a signed commit passes, an unsigned commit fails, a sign-off
 # by another identity fails, a sign-off with the e-mail in another case passes, dependabot[bot] and
 # github-actions[bot] commits pass without a sign-off, an impostor using a bot's name with a non-GitHub address fails,
-# and a merge commit passes without a sign-off. The dispatch wrapper (dco-dispatch.sh, RR-134) derives the base from the
-# main branch's full ref, fails an unsigned branch, refuses a short main name and is not shadowed by a tag.
+# and a merge commit passes without a sign-off. The dispatch wrapper (dco-dispatch.sh, RR-134) checks <main>..<head>:
+# it fails an unsigned commit under an exempt lock-file commit, ignores main's own commits, refuses a short main name
+# and is not shadowed by a tag, also when the main ref itself is absent.
 # Run by .github/workflows/dco.yml and by hand:
 #   .github/scripts/dco-check-selftest.sh
 set -euo pipefail
@@ -114,13 +115,23 @@ git -C "$drepo" tag main work
 git -C "$drepo" tag refs/heads/main work
 run_case "RR-134: a short main name is refused, so a tag cannot shadow it" 2 "$drepo" "$dispatch" "$(git -C "$drepo" rev-parse work)" main
 run_case "RR-134: the full main ref ignores a tag named after it and still fails the unsigned branch" 1 "$drepo" "$dispatch" "$(git -C "$drepo" rev-parse work)" refs/heads/main
+# With the main ref itself absent, git's name lookup would fall back to the tag refs/tags/refs/heads/main and check nothing.
+main_sha="$(git -C "$drepo" show-ref --verify --hash refs/heads/main)"
+git -C "$drepo" update-ref -d refs/heads/main
+run_case "RR-134: an absent main ref is refused, not replaced by a tag of the same name" 2 "$drepo" "$dispatch" "$(git -C "$drepo" rev-parse work)" refs/heads/main
+git -C "$drepo" update-ref refs/heads/main "$main_sha"
 git -C "$drepo" tag -d main refs/heads/main >/dev/null
+# The real shape of a lock-file head: an unsigned human commit under the exempt github-actions[bot] commit. A range
+# that checked only the tip would pass it.
+commit "$drepo" g.txt "github-actions[bot]" "41898282+github-actions[bot]@users.noreply.github.com" "Regenerate lock files"
+run_case "RR-134: a dispatch on a lock-file commit still fails the unsigned commit under it" 1 "$drepo" "$dispatch" "$(git -C "$drepo" rev-parse work)" refs/heads/main
 reset_work "$drepo"
 commit "$drepo" s.txt "Alice Example" "alice@example.com" "Signed" -s
 git -C "$drepo" checkout -q main
-commit "$drepo" n.txt "Alice Example" "alice@example.com" "Main moves on" -s
+# Main's own commit is unsigned, as squash commits on main are not checked (D-36): a range that reached into main fails.
+commit "$drepo" n.txt "Alice Example" "alice@example.com" "Main moves on"
 git -C "$drepo" checkout -q work
-run_case "RR-134: a dispatch passes a signed branch after main moved on" 0 "$drepo" "$dispatch" "$(git -C "$drepo" rev-parse work)" refs/heads/main
+run_case "RR-134: a dispatch passes a signed branch after main moved on and never checks main's own commits" 0 "$drepo" "$dispatch" "$(git -C "$drepo" rev-parse work)" refs/heads/main
 
 if [ "$failures" -gt 0 ]; then
   echo "DCO self-test: $failures case(s) failed."
