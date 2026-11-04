@@ -6,7 +6,8 @@
 #
 # This workflow runs on Dependabot's own pushes, regenerates every lock file with the restore tooling, and commits the
 # result to the Dependabot branch when something changed. A push made with GITHUB_TOKEN starts no workflow, so the
-# last step dispatches the CI workflow on the new head; its check runs attach to that commit and satisfy the ruleset.
+# last steps dispatch the CI workflow and the DCO workflow (RR-134) on the new head; their check runs attach to that
+# commit and satisfy the ruleset ("Build and test", "License scan", "DCO sign-off").
 # The GITHUB_TOKEN is the only credential; no secret is stored anywhere.
 name: Dependabot lock files
 
@@ -75,3 +76,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "${HEAD_REF}"
+
+      # RR-134: the DCO check on the new head. The base is the pull request's base commit; dco.yml takes the head from
+      # the dispatched ref itself, so the commit just pushed is the end of the range it checks.
+      - name: Run the DCO check on the new head
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: gh workflow run dco.yml --repo "$GITHUB_REPOSITORY" --ref "${HEAD_REF}" -f base="${BASE_SHA}"

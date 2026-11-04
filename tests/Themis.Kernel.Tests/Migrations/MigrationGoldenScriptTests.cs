@@ -9,13 +9,19 @@ namespace Themis.Kernel.Tests.Migrations;
 /// under db/migrations/golden; a new migration adds its own golden file. The EF product version in the history row
 /// and the line endings are normalised. A provider or EF upgrade that changes a generated script needs the owner's
 /// review before a golden file is updated. Set THEMIS_GOLDEN_RECORD=1 to write the files instead of comparing them.
+/// RR-135: the product version is the value EF writes into the history row, not SQL the migration owns, so an EF patch
+/// update changes it in every script while the migration itself is unchanged; it is masked on both sides, and a guard
+/// proves the mask matches every golden file, so it cannot silently stop applying again.
 /// </summary>
 [Trait("Category", "Unit")]
 public sealed partial class MigrationGoldenScriptTests
 {
     private const string RecordVariable = "THEMIS_GOLDEN_RECORD";
 
-    [GeneratedRegex(@"(INSERT INTO kernel\.""__ef_migrations_history"" \(""MigrationId"", ""ProductVersion""\)\s*VALUES \('[^']+', ')[^']+('\))")]
+    // RR-39, RR-135: the history insert as EF generates it for PostgreSQL. The table name is unquoted in the scripts
+    // (kernel.__ef_migrations_history); the earlier pattern required it quoted, so it never matched and the mask was
+    // never applied. Only the version literal is replaced; the migration id and every other character are compared.
+    [GeneratedRegex(@"(INSERT INTO kernel\.""?__ef_migrations_history""? \(""MigrationId"", ""ProductVersion""\)\s*VALUES \('[^']+', ')[^']+('\);)")]
     private static partial Regex ProductVersion();
 
     public static TheoryData<string> Migrations()
@@ -47,6 +53,31 @@ public sealed partial class MigrationGoldenScriptTests
         Assert.True(File.Exists(path), $"No golden script for {migrationId}; a new migration commits its own, generated with {RecordVariable}=1 (RR-39).");
         string golden = Normalise(File.ReadAllText(path));
         Assert.True(golden == generated, $"The generated script of {migrationId} differs from db/migrations/golden/{migrationId}.sql. A merged migration's SQL is fixed (RR-39); a provider or EF upgrade that changes the generated script needs the owner's review before the golden file is updated.{Environment.NewLine}{FirstDifference(golden, generated)}");
+    }
+
+    [Fact]
+    public void RR_135_the_mask_matches_the_history_insert_of_every_golden_file_exactly_once()
+    {
+        // Without this guard a pattern that matches nothing passes silently and leaves the version compared (RR-135).
+        foreach (string path in Directory.GetFiles(GoldenDirectory(), "*.sql"))
+        {
+            Assert.True(ProductVersion().Count(File.ReadAllText(path)) == 1, $"{Path.GetFileName(path)}: the product-version mask does not match its history insert exactly once.");
+        }
+    }
+
+    [Fact]
+    public void RR_135_only_the_product_version_value_is_ignored_and_any_other_change_to_a_merged_script_still_fails()
+    {
+        string golden = File.ReadAllText(Path.Combine(GoldenDirectory(), KernelMigrations.All()[^1] + ".sql"));
+        string migrationId = KernelMigrations.All()[^1];
+        string versionOnly = ProductVersion().Replace(golden, "${1}10.0.999$2");
+
+        Assert.NotEqual(golden, versionOnly);
+        Assert.Equal(Normalise(golden), Normalise(versionOnly));
+        // The migration id in the same row, a statement elsewhere and an appended statement are all still compared.
+        Assert.NotEqual(Normalise(golden), Normalise(golden.Replace($"'{migrationId}'", "'20990101000000_Other'", StringComparison.Ordinal)));
+        Assert.NotEqual(Normalise(golden), Normalise(golden.Replace("kernel.", "kernel2.", StringComparison.Ordinal)));
+        Assert.NotEqual(Normalise(golden), Normalise(golden + "\nDROP TABLE kernel.company;\n"));
     }
 
     [Fact]

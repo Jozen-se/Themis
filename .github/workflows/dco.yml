@@ -2,10 +2,22 @@
 # author; dependabot[bot], github-actions[bot] and merge commits are exempt; squash commits on main are not checked.
 # The check is .github/scripts/dco-check.sh; the second job proves the script itself on synthetic repositories.
 # Making "DCO sign-off" a required status check is a change to the ruleset on main, which the owner makes (D-42).
+#
+# RR-134: a commit pushed with GITHUB_TOKEN starts no pull_request run, so the Dependabot lock files workflow dispatches
+# this workflow on the new head, as it does CI. A workflow_dispatch run checks out the tip of the ref it was dispatched
+# on; github.sha is that commit, and the run's check runs (job names "DCO sign-off" and "DCO check self-test") attach
+# to it, which is the commit the ruleset looks at. The dispatcher passes the pull request's base commit; the head is
+# never taken from an input but is always the dispatched commit itself.
 name: DCO
 
 on:
   pull_request:
+  workflow_dispatch:
+    inputs:
+      base:
+        description: "The pull request's base commit (40-character SHA); the range checked is base..the dispatched commit."
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -25,8 +37,27 @@ jobs:
         with:
           fetch-depth: 0
 
+      # RR-85: event values reach the shell only through environment variables, quoted; RR-134: on a dispatched run the
+      # base comes from the input, checked to be a commit SHA, and the head is the dispatched commit.
       - name: Every commit of the pull request carries a matching Signed-off-by line (D-36)
-        run: .github/scripts/dco-check.sh "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          DISPATCH_BASE: ${{ inputs.base }}
+          DISPATCHED_SHA: ${{ github.sha }}
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            if ! [[ "${DISPATCH_BASE}" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error title=DCO dispatch input::The base input must be a 40-character commit SHA (RR-134)."
+              exit 2
+            fi
+            base="${DISPATCH_BASE}"
+            head="${DISPATCHED_SHA}"
+          else
+            base="${PR_BASE}"
+            head="${PR_HEAD}"
+          fi
+          .github/scripts/dco-check.sh "$base" "$head"
 
   self-test:
     name: DCO check self-test

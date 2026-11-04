@@ -123,7 +123,10 @@ keep this honest:
   equals its committed file, with the EF product version and the line endings normalised. A new migration adds its
   file with `THEMIS_GOLDEN_RECORD=1 dotnet test --project tests/Themis.Kernel.Tests --filter-class
   Themis.Kernel.Tests.Migrations.MigrationGoldenScriptTests`; a changed script of a merged migration, also one caused
-  by a provider or EF upgrade, needs the owner's review before the file is updated.
+  by a provider or EF upgrade, needs the owner's review before the file is updated. The product version is the one
+  value an EF patch update changes in every script, so only that literal of the history insert is masked; until
+  RR-135 the mask's pattern expected a quoted table name and matched nothing, and a guard test now proves it matches
+  every golden file exactly once.
 - **Drift dumps** (`db/migrations/drift/<tag>.sql`, `MigrationDriftTests`): a schema-only `pg_dump` with ACLs of a
   database built by the tag's own `Themis.Migrator`, followed by the data that run wrote (the rows the migrations
   seed, the system catalogues the migrator applies, the migration history) as INSERT statements, since the head
@@ -912,5 +915,7 @@ compile (R-MON-01, R-TIME-01); see `eng/BannedSymbols.txt`.
 Every commit carries a `Signed-off-by` line matching its author (Developer Certificate of Origin, D-36; `git commit
 -s`). The workflow `.github/workflows/dco.yml` runs `.github/scripts/dco-check.sh` over a pull request's commits and
 fails when one lacks it; dependabot[bot], github-actions[bot] and merge commits are exempt, squash commits on `main`
-are not checked. `.github/scripts/dco-check-selftest.sh` proves the script on synthetic repositories. See
+are not checked. When the Dependabot lock files workflow pushes a regenerated commit, it dispatches the DCO workflow on
+that commit with the pull request's base as input, as it dispatches CI, so "DCO sign-off" reports on the new head
+(RR-134). `.github/scripts/dco-check-selftest.sh` proves the script on synthetic repositories. See
 `CONTRIBUTING.md`.
