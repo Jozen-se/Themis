@@ -5,10 +5,10 @@
 # old version under "CentralTransitive", so the locked restore in CI fails with NU1004 on almost every grouped update.
 #
 # This workflow runs on Dependabot's own pushes, regenerates every lock file with the restore tooling, and commits the
-# result to the Dependabot branch when something changed. A push made with GITHUB_TOKEN starts no workflow, so the
-# last steps dispatch the CI workflow and the DCO workflow (RR-134) on the new head; their check runs attach to that
-# commit and satisfy the ruleset ("Build and test", "License scan", "DCO sign-off").
-# The GITHUB_TOKEN is the only credential; no secret is stored anywhere.
+# result to the Dependabot branch when something changed. A push made with GITHUB_TOKEN starts only pull_request runs
+# that wait for approval, so the last steps dispatch the CI workflow and the DCO workflow (RR-134) on the new head;
+# their check runs attach to that commit and satisfy the ruleset ("Build and test", "License scan", "DCO sign-off"). The
+# GITHUB_TOKEN is the only credential; no secret is stored anywhere.
 name: Dependabot lock files
 
 on:
@@ -73,8 +73,9 @@ jobs:
           git push origin "HEAD:${HEAD_REF}"
 
       # RR-134: the dispatches run whenever the branch head is this workflow's own lock-file commit, not only when this
-      # run made it, so "Re-run jobs" dispatches again; each dispatch runs on its own (!cancelled()), so a failed CI
-      # dispatch does not skip the DCO one.
+      # run made it, so "Re-run jobs" dispatches again. Both dispatches name the branch by its full ref, as the fetch
+      # does, so a tag of the same name cannot take the run and its check runs to another commit; each dispatch runs on
+      # its own (!cancelled()), so a failed CI dispatch does not skip the DCO one.
       - name: Find whether the branch head is this workflow's lock-file commit
         id: head
         env:
@@ -95,7 +96,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
-        run: gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "${HEAD_REF}"
+        run: gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "refs/heads/${HEAD_REF}"
 
       # RR-134: the DCO check on the new head. dco.yml takes the head from the dispatched ref and checks the commits on it
       # that main does not have, so the commit just pushed is the end of the range it checks and no input is passed.
@@ -104,4 +105,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
-        run: gh workflow run dco.yml --repo "$GITHUB_REPOSITORY" --ref "${HEAD_REF}"
+        run: gh workflow run dco.yml --repo "$GITHUB_REPOSITORY" --ref "refs/heads/${HEAD_REF}"

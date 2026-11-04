@@ -3,12 +3,12 @@
 # The check is .github/scripts/dco-check.sh; the second job proves the script itself on synthetic repositories.
 # Making "DCO sign-off" a required status check is a change to the ruleset on main, which the owner makes (D-42).
 #
-# RR-134: a commit pushed with GITHUB_TOKEN starts no pull_request run, so the Dependabot lock files workflow dispatches
-# this workflow on the new head, as it does CI. A workflow_dispatch run checks out the tip of the ref it was dispatched
-# on; github.sha is that commit, and the run's check runs (job names "DCO sign-off" and "DCO check self-test") attach
-# to it, which is the commit the ruleset looks at. A dispatch takes no input: the head is the dispatched commit and
-# .github/scripts/dco-dispatch.sh checks refs/remotes/origin/main..<head>, the commits on the head that main does not
-# have, so no caller can choose the range.
+# RR-134: a commit pushed with GITHUB_TOKEN starts only pull_request runs that wait for approval, so the Dependabot lock
+# files workflow dispatches this workflow on the new head, as it does CI. A workflow_dispatch run checks out the tip of
+# the ref it was dispatched on; github.sha is that commit, and the run's check runs (job names "DCO sign-off" and "DCO
+# check self-test") attach to it, which is the commit the ruleset looks at. A dispatch takes no input: the head is the
+# dispatched commit and .github/scripts/dco-dispatch.sh checks refs/remotes/origin/main..<head>, the commits on the head
+# that main does not have, so no caller can choose the range.
 name: DCO
 
 on:

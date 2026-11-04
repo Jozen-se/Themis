@@ -111,8 +111,9 @@ new_repo "$drepo"
 commit "$drepo" u.txt "Alice Example" "alice@example.com" "Unsigned"
 run_case "RR-134: a dispatch fails an unsigned branch" 1 "$drepo" "$dispatch" "$(git -C "$drepo" rev-parse work)" refs/heads/main
 # A tag named like the main branch, pointing at the head: a short name would resolve to the tag and check nothing.
-git -C "$drepo" tag main work
-git -C "$drepo" tag refs/heads/main work
+# update-ref, not git tag: a developer's global tag.gpgSign would make git tag ask for a message and abort the run.
+git -C "$drepo" update-ref refs/tags/main work
+git -C "$drepo" update-ref refs/tags/refs/heads/main work
 run_case "RR-134: a short main name is refused, so a tag cannot shadow it" 2 "$drepo" "$dispatch" "$(git -C "$drepo" rev-parse work)" main
 run_case "RR-134: the full main ref ignores a tag named after it and still fails the unsigned branch" 1 "$drepo" "$dispatch" "$(git -C "$drepo" rev-parse work)" refs/heads/main
 # With the main ref itself absent, git's name lookup would fall back to the tag refs/tags/refs/heads/main and check nothing.
