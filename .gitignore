@@ -21,3 +21,7 @@ TestResults/
 # OS
 .DS_Store
 Thumbs.db
+
+# Python bytecode from running eng/snapshots (RR-141)
+__pycache__/
+*.py[cod]
