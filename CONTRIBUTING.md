@@ -45,7 +45,9 @@ Then push the branch again (`git push --force-with-lease` on your own branch).
 
 - `dotnet format Themis.sln --verify-no-changes`, `dotnet build` (warnings are errors) and `dotnet test` pass locally;
   the integration tests need Docker or Podman, or `THEMIS_TEST_CONNECTION` (see `docs/development.md`).
-- Every behaviour traces to a rule or decision in `docs/design/`; a gap goes to the owner as a "Rule gap" issue, never
-  a guess (`CLAUDE.md`, Ground rules).
+- Every behaviour traces to a rule or decision in `docs/design/`, never a guess. A rule gap or a proposed change goes to
+  the planner, who brings it to the owner (sessions, D-68); other contributors open a Rule gap issue
+  ([`.github/ISSUE_TEMPLATE/rule-gap.yml`](.github/ISSUE_TEMPLATE/rule-gap.yml)). See `CLAUDE.md`, Ground rules.
 - New dependencies pass the licence scan; no copyleft (D-38).
-- Fill in the pull request template; ledger, inventory and posting changes are marked for the owner's explicit review.
+- Fill in the pull request template; the owner reads ledger, inventory, posting profile and migration changes himself
+  (D-59).
