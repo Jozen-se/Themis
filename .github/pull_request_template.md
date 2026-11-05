@@ -17,7 +17,7 @@
 ## Checklist
 
 - [ ] One task, one pull request; the title and commits name the rule IDs they implement
-- [ ] No rule invented: every behaviour traces to a rule or decision in the Foundation or the Phase 0 specification; a rule gap or a proposed change goes to the planner, who brings it to the owner, not a guess (CLAUDE.md, Ground rules; D-68)
+- [ ] No rule invented: every behaviour traces to a rule or decision in the Foundation or the Phase 0 specification, never a guess. A rule gap or a proposed change goes to the planner, who brings it to the owner (sessions, D-68); other contributors open a Rule gap issue
 - [ ] CI is green on the head commit (tick only after the checks passed)
 - Local results (local, not CI): 
 - [ ] Tests cover the acceptance above (invariant tests for I-nn where ledgers or stock are touched)

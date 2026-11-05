@@ -249,8 +249,9 @@ public sealed partial class ReviewAndCiHygieneTests
         Assert.Contains("- [ ] Full tier: the reviewer's summary names that head commit", template, StringComparison.Ordinal);
         Assert.Contains("- [ ] Every pull request: the planner's conformance result names that head commit", template, StringComparison.Ordinal);
         Assert.DoesNotContain("Light tier:", template, StringComparison.Ordinal);
-        // RR-139: a rule gap or a proposed change goes to the planner, who brings it to the owner (CLAUDE.md, D-68).
-        Assert.Contains("goes to the planner, who brings it to the owner", template, StringComparison.Ordinal);
+        // RR-139: a rule gap or a proposed change goes to the planner, who brings it to the owner (sessions, D-68); other
+        // contributors open a Rule gap issue (owner-approved wording, 2026-11-05).
+        Assert.Contains("goes to the planner, who brings it to the owner (sessions, D-68); other contributors open a Rule gap issue", template, StringComparison.Ordinal);
         Assert.Contains("- [ ] Every conversation is resolved", template, StringComparison.Ordinal);
         Assert.DoesNotContain("Owner sign-off", template, StringComparison.Ordinal);
         Assert.DoesNotContain("explicit review", template, StringComparison.OrdinalIgnoreCase);
