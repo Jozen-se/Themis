@@ -57,17 +57,34 @@ public sealed class PermissionCatalogTests
     }
 
     [Fact]
-    public void The_catalogue_is_well_formed_and_the_v1_conflict_pairs_are_the_specification_examples()
+    public void The_catalogue_is_well_formed_and_D_69_R_SEC_02_the_v1_conflict_pairs_are_the_specification_examples()
     {
         Assert.All(PermissionCatalog.Definition.Permissions, permission => Assert.True(PermissionCodes.IsValid(permission.Code)));
         Assert.Equal(PermissionCatalog.Definition.Permissions.Count, PermissionCatalog.Definition.Permissions.Select(p => p.Code).Distinct(StringComparer.Ordinal).Count());
         // Step 4 brief: INVENTORY_ADJUSTMENT.POST is Sensitive; milestone 2 step 2: SETTING.SET and SETTING.CLEAR are too; milestone 2
-        // step 3: COMPANY.CREATE, COMPANY.UPDATE and the chart of accounts header commands; the rest Normal.
-        string[] sensitive = ["INVENTORY_ADJUSTMENT.POST", "SETTING.SET", "SETTING.CLEAR", "COMPANY.CREATE", "COMPANY.UPDATE", "CHART_OF_ACCOUNTS.CREATE", "CHART_OF_ACCOUNTS.UPDATE"];
+        // step 3: COMPANY.CREATE, COMPANY.UPDATE and the chart of accounts header commands; milestone 2 step 4: the six account
+        // commands (D-69); the rest Normal.
+        string[] sensitive =
+        [
+            "INVENTORY_ADJUSTMENT.POST", "SETTING.SET", "SETTING.CLEAR", "COMPANY.CREATE", "COMPANY.UPDATE", "CHART_OF_ACCOUNTS.CREATE", "CHART_OF_ACCOUNTS.UPDATE",
+            "ACCOUNT.CREATE", "ACCOUNT.UPDATE", "ACCOUNT.BLOCK", "ACCOUNT.UNBLOCK", "ACCOUNT.DEACTIVATE", "ACCOUNT.REACTIVATE",
+        ];
         Assert.All(PermissionCatalog.Definition.Permissions, p => Assert.Equal(sensitive.Contains(p.Code) ? PermissionRiskLevel.Sensitive : PermissionRiskLevel.Normal, p.RiskLevel));
 
+        // D-70: the permissions one of whose requests declares installation scope (RR-52), marked beside the risk level.
+        string[] installationScope =
+        [
+            "SETTING.SET", "SETTING.CLEAR", "SETTING.READ", "COMPANY.CREATE", "CHART_OF_ACCOUNTS.CREATE", "CHART_OF_ACCOUNTS.UPDATE", "CHART_OF_ACCOUNTS.READ",
+            "ACCOUNT.CREATE", "ACCOUNT.UPDATE", "ACCOUNT.BLOCK", "ACCOUNT.UNBLOCK", "ACCOUNT.DEACTIVATE", "ACCOUNT.REACTIVATE", "ACCOUNT.READ",
+        ];
+        Assert.Equal(installationScope.Order(StringComparer.Ordinal), PermissionCatalog.Definition.Permissions.Where(p => p.InstallationScope).Select(p => p.Code).Order(StringComparer.Ordinal));
+
+        // D-69: ACCOUNT.MAINTAIN with MANUAL_JOURNAL.POST is replaced by four pairs.
         Assert.Equal(
-            [("ACCOUNT.MAINTAIN", "MANUAL_JOURNAL.POST"), ("CUSTOMER.SET_CREDIT_LIMIT", "SALES_ORDER.APPROVE_CREDIT"), ("FISCAL_PERIOD.REOPEN", "MANUAL_JOURNAL.POST")],
+            [
+                ("ACCOUNT.CREATE", "MANUAL_JOURNAL.POST"), ("ACCOUNT.REACTIVATE", "MANUAL_JOURNAL.POST"), ("ACCOUNT.UNBLOCK", "MANUAL_JOURNAL.POST"), ("ACCOUNT.UPDATE", "MANUAL_JOURNAL.POST"),
+                ("CUSTOMER.SET_CREDIT_LIMIT", "SALES_ORDER.APPROVE_CREDIT"), ("FISCAL_PERIOD.REOPEN", "MANUAL_JOURNAL.POST"),
+            ],
             PermissionCatalog.Definition.Conflicts.Select(pair => (pair.PermissionA, pair.PermissionB)).Order());
         Assert.Equal(PermissionCatalog.Pair("B.X", "A.Y"), PermissionCatalog.Pair("A.Y", "B.X"));
         Assert.Throws<ArgumentException>(() => PermissionCatalog.Pair("A.Y", "A.Y"));

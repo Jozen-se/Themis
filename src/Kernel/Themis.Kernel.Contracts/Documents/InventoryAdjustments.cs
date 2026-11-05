@@ -51,6 +51,11 @@ public sealed record InventoryAdjustmentLineInput(
 /// id. A draft may be incomplete: the POST guards (reason code, at least one Open line, items Stocked and Active,
 /// stock coverage, period open) run at posting in step 8.
 /// </summary>
+[CommandRules("R-DOC-01", "R-INV-02", "D-40")]
+[CommandAudits("Document", "DocumentLine", "InventoryAdjustment")]
+[CommandEvents("INVENTORY_ADJUSTMENT_CREATED")]
+[CommandErrors("company_required", "external_reference_too_long", "line_number_not_positive", "line_number_duplicate", "line_item_required", "line_quantity_zero", "line_entered_unit_cost_negative", "line_entered_unit_cost_precision", "value_out_of_range", "line_limit_exceeded", "company_unknown", "warehouse_unknown", "warehouse_other_company", "line_item_unknown", "line_warehouse_required", "line_warehouse_unknown", "line_warehouse_other_company", "quantity_precision")]
+[CommandTransition("INVENTORY_ADJUSTMENT", "Draft", "Draft")]
 [Command("INVENTORY_ADJUSTMENT.CREATE")]
 public sealed record CreateInventoryAdjustment(
     Guid CompanyId,
@@ -70,6 +75,11 @@ public sealed record CreateInventoryAdjustment(
 /// a cancelled number given again reopens the line with the new values; nothing is deleted. Id from the route; the
 /// scope from the record.
 /// </summary>
+[CommandRules("R-DOC-02", "R-API-02", "R-INV-02")]
+[CommandAudits("Document", "DocumentLine", "InventoryAdjustment")]
+[CommandEvents("INVENTORY_ADJUSTMENT_UPDATED")]
+[CommandErrors("external_reference_too_long", "line_number_not_positive", "line_number_duplicate", "line_item_required", "line_quantity_zero", "line_entered_unit_cost_negative", "line_entered_unit_cost_precision", "value_out_of_range", "line_limit_exceeded", "inventory_adjustment_not_found", "version_stale", "document_not_draft", "warehouse_unknown", "warehouse_other_company", "line_item_unknown", "line_warehouse_required", "line_warehouse_unknown", "line_warehouse_other_company", "quantity_precision")]
+[CommandTransition("INVENTORY_ADJUSTMENT", "Draft", "Draft")]
 [Command("INVENTORY_ADJUSTMENT.UPDATE")]
 public sealed record UpdateInventoryAdjustment(
     Guid Id,
@@ -82,6 +92,11 @@ public sealed record UpdateInventoryAdjustment(
     IReadOnlyList<InventoryAdjustmentLineInput>? Lines = null) : ICommand<InventoryAdjustmentView>, IVersionedCommand;
 
 /// <summary>INVENTORY_ADJUSTMENT.DISCARD (step 7 brief): Draft to Discarded on the current version; the row stays (R-DOC-06).</summary>
+[CommandRules("R-DOC-01", "R-DOC-06", "R-API-02")]
+[CommandAudits("Document")]
+[CommandEvents("INVENTORY_ADJUSTMENT_DISCARDED")]
+[CommandErrors("inventory_adjustment_not_found", "version_stale", "transition_not_allowed")]
+[CommandTransition("INVENTORY_ADJUSTMENT", "Draft", "Discarded")]
 [Command("INVENTORY_ADJUSTMENT.DISCARD")]
 public sealed record DiscardInventoryAdjustment(Guid Id, long ExpectedVersion) : ICommand<InventoryAdjustmentView>, IVersionedCommand;
 
@@ -91,6 +106,11 @@ public sealed record DiscardInventoryAdjustment(Guid Id, long ExpectedVersion) :
 /// the audit events and INVENTORY_ADJUSTED, or nothing (R-LED-05, R-LED-07). The guards of the state machine run
 /// first (R-DOC-01, R-LED-04, R-INV-05), the stock and cost checks after their rows are locked (R-INV-03, R-LED-08).
 /// </summary>
+[CommandRules("R-LED-05", "R-LED-08", "R-INV-03", "R-INV-05", "R-PP-02", "R-LED-04", "R-DOC-07", "D-69")]
+[CommandAudits("Document", "DocumentLine")]
+[CommandEvents("INVENTORY_ADJUSTED")]
+[CommandErrors("inventory_adjustment_not_found", "version_stale", "transition_not_allowed", "no_open_lines", "reason_code_required", "item_not_stocked", "item_not_active", "lot_required", "posting_date_required", "fiscal_period_not_open", "entered_unit_cost_on_outbound", "document_currency_not_base_currency", "stock_insufficient", "posting_rule_missing", "posting_rule_account_not_active", "amount_out_of_range", "number_series_missing")]
+[CommandTransition("INVENTORY_ADJUSTMENT", "Draft", "Posted")]
 [Command("INVENTORY_ADJUSTMENT.POST")]
 public sealed record PostInventoryAdjustment(Guid Id, long ExpectedVersion) : ICommand<InventoryAdjustmentView>, IVersionedCommand;
 

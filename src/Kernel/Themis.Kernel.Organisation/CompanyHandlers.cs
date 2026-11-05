@@ -238,7 +238,8 @@ internal sealed class UpdateCompanyHandler : ICommandHandler<UpdateCompany, Comp
             (OrganisationErrors.CompanyBaseCurrencyFixed, "base currency", before.BaseCurrency != after.BaseCurrency),
             (OrganisationErrors.CompanyTimeZoneFixed, "time zone", !string.Equals(before.TimeZone, after.TimeZone, StringComparison.Ordinal)),
             (OrganisationErrors.CompanyCountryCodeFixed, "country", before.CountryCode != after.CountryCode),
-            (OrganisationErrors.CompanyOrganisationNumberFixed, "organisation number", !string.Equals(before.OrganisationNumber, after.OrganisationNumber, StringComparison.Ordinal)),
+            // RR-130: compared in normalised form, as the duplicate key is, so a reformatted number is no change.
+            (OrganisationErrors.CompanyOrganisationNumberFixed, "organisation number", !string.Equals(DuplicateKeys.Normalise(before.OrganisationNumber), DuplicateKeys.Normalise(after.OrganisationNumber), StringComparison.Ordinal)),
             (OrganisationErrors.CompanyRoundingModeFixed, "rounding mode", before.RoundingMode != after.RoundingMode),
         ];
         bool chartChanged = before.ChartOfAccountsId != after.ChartOfAccountsId;

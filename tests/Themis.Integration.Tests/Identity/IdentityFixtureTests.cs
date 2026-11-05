@@ -49,7 +49,7 @@ public sealed class IdentityFixtureTests
 
         // The integration tests' fixture bootstrap adds the test-only FIXTURE_TESTER role for the fixture module's touch command (FixtureSchema); the seeded rows are counted without it.
         Assert.Equal(5L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.role WHERE id <> @fixture", ("fixture", FixtureSchema.TouchRoleId)));
-        Assert.Equal(24L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.role_permission WHERE role_id <> @fixture", ("fixture", FixtureSchema.TouchRoleId)));
+        Assert.Equal(31L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.role_permission WHERE role_id <> @fixture", ("fixture", FixtureSchema.TouchRoleId)));
         Assert.Equal(6L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.role_assignment WHERE role_id <> @fixture", ("fixture", FixtureSchema.TouchRoleId)));
         Assert.Equal(6L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.role_assignment WHERE company_id = @company AND site_id IS NULL AND valid_to IS NULL AND role_id <> @fixture", ("company", Milestone1OrganisationFixture.CompanyId), ("fixture", FixtureSchema.TouchRoleId)));
         Assert.Equal(new DateOnly(2026, 1, 1), await ScalarAsync(connection, "SELECT min(valid_from) FROM kernel.role_assignment"));
@@ -112,9 +112,9 @@ public sealed class IdentityFixtureTests
         const string catalogueAudit = "FROM kernel.audit_event WHERE command_name = 'SYSTEM.SEED_CATALOGUE' AND NOT (entity_type = 'SettingDefinition' AND entity_id IN (SELECT id FROM kernel.setting_definition WHERE key LIKE 'test.%'))";
 
         // 4 users (the settings administrator since milestone 2 step 2a, RR-101; the organisation administrator since
-        // milestone 2 step 3), 5 roles, 24 role permissions, 6 assignments.
-        Assert.Equal(4L + 5L + 24L + 6L, await ScalarAsync(connection, $"SELECT count(*) {fixtureAudit}"));
-        Assert.Equal(39L, await ScalarAsync(connection, $"SELECT count(DISTINCT entity_id) {fixtureAudit}"));
+        // milestone 2 step 3), 5 roles, 31 role permissions (the seven account permissions since step 4), 6 assignments.
+        Assert.Equal(4L + 5L + 31L + 6L, await ScalarAsync(connection, $"SELECT count(*) {fixtureAudit}"));
+        Assert.Equal(46L, await ScalarAsync(connection, $"SELECT count(DISTINCT entity_id) {fixtureAudit}"));
         // SYSTEM.SEED_CATALOGUE also covers the document type registry since step 7 (D-40): one event per type and per transition.
         // The PARTY type is written by the OrganisationCommands migration (milestone 2 step 3, SYSTEM.MIGRATE), not by the catalogue seeder.
         long registryRows = DocumentTypes.All.Count(type => type.Code != DocumentTypes.Party) + DocumentTypes.All.Sum(type => type.Transitions.Count);
@@ -126,7 +126,7 @@ public sealed class IdentityFixtureTests
 
         Assert.Equal(0, await Themis.Migrator.Program.RunAsync(["--connection", _db.ConnectionStringFor("themis_migrator"), "--fixture", "milestone-1"], PostgresFixture.MigratorEnvironment));
 
-        Assert.Equal(39L, await ScalarAsync(connection, $"SELECT count(*) {fixtureAudit}"));
+        Assert.Equal(46L, await ScalarAsync(connection, $"SELECT count(*) {fixtureAudit}"));
         Assert.Equal(5L, await ScalarAsync(connection, "SELECT count(*) FROM kernel.user_account"));
         Assert.Equal((long)PermissionCatalog.Definition.Permissions.Count, await ScalarAsync(connection, "SELECT count(*) FROM kernel.permission WHERE code NOT LIKE 'FIXTURE.%'"));
     }
@@ -194,7 +194,7 @@ public sealed class IdentityFixtureTests
 
         Result<int> refused = await IdentitySeeder.ApplyFixtureAsync(
             _db.ConnectionStringFor("themis_migrator"), fixture,
-            definition => SegregationOfDuties.CheckFixture(definition, PermissionCatalog.Definition.Conflicts),
+            definition => SegregationOfDuties.CheckFixture(definition, PermissionCatalog.Definition),
             TimeProvider.System.GetUtcNow(), WellKnownUsers.System, Ct);
 
         Assert.True(refused.IsFailure);

@@ -166,6 +166,9 @@ internal sealed class PipelineTestHost : IAsyncDisposable
         app.MapCommandRoutes(OrganisationRoutes.Commands);
         app.MapQuery<GetChartOfAccounts, ChartOfAccountsView>(OrganisationRoutes.ChartOfAccounts);
         app.MapQuery<ListChartsOfAccounts, IReadOnlyList<ChartOfAccountsView>>(OrganisationRoutes.ChartsOfAccounts);
+        app.MapCommandRoutes(AccountRoutes.Commands);
+        app.MapQuery<GetAccount, AccountView>(AccountRoutes.Account);
+        app.MapQuery<ListAccounts, IReadOnlyList<AccountView>>(AccountRoutes.ChartAccounts);
         app.MapQuery<GetSite, SiteInfo>(OrganisationRoutes.Site);
         app.MapQuery<ListSites, IReadOnlyList<SiteInfo>>(OrganisationRoutes.CompanySites);
         app.MapQuery<GetWarehouse, WarehouseView>(OrganisationRoutes.Warehouse);
@@ -232,7 +235,7 @@ internal sealed class PipelineTestHost : IAsyncDisposable
     /// <summary>
     /// The settings routes default to the settings administrator, the fixture user who holds SETTINGS_ADMINISTRATOR
     /// since the clerk no longer does (RR-101); the organisation routes of milestone 2 step 3 (the chart of accounts,
-    /// site and warehouse routes, the company create and update, and the site and warehouse reads under a company) to
+    /// site and warehouse routes, and since step 4 the account routes, the company create and update, and the site and warehouse reads under a company) to
     /// the organisation administrator, who holds ORGANISATION_ADMINISTRATOR; every other route, the company read and
     /// the item routes under a company among them, defaults to the clerk. A test that names a subject gets it.
     /// </summary>
@@ -249,7 +252,8 @@ internal sealed class PipelineTestHost : IAsyncDisposable
     private static bool IsOrganisationRoute(string path)
     {
         string route = path.Split('?')[0];
-        if (route.StartsWith("/v1/kernel/charts-of-accounts", StringComparison.Ordinal) || route.StartsWith("/v1/kernel/sites", StringComparison.Ordinal) || route.StartsWith("/v1/kernel/warehouses", StringComparison.Ordinal))
+        if (route.StartsWith("/v1/kernel/charts-of-accounts", StringComparison.Ordinal) || route.StartsWith("/v1/kernel/accounts", StringComparison.Ordinal)
+            || route.StartsWith("/v1/kernel/sites", StringComparison.Ordinal) || route.StartsWith("/v1/kernel/warehouses", StringComparison.Ordinal))
         {
             return true;
         }

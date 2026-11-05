@@ -1,0 +1,5261 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Themis.Host | v1",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost/"
+    }
+  ],
+  "paths": {
+    "/v1/kernel/companies/{id}": {
+      "get": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "COMPANY.READ",
+        "operationId": "GetCompany",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyInfo"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/charts-of-accounts": {
+      "post": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "CHART_OF_ACCOUNTS.CREATE",
+        "operationId": "CreateChartOfAccounts",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Unique per request; the same key replays the first result (R-API-01).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateChartOfAccounts"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record's new version (R-API-02).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotency-Replayed": {
+                "description": "Present and true when the response is the stored result of an earlier request with the same key (R-API-01).",
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChartOfAccountsView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "CHART_OF_ACCOUNTS.READ",
+        "operationId": "ListChartsOfAccounts",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChartOfAccountsView"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/charts-of-accounts/{id}/update": {
+      "post": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "CHART_OF_ACCOUNTS.UPDATE",
+        "operationId": "UpdateChartOfAccounts",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Unique per request; the same key replays the first result (R-API-01).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The record version from the last ETag; a stale version is rejected with 412 (R-API-02).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateChartOfAccounts"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record's new version (R-API-02).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotency-Replayed": {
+                "description": "Present and true when the response is the stored result of an earlier request with the same key (R-API-01).",
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChartOfAccountsView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/companies": {
+      "post": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "COMPANY.CREATE",
+        "operationId": "CreateCompany",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Unique per request; the same key replays the first result (R-API-01).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCompany"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record's new version (R-API-02).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotency-Replayed": {
+                "description": "Present and true when the response is the stored result of an earlier request with the same key (R-API-01).",
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyInfo"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/companies/{id}/update": {
+      "post": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "COMPANY.UPDATE",
+        "operationId": "UpdateCompany",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Unique per request; the same key replays the first result (R-API-01).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The record version from the last ETag; a stale version is rejected with 412 (R-API-02).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCompany"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record's new version (R-API-02).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotency-Replayed": {
+                "description": "Present and true when the response is the stored result of an earlier request with the same key (R-API-01).",
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyInfo"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/sites": {
+      "post": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "SITE.CREATE",
+        "operationId": "CreateSite",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Unique per request; the same key replays the first result (R-API-01).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record's new version (R-API-02).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotency-Replayed": {
+                "description": "Present and true when the response is the stored result of an earlier request with the same key (R-API-01).",
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteInfo"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/sites/{id}/update": {
+      "post": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "SITE.UPDATE",
+        "operationId": "UpdateSite",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Unique per request; the same key replays the first result (R-API-01).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The record version from the last ETag; a stale version is rejected with 412 (R-API-02).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record's new version (R-API-02).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotency-Replayed": {
+                "description": "Present and true when the response is the stored result of an earlier request with the same key (R-API-01).",
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteInfo"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/warehouses": {
+      "post": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "WAREHOUSE.CREATE",
+        "operationId": "CreateWarehouse",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Unique per request; the same key replays the first result (R-API-01).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWarehouse"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record's new version (R-API-02).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotency-Replayed": {
+                "description": "Present and true when the response is the stored result of an earlier request with the same key (R-API-01).",
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WarehouseView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/warehouses/{id}/update": {
+      "post": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "WAREHOUSE.UPDATE",
+        "operationId": "UpdateWarehouse",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Unique per request; the same key replays the first result (R-API-01).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The record version from the last ETag; a stale version is rejected with 412 (R-API-02).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWarehouse"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record's new version (R-API-02).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotency-Replayed": {
+                "description": "Present and true when the response is the stored result of an earlier request with the same key (R-API-01).",
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WarehouseView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/charts-of-accounts/{id}": {
+      "get": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "CHART_OF_ACCOUNTS.READ",
+        "operationId": "GetChartOfAccounts",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChartOfAccountsView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/accounts": {
+      "post": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "ACCOUNT.CREATE",
+        "operationId": "CreateAccount",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Unique per request; the same key replays the first result (R-API-01).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAccount"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record's new version (R-API-02).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotency-Replayed": {
+                "description": "Present and true when the response is the stored result of an earlier request with the same key (R-API-01).",
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/accounts/{id}/update": {
+      "post": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "ACCOUNT.UPDATE",
+        "operationId": "UpdateAccount",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Unique per request; the same key replays the first result (R-API-01).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The record version from the last ETag; a stale version is rejected with 412 (R-API-02).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAccount"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record's new version (R-API-02).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotency-Replayed": {
+                "description": "Present and true when the response is the stored result of an earlier request with the same key (R-API-01).",
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/accounts/{id}/block": {
+      "post": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "ACCOUNT.BLOCK",
+        "operationId": "BlockAccount",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Unique per request; the same key replays the first result (R-API-01).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The record version from the last ETag; a stale version is rejected with 412 (R-API-02).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BlockAccount"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record's new version (R-API-02).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotency-Replayed": {
+                "description": "Present and true when the response is the stored result of an earlier request with the same key (R-API-01).",
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/accounts/{id}/unblock": {
+      "post": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "ACCOUNT.UNBLOCK",
+        "operationId": "UnblockAccount",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Unique per request; the same key replays the first result (R-API-01).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The record version from the last ETag; a stale version is rejected with 412 (R-API-02).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnblockAccount"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record's new version (R-API-02).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotency-Replayed": {
+                "description": "Present and true when the response is the stored result of an earlier request with the same key (R-API-01).",
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/accounts/{id}/deactivate": {
+      "post": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "ACCOUNT.DEACTIVATE",
+        "operationId": "DeactivateAccount",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Unique per request; the same key replays the first result (R-API-01).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The record version from the last ETag; a stale version is rejected with 412 (R-API-02).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeactivateAccount"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record's new version (R-API-02).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotency-Replayed": {
+                "description": "Present and true when the response is the stored result of an earlier request with the same key (R-API-01).",
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/accounts/{id}/reactivate": {
+      "post": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "ACCOUNT.REACTIVATE",
+        "operationId": "ReactivateAccount",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Unique per request; the same key replays the first result (R-API-01).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The record version from the last ETag; a stale version is rejected with 412 (R-API-02).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReactivateAccount"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record's new version (R-API-02).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotency-Replayed": {
+                "description": "Present and true when the response is the stored result of an earlier request with the same key (R-API-01).",
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/accounts/{id}": {
+      "get": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "ACCOUNT.READ",
+        "operationId": "GetAccount",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/charts-of-accounts/{chartId}/accounts": {
+      "get": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "ACCOUNT.READ",
+        "operationId": "ListAccounts",
+        "parameters": [
+          {
+            "name": "chartId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AccountView"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/companies/{companyId}/sites/{id}": {
+      "get": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "SITE.READ",
+        "operationId": "GetSite",
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteInfo"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/companies/{companyId}/sites": {
+      "get": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "SITE.READ",
+        "operationId": "ListSites",
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SiteInfo"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/companies/{companyId}/warehouses/{id}": {
+      "get": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "WAREHOUSE.READ",
+        "operationId": "GetWarehouse",
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WarehouseView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/companies/{companyId}/warehouses": {
+      "get": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "WAREHOUSE.READ",
+        "operationId": "ListWarehouses",
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WarehouseView"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/items": {
+      "post": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "ITEM.CREATE",
+        "operationId": "CreateItem",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Unique per request; the same key replays the first result (R-API-01).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateItem"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record's new version (R-API-02).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotency-Replayed": {
+                "description": "Present and true when the response is the stored result of an earlier request with the same key (R-API-01).",
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/companies/{companyId}/items/{id}": {
+      "get": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "ITEM.READ",
+        "operationId": "GetItem",
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/companies/{companyId}/items/by-number/{itemNumber}": {
+      "get": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "ITEM.READ",
+        "operationId": "GetItemByNumber",
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "itemNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/inventory-adjustments": {
+      "post": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "INVENTORY_ADJUSTMENT.CREATE",
+        "operationId": "CreateInventoryAdjustment",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Unique per request; the same key replays the first result (R-API-01).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInventoryAdjustment"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record's new version (R-API-02).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotency-Replayed": {
+                "description": "Present and true when the response is the stored result of an earlier request with the same key (R-API-01).",
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryAdjustmentView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/inventory-adjustments/{id}/update": {
+      "post": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "INVENTORY_ADJUSTMENT.UPDATE",
+        "operationId": "UpdateInventoryAdjustment",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Unique per request; the same key replays the first result (R-API-01).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The record version from the last ETag; a stale version is rejected with 412 (R-API-02).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateInventoryAdjustment"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record's new version (R-API-02).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotency-Replayed": {
+                "description": "Present and true when the response is the stored result of an earlier request with the same key (R-API-01).",
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryAdjustmentView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/inventory-adjustments/{id}/discard": {
+      "post": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "INVENTORY_ADJUSTMENT.DISCARD",
+        "operationId": "DiscardInventoryAdjustment",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Unique per request; the same key replays the first result (R-API-01).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The record version from the last ETag; a stale version is rejected with 412 (R-API-02).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscardInventoryAdjustment"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record's new version (R-API-02).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotency-Replayed": {
+                "description": "Present and true when the response is the stored result of an earlier request with the same key (R-API-01).",
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryAdjustmentView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/inventory-adjustments/{id}/post": {
+      "post": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "INVENTORY_ADJUSTMENT.POST",
+        "operationId": "PostInventoryAdjustment",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Unique per request; the same key replays the first result (R-API-01).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The record version from the last ETag; a stale version is rejected with 412 (R-API-02).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostInventoryAdjustment"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record's new version (R-API-02).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotency-Replayed": {
+                "description": "Present and true when the response is the stored result of an earlier request with the same key (R-API-01).",
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryAdjustmentView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/companies/{companyId}/inventory-adjustments/{id}": {
+      "get": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "INVENTORY_ADJUSTMENT.READ",
+        "operationId": "GetInventoryAdjustment",
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryAdjustmentView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/settings/set": {
+      "post": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "SETTING.SET",
+        "operationId": "SetSetting",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Unique per request; the same key replays the first result (R-API-01).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The record version from the last ETag; a stale version is rejected with 412 (R-API-02).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetSetting"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record's new version (R-API-02).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotency-Replayed": {
+                "description": "Present and true when the response is the stored result of an earlier request with the same key (R-API-01).",
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingValueView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/settings/clear": {
+      "post": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "SETTING.CLEAR",
+        "operationId": "ClearSetting",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Unique per request; the same key replays the first result (R-API-01).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The record version from the last ETag; a stale version is rejected with 412 (R-API-02).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClearSetting"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record's new version (R-API-02).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotency-Replayed": {
+                "description": "Present and true when the response is the stored result of an earlier request with the same key (R-API-01).",
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingValueView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/kernel/settings/{key}": {
+      "get": {
+        "tags": [
+          "Themis.Host"
+        ],
+        "summary": "SETTING.READ",
+        "operationId": "GetSetting",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingReadView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AccountType": {
+        "enum": [
+          "Asset",
+          "Liability",
+          "Equity",
+          "Revenue",
+          "Expense"
+        ],
+        "description": "Phase 0 Specification, Account: the five types of the chart."
+      },
+      "AccountView": {
+        "required": [
+          "id",
+          "chartId",
+          "accountNumber",
+          "name",
+          "accountType",
+          "isControl",
+          "status",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "chartId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountNumber": {
+            "$ref": "#/components/schemas/Code"
+          },
+          "name": {
+            "type": "string"
+          },
+          "accountType": {
+            "$ref": "#/components/schemas/AccountType"
+          },
+          "isControl": {
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MasterDataStatus"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "description": "An account as the commands and queries return it: its chart, number, name, type, control flag, status and version (R-API-02)."
+      },
+      "BlockAccount": {
+        "required": [
+          "id",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "ACCOUNT.BLOCK (step 4 brief, item 2): Active to Blocked on the current version, with a reason of at most 500\ncharacters that goes into the audit event's changes and the ACCOUNT_BLOCKED payload, with no column of its own\n(D-69). Rejected under R-PP-05 while an active posting profile rule of any company references the account (D-56)."
+      },
+      "BusinessDate": {
+        "type": "string",
+        "description": "A calendar date in the company's time zone (R-TIME-01). Business dates come from the command, never from the\nsystem clock, so a posting date or document date is reproducible.",
+        "format": "date"
+      },
+      "ChartOfAccountsView": {
+        "required": [
+          "id",
+          "code",
+          "name",
+          "template",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "$ref": "#/components/schemas/Code"
+          },
+          "name": {
+            "type": "string"
+          },
+          "template": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "description": "A chart of accounts header as the API returns it; the ETag is the version (R-API-02)."
+      },
+      "ClearSetting": {
+        "required": [
+          "key",
+          "level"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "level": {
+            "$ref": "#/components/schemas/SettingLevel"
+          },
+          "companyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "siteId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "warehouseId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "validFrom": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "SETTING.CLEAR (step 2 brief; D-58): inserts a Cleared row at the slot, so the level falls through; nothing is updated or deleted. Scoped like SETTING.SET (D-63, RR-102)."
+      },
+      "Code": {
+        "type": "string",
+        "description": "A business key: 1 to 40 characters from A to Z, 0 to 9, dash and underscore, stored uppercase\n(Phase 0 Specification, Conventions). Uniqueness within the scope stated on the attribute is R-MD-05."
+      },
+      "CompanyInfo": {
+        "required": [
+          "id",
+          "code",
+          "partyId",
+          "legalName",
+          "organisationNumber",
+          "vatNumber",
+          "countryCode",
+          "baseCurrency",
+          "timeZone",
+          "fiscalYearStartMonth",
+          "chartOfAccountsId",
+          "roundingMode",
+          "taxRoundingLevel",
+          "status",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "$ref": "#/components/schemas/Code"
+          },
+          "partyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "legalName": {
+            "type": "string"
+          },
+          "organisationNumber": {
+            "type": "string"
+          },
+          "vatNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "countryCode": {
+            "$ref": "#/components/schemas/CountryCode"
+          },
+          "baseCurrency": {
+            "$ref": "#/components/schemas/CurrencyCode"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "fiscalYearStartMonth": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "chartOfAccountsId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "roundingMode": {
+            "$ref": "#/components/schemas/RoundingMode"
+          },
+          "taxRoundingLevel": {
+            "$ref": "#/components/schemas/TaxRoundingLevel"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CompanyStatus"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "description": "The company as every later step reads it and as COMPANY.CREATE and COMPANY.UPDATE return it (brief, step 3 read\ncontracts; milestone 2 step 3): identity, its own party (D-64), legal data, base currency, time zone, fiscal year\nstart, chart, rounding, status and the version the ETag carries (R-API-02). payment_tolerance waits for Phase 2."
+      },
+      "CompanyStatus": {
+        "enum": [
+          "Active",
+          "Inactive"
+        ],
+        "description": "Company and Contact use only Active and Inactive (State machines, part 1)."
+      },
+      "CostingMethod": {
+        "enum": [
+          "MovingAverage"
+        ],
+        "description": "Phase 0 Specification, ItemCompany: the only value in v1 (R-INV-05); master data, never the cost state cache."
+      },
+      "CountryCode": {
+        "type": "string",
+        "description": "An ISO 3166-1 alpha-2 country code: two uppercase letters (Phase 0 Specification, Data types)."
+      },
+      "CreateAccount": {
+        "required": [
+          "chartId",
+          "accountNumber",
+          "name",
+          "accountType"
+        ],
+        "type": "object",
+        "properties": {
+          "chartId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountNumber": {
+            "$ref": "#/components/schemas/Code"
+          },
+          "name": {
+            "type": "string"
+          },
+          "accountType": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AccountType"
+              }
+            ]
+          },
+          "isControl": {
+            "type": "boolean",
+            "default": false
+          },
+          "scope": {
+            "$ref": "#/components/schemas/RequestScope"
+          }
+        },
+        "description": "ACCOUNT.CREATE (milestone 2 step 4 brief, item 1; D-69): an account in a chart. The number is a Code, unique per\nchart (R-MD-05), and with the chart fixed from creation (R-MD-06); the type and the control flag are fixed from the\naccount's first journal line or first posting profile rule in any company. Status Active at create. Installation\nscope and Sensitive, because a chart may serve several companies (D-69, RR-52)."
+      },
+      "CreateChartOfAccounts": {
+        "required": [
+          "code",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/Code"
+          },
+          "name": {
+            "type": "string"
+          },
+          "template": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "scope": {
+            "$ref": "#/components/schemas/RequestScope"
+          }
+        },
+        "description": "CHART_OF_ACCOUNTS.CREATE (milestone 2 step 3 brief, item 1): the header of a chart, installation-level, so\ncompanies can share it (Specification, ChartOfAccounts). The code is unique per installation (R-MD-05) and never\nchanges (R-MD-06). Installation scope (D-47, RR-52)."
+      },
+      "CreateCompany": {
+        "required": [
+          "code",
+          "legalName",
+          "organisationNumber",
+          "countryCode",
+          "baseCurrency",
+          "timeZone",
+          "fiscalYearStartMonth",
+          "chartOfAccountsId",
+          "taxRoundingLevel"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/Code"
+          },
+          "legalName": {
+            "type": "string"
+          },
+          "organisationNumber": {
+            "type": "string"
+          },
+          "countryCode": {
+            "$ref": "#/components/schemas/CountryCode"
+          },
+          "baseCurrency": {
+            "$ref": "#/components/schemas/CurrencyCode"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "fiscalYearStartMonth": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "chartOfAccountsId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "taxRoundingLevel": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TaxRoundingLevel"
+              }
+            ]
+          },
+          "vatNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "roundingMode": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RoundingMode"
+              }
+            ]
+          },
+          "scope": {
+            "$ref": "#/components/schemas/RequestScope"
+          }
+        },
+        "description": "COMPANY.CREATE (step 3 brief, item 3; D-64, D-65): every attribute of the Specification's Company except\npayment_tolerance (Phase 2). The rounding mode defaults to the company.rounding_mode setting definition when\nleft out; the VAT rounding level is required while D-10 is open. The command also creates the company's own\nparty from the legal name, organisation number, VAT number and country, numbered from the installation-level\nPARTY series (D-64). Installation scope (D-47, RR-52)."
+      },
+      "CreateInventoryAdjustment": {
+        "required": [
+          "companyId",
+          "documentDate"
+        ],
+        "type": "object",
+        "properties": {
+          "companyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "documentDate": {
+            "$ref": "#/components/schemas/BusinessDate"
+          },
+          "reasonCode": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReasonCode"
+              }
+            ]
+          },
+          "warehouseId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "externalReference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "postingDate": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "lines": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/InventoryAdjustmentLineInput"
+            }
+          },
+          "scope": {
+            "$ref": "#/components/schemas/RequestScope"
+          }
+        },
+        "description": "INVENTORY_ADJUSTMENT.CREATE (step 7 brief): a Draft for the company in the body, which is the command's scope\n(R-SEC-01). The currency is the company's base currency, set by the system; the draft reference is the document\nid. A draft may be incomplete: the POST guards (reason code, at least one Open line, items Stocked and Active,\nstock coverage, period open) run at posting in step 8."
+      },
+      "CreateItem": {
+        "required": [
+          "companyId",
+          "itemNumber",
+          "description",
+          "itemType",
+          "baseUnit",
+          "lotTracking",
+          "itemPostingGroup",
+          "taxClass",
+          "costingMethod"
+        ],
+        "type": "object",
+        "properties": {
+          "companyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "itemNumber": {
+            "$ref": "#/components/schemas/Code"
+          },
+          "description": {
+            "type": "string"
+          },
+          "itemType": {
+            "$ref": "#/components/schemas/ItemType"
+          },
+          "baseUnit": {
+            "$ref": "#/components/schemas/UnitCode"
+          },
+          "lotTracking": {
+            "$ref": "#/components/schemas/LotTracking"
+          },
+          "itemPostingGroup": {
+            "$ref": "#/components/schemas/Code"
+          },
+          "taxClass": {
+            "$ref": "#/components/schemas/TaxClass"
+          },
+          "costingMethod": {
+            "$ref": "#/components/schemas/CostingMethod"
+          },
+          "salesAllowed": {
+            "type": "boolean",
+            "default": true
+          },
+          "purchaseAllowed": {
+            "type": "boolean",
+            "default": true
+          },
+          "defaultWarehouseId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "netWeightKg": {
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "decimal"
+          },
+          "salesMultiple": {
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "decimal"
+          },
+          "minOrderQty": {
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "decimal"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/RequestScope"
+          }
+        },
+        "description": "ITEM.CREATE (step 5 brief): creates the installation-wide Item and its ItemCompany row for the company in the\nbody, in one command (D-43). The company in the body is the command's scope (R-SEC-01). The item number is\nstored uppercase; a duplicate is rejected with R-MD-05. Default sales and purchase units are not part of any\ncommand in milestone 1."
+      },
+      "CreateSite": {
+        "required": [
+          "companyId",
+          "code",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "companyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "$ref": "#/components/schemas/Code"
+          },
+          "name": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "scope": {
+            "$ref": "#/components/schemas/RequestScope"
+          }
+        },
+        "description": "SITE.CREATE (step 3 brief, item 6): a site of the company in the body, which is the command's scope (R-SEC-01).\nThe code is unique per company (R-MD-05) and never changes (R-MD-06); the time zone is optional and must be an\nIANA name (empty means the company's). A site has no status; its address waits for Address (D-55)."
+      },
+      "CreateWarehouse": {
+        "required": [
+          "companyId",
+          "siteId",
+          "code",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "companyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "siteId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "$ref": "#/components/schemas/Code"
+          },
+          "name": {
+            "type": "string"
+          },
+          "isDefault": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "description": "WAREHOUSE.CREATE (step 3 brief, item 7): a warehouse of the site in the body, in the company the body names. The\nscope is built from the loaded site row (its company and its id), never from the company id in the body; a site\nthat does not exist or belongs to another company than the body names declares the body's company and is a 400\n(`site_unknown`, `site_other_company`) stored as the key's result, never a foreign-key 500 (the RR-102\npattern of the settings). The code is unique per company (R-MD-05) and never changes (R-MD-06); status Active at\ncreate. Making it the default moves the site's default (Specification, Organisation commands)."
+      },
+      "CurrencyCode": {
+        "type": "string",
+        "description": "An ISO 4217 currency code: three uppercase letters. Every amount carries one (R-MON-01)."
+      },
+      "DeactivateAccount": {
+        "required": [
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "description": "ACCOUNT.DEACTIVATE (step 4 brief, item 2): Active or Blocked to Inactive on the current version. Rejected under\nR-PP-05 while an active posting profile rule references the account (D-56), and under R-DOC-01 while its lifetime\nbalance is not zero in any company (D-69)."
+      },
+      "DiscardInventoryAdjustment": {
+        "required": [
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "description": "INVENTORY_ADJUSTMENT.DISCARD (step 7 brief): Draft to Discarded on the current version; the row stays (R-DOC-06)."
+      },
+      "DocumentStatus": {
+        "enum": [
+          "Draft",
+          "Posted",
+          "Discarded",
+          "Reversed"
+        ],
+        "description": "The system states of a kernel document (Phase 0 Specification, State machines part 2; R-DOC-01)."
+      },
+      "InventoryAdjustmentLineInput": {
+        "required": [
+          "lineNumber",
+          "itemId",
+          "quantity"
+        ],
+        "type": "object",
+        "properties": {
+          "lineNumber": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "itemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantity": {
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "type": "string",
+            "format": "decimal"
+          },
+          "warehouseId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "stockStatus": {
+            "$ref": "#/components/schemas/StockStatus"
+          },
+          "enteredUnitCost": {
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "decimal"
+          }
+        },
+        "description": "One line of an inventory adjustment draft as the client sends it (step 7 brief): the item (set up in the\ndocument's company, D-43), a signed quantity in the item's base unit (positive adds stock, negative removes it),\nthe warehouse (the header's when left out), the stock status and, for inbound lines, an optional entered unit\ncost. Lines are matched by line number, positive and unique in the request."
+      },
+      "InventoryAdjustmentLineView": {
+        "required": [
+          "id",
+          "lineNumber",
+          "lineStatus",
+          "itemId",
+          "description",
+          "quantity",
+          "unitCode",
+          "quantityBase",
+          "warehouseId",
+          "stockStatus",
+          "enteredUnitCost",
+          "unitCost",
+          "costAmount",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "lineNumber": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lineStatus": {
+            "$ref": "#/components/schemas/LineStatus"
+          },
+          "itemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": {
+            "type": "string"
+          },
+          "quantity": {
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "type": "string",
+            "format": "decimal"
+          },
+          "unitCode": {
+            "$ref": "#/components/schemas/UnitCode"
+          },
+          "quantityBase": {
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "type": "string",
+            "format": "decimal"
+          },
+          "warehouseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "stockStatus": {
+            "$ref": "#/components/schemas/StockStatus"
+          },
+          "enteredUnitCost": {
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "decimal"
+          },
+          "unitCost": {
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "decimal"
+          },
+          "costAmount": {
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "decimal"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "description": "A line of an inventory adjustment as the API returns it; quantities and costs travel as strings (D-37)."
+      },
+      "InventoryAdjustmentView": {
+        "required": [
+          "id",
+          "companyId",
+          "documentType",
+          "status",
+          "documentNumber",
+          "draftReference",
+          "documentDate",
+          "postingDate",
+          "currency",
+          "warehouseId",
+          "externalReference",
+          "reasonCode",
+          "postedAt",
+          "postedBy",
+          "version",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "companyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "documentType": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DocumentStatus"
+          },
+          "documentNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "draftReference": {
+            "type": "string"
+          },
+          "documentDate": {
+            "$ref": "#/components/schemas/BusinessDate"
+          },
+          "postingDate": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BusinessDate"
+              }
+            ]
+          },
+          "currency": {
+            "$ref": "#/components/schemas/CurrencyCode"
+          },
+          "warehouseId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "externalReference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reasonCode": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReasonCode"
+              }
+            ]
+          },
+          "postedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "postedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InventoryAdjustmentLineView"
+            }
+          }
+        },
+        "description": "An inventory adjustment with its header, its reason code and its non-Cancelled lines, as every command and the\nread return it. The document number is empty until posting assigns it (number on post); the version is the\nETag (R-API-02)."
+      },
+      "ItemCompanyView": {
+        "required": [
+          "id",
+          "companyId",
+          "status",
+          "itemPostingGroup",
+          "taxClass",
+          "costingMethod",
+          "salesAllowed",
+          "purchaseAllowed",
+          "defaultWarehouseId",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "companyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MasterDataStatus"
+          },
+          "itemPostingGroup": {
+            "$ref": "#/components/schemas/Code"
+          },
+          "taxClass": {
+            "$ref": "#/components/schemas/TaxClass"
+          },
+          "costingMethod": {
+            "$ref": "#/components/schemas/CostingMethod"
+          },
+          "salesAllowed": {
+            "type": "boolean"
+          },
+          "purchaseAllowed": {
+            "type": "boolean"
+          },
+          "defaultWarehouseId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "description": "The company's row of an item (D-43), as the API returns it."
+      },
+      "ItemType": {
+        "enum": [
+          "Stocked",
+          "NonStocked",
+          "Service"
+        ],
+        "description": "Phase 0 Specification, Item: only Stocked items create inventory entries."
+      },
+      "ItemView": {
+        "required": [
+          "id",
+          "itemNumber",
+          "description",
+          "itemType",
+          "baseUnit",
+          "lotTracking",
+          "netWeightKg",
+          "salesMultiple",
+          "minOrderQty",
+          "version",
+          "company"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "itemNumber": {
+            "$ref": "#/components/schemas/Code"
+          },
+          "description": {
+            "type": "string"
+          },
+          "itemType": {
+            "$ref": "#/components/schemas/ItemType"
+          },
+          "baseUnit": {
+            "$ref": "#/components/schemas/UnitCode"
+          },
+          "lotTracking": {
+            "$ref": "#/components/schemas/LotTracking"
+          },
+          "netWeightKg": {
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "decimal"
+          },
+          "salesMultiple": {
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "decimal"
+          },
+          "minOrderQty": {
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "decimal"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "company": {
+            "$ref": "#/components/schemas/ItemCompanyView"
+          }
+        },
+        "description": "An item with the row of the company it was read or created in; decimals travel as strings (D-37)."
+      },
+      "LineStatus": {
+        "enum": [
+          "Open",
+          "Closed",
+          "Cancelled"
+        ],
+        "description": "Phase 0 Specification, DocumentLine.line_status. A line left out of an UPDATE becomes Cancelled; nothing is deleted."
+      },
+      "LotTracking": {
+        "enum": [
+          "None",
+          "Required"
+        ],
+        "description": "Phase 0 Specification, Item: immutable after the first inventory entry."
+      },
+      "MasterDataStatus": {
+        "enum": [
+          "Active",
+          "Blocked",
+          "Inactive"
+        ],
+        "description": "The shared master data lifecycle (State machines, part 1; R-MD-03: never deleted)."
+      },
+      "PermissionCodePair": {
+        "required": [
+          "permissionA",
+          "permissionB"
+        ],
+        "type": "object",
+        "properties": {
+          "permissionA": {
+            "type": "string"
+          },
+          "permissionB": {
+            "type": "string"
+          }
+        },
+        "description": "One SodConflict row as SETTING.READ returns it: two permission codes one user may not hold together (R-SEC-02)."
+      },
+      "PostInventoryAdjustment": {
+        "required": [
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "description": "INVENTORY_ADJUSTMENT.POST (step 8 brief; Sensitive permission): Draft to Posted on the current version. In one\ntransaction the posting service writes the inventory entries, the balanced journal entry, the cache updates,\nthe audit events and INVENTORY_ADJUSTED, or nothing (R-LED-05, R-LED-07). The guards of the state machine run\nfirst (R-DOC-01, R-LED-04, R-INV-05), the stock and cost checks after their rows are locked (R-INV-03, R-LED-08)."
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instance": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "ReactivateAccount": {
+        "required": [
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "description": "ACCOUNT.REACTIVATE (step 4 brief, item 2): Inactive to Active on the current version; no guard."
+      },
+      "ReasonCode": {
+        "enum": [
+          "OpeningBalance",
+          "CountDifference",
+          "Scrap",
+          "Other",
+          null
+        ]
+      },
+      "RequestScope": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/ScopeKind"
+          },
+          "companyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "siteId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        },
+        "description": "The scope a command or query declares from its own data (Build Brief, Authorisation): a create command carries\nthe company in its body, a command on an existing record derives it from the record, an installation-wide one\ndeclares installation scope. The pipeline authorises against it after the record is loaded, inside the\ntransaction, before any business logic; a request without a scope is refused (D-47)."
+      },
+      "RoundingMode": {
+        "enum": [
+          "HalfAwayFromZero",
+          "HalfEven"
+        ],
+        "description": "How a midpoint is rounded (R-MON-02). The default is half away from zero; a company may configure half even\n(D-10, Company.rounding_mode)."
+      },
+      "ScopeKind": {
+        "enum": [
+          "Installation",
+          "Company",
+          "Site"
+        ],
+        "description": "Where a command or query acts: the whole installation, one company, or one site of a company (R-SEC-01, D-47)."
+      },
+      "SetSetting": {
+        "required": [
+          "key",
+          "level",
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "level": {
+            "$ref": "#/components/schemas/SettingLevel"
+          },
+          "value": {
+            "type": "string"
+          },
+          "companyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "siteId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "warehouseId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "validFrom": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "SETTING.SET (step 2 brief; D-58, R-SET-01): writes one value row for a definition at a level and target, version\ncurrent + 1 under If-Match (R-API-02; 0 for a slot with no rows yet). The target names the company (and site or\nwarehouse) the level needs. The scope comes from the settings scope resolver inside the transaction: an Installation\nvalue declares installation scope (RR-52), a Warehouse value the warehouse's company and site (D-63, RR-102). A\nhistory-bearing definition takes the caller's valid_from; a plain one refuses it."
+      },
+      "SettingBacking": {
+        "enum": [
+          "Setting",
+          "Column",
+          "Data",
+          "Planned"
+        ],
+        "description": "Phase 0 Specification, SettingDefinition.backing: where a configurable default lives. Setting: a value row. Column: a\nnamed column of an entity, changed only by that entity's command. Data: rows of an entity, such as the shipped\nconflict pairs. Planned: the feature that reads it comes in a later phase (R-SET-01, D-58)."
+      },
+      "SettingLevel": {
+        "enum": [
+          "Installation",
+          "Company",
+          "Site",
+          "Warehouse"
+        ],
+        "description": "Phase 0 Specification, SettingDefinition.levels: the levels a value may be written at, most specific last (R-SET-01)."
+      },
+      "SettingLevelState": {
+        "required": [
+          "level",
+          "version",
+          "kind",
+          "value",
+          "validFrom"
+        ],
+        "type": "object",
+        "properties": {
+          "level": {
+            "$ref": "#/components/schemas/SettingLevel"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "kind": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SettingValueKind"
+              }
+            ]
+          },
+          "value": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "validFrom": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BusinessDate"
+              }
+            ]
+          }
+        },
+        "description": "The state of one level at the target: its current version (0 when no row), and the deciding row when there is one."
+      },
+      "SettingReadView": {
+        "required": [
+          "key",
+          "valueType",
+          "backing",
+          "defaultValue",
+          "lockedReason",
+          "allowedLevels",
+          "value",
+          "source",
+          "levels"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "valueType": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SettingValueType"
+              }
+            ]
+          },
+          "backing": {
+            "$ref": "#/components/schemas/SettingBacking"
+          },
+          "defaultValue": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "lockedReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "allowedLevels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SettingLevel"
+            }
+          },
+          "value": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "source": {
+            "$ref": "#/components/schemas/SettingSource"
+          },
+          "levels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SettingLevelState"
+            }
+          },
+          "conflictPairs": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/PermissionCodePair"
+            }
+          }
+        },
+        "description": "SETTING.READ's answer: the definition's shape, the effective value and its source, and the levels at the target.\nA Data or Planned definition has no value type (D-63). A Data definition answers with source Data and its entity's\nrows, read in the query's transaction: for security.sod_conflicts, the conflict pairs (R-SEC-02)."
+      },
+      "SettingSource": {
+        "enum": [
+          "Default",
+          "Column",
+          "Installation",
+          "Company",
+          "Site",
+          "Warehouse",
+          "Data"
+        ],
+        "description": "Where an effective value came from (Phase 0 Specification, SETTING.READ): a level, the definition's default, an entity's column, or the rows of a Data definition's entity (D-63)."
+      },
+      "SettingValueKind": {
+        "enum": [
+          "Set",
+          "Cleared"
+        ],
+        "description": "Phase 0 Specification, SettingValue.kind."
+      },
+      "SettingValueType": {
+        "enum": [
+          "Integer",
+          "Decimal",
+          "Boolean",
+          "Code",
+          "Duration",
+          null
+        ]
+      },
+      "SettingValueView": {
+        "required": [
+          "id",
+          "key",
+          "level",
+          "companyId",
+          "siteId",
+          "warehouseId",
+          "kind",
+          "value",
+          "validFrom",
+          "version",
+          "recordedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "key": {
+            "type": "string"
+          },
+          "level": {
+            "$ref": "#/components/schemas/SettingLevel"
+          },
+          "companyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "siteId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "warehouseId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/SettingValueKind"
+          },
+          "value": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "validFrom": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BusinessDate"
+              }
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "The row a write inserted (Phase 0 Specification, SettingValue); the version is the slot's new version (R-API-02)."
+      },
+      "SiteInfo": {
+        "required": [
+          "id",
+          "companyId",
+          "code",
+          "name",
+          "timeZone",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "companyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "$ref": "#/components/schemas/Code"
+          },
+          "name": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "description": "A site as the reader, SITE.CREATE, SITE.UPDATE and the site queries return it; the ETag is the version (R-API-02)."
+      },
+      "StockStatus": {
+        "enum": [
+          "Available",
+          "Blocked"
+        ],
+        "description": "Phase 0 Specification, DocumentLine.stock_status: the stock a movement line touches."
+      },
+      "TaxClass": {
+        "enum": [
+          "Standard",
+          "Reduced",
+          "Zero",
+          "Exempt"
+        ],
+        "description": "Phase 0 Specification, ItemCompany: input to the tax rules (R-TAX-01)."
+      },
+      "TaxRoundingLevel": {
+        "enum": [
+          "Line",
+          "Document"
+        ],
+        "description": "VAT rounding per line or per document total; the default is pending D-10."
+      },
+      "UnblockAccount": {
+        "required": [
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "description": "ACCOUNT.UNBLOCK (step 4 brief, item 2): Blocked to Active on the current version; no guard."
+      },
+      "UnitCode": {
+        "type": "string",
+        "description": "A unit of measure code: a UN/ECE Recommendation 20 code such as H87 or KGM, or an item pack code such as BOX\n(Phase 0 Specification, UnitOfMeasure and ItemUnit). Same character rules as Code."
+      },
+      "UpdateAccount": {
+        "required": [
+          "id",
+          "name",
+          "accountType",
+          "isControl"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "accountType": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AccountType"
+              }
+            ]
+          },
+          "isControl": {
+            "type": "boolean"
+          },
+          "accountNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "chartId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        },
+        "description": "ACCOUNT.UPDATE (step 4 brief, items 1 and 3; D-69, R-MD-06): name, type and control flag on the current version\n(R-API-02), in Active or Blocked. The command takes no chart: a chart or number in the body that differs from the\nstored one is rejected under R-MD-06 (account_chart_fixed, account_number_fixed), an equal one ignored. A type or\ncontrol flag change after the account's first journal line or first posting profile rule, in any company, is\nrejected under R-MD-06 with the attribute's code."
+      },
+      "UpdateChartOfAccounts": {
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "template": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "code": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "CHART_OF_ACCOUNTS.UPDATE (step 3 brief, item 1): name and template on the current version (R-API-02). A code in\nthe body that differs from the stored one is rejected under R-MD-06; an equal one is ignored."
+      },
+      "UpdateCompany": {
+        "required": [
+          "id",
+          "legalName",
+          "organisationNumber",
+          "countryCode",
+          "baseCurrency",
+          "timeZone",
+          "fiscalYearStartMonth",
+          "chartOfAccountsId",
+          "roundingMode",
+          "taxRoundingLevel"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "legalName": {
+            "type": "string"
+          },
+          "organisationNumber": {
+            "type": "string"
+          },
+          "countryCode": {
+            "$ref": "#/components/schemas/CountryCode"
+          },
+          "baseCurrency": {
+            "$ref": "#/components/schemas/CurrencyCode"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "fiscalYearStartMonth": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "chartOfAccountsId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "roundingMode": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RoundingMode"
+              }
+            ]
+          },
+          "taxRoundingLevel": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TaxRoundingLevel"
+              }
+            ]
+          },
+          "vatNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "code": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "COMPANY.UPDATE (step 3 brief, item 4; D-65, R-MD-06): the whole set of changeable attributes on the current\nversion (R-API-02). An attribute R-MD-06 has fixed is rejected with 422 and a code naming it; the code never\nchanges (a differing code in the body is rejected under R-MD-06, an equal one ignored). The company's own party\nfollows the legal name, organisation number, VAT number and country (D-64). Status changes come with step 7."
+      },
+      "UpdateInventoryAdjustment": {
+        "required": [
+          "id",
+          "documentDate"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "documentDate": {
+            "$ref": "#/components/schemas/BusinessDate"
+          },
+          "reasonCode": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReasonCode"
+              }
+            ]
+          },
+          "warehouseId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "externalReference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "postingDate": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "lines": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/InventoryAdjustmentLineInput"
+            }
+          }
+        },
+        "description": "INVENTORY_ADJUSTMENT.UPDATE (step 7 brief): the whole draft on its current version (R-DOC-02, R-API-02). Lines\nare matched by line number: a new number inserts, an existing one updates, a line left out becomes Cancelled,\na cancelled number given again reopens the line with the new values; nothing is deleted. Id from the route; the\nscope from the record."
+      },
+      "UpdateSite": {
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "code": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "SITE.UPDATE (step 3 brief, item 6): name and time zone on the current version; the code never changes (R-MD-06)."
+      },
+      "UpdateWarehouse": {
+        "required": [
+          "id",
+          "name",
+          "isDefault"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "code": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "WAREHOUSE.UPDATE (step 3 brief, item 7): name and default flag on the current version; the site and the code\nnever change (R-MD-06). Setting the default moves it from the site's previous default, which gets its own version,\naudit event and WAREHOUSE_UPDATED event; clearing it leaves the site without one. BLOCK and the rest of the\nlifecycle come with step 7."
+      },
+      "WarehouseView": {
+        "required": [
+          "id",
+          "siteId",
+          "companyId",
+          "code",
+          "name",
+          "isDefault",
+          "status",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "siteId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "companyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "$ref": "#/components/schemas/Code"
+          },
+          "name": {
+            "type": "string"
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MasterDataStatus"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "description": "A warehouse as the commands and queries return it: its site and company, code, name, default flag, status and version (R-API-02)."
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Themis.Host"
+    }
+  ]
+}

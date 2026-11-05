@@ -10,6 +10,10 @@ namespace Themis.Kernel.Contracts.Organisation;
 /// companies can share it (Specification, ChartOfAccounts). The code is unique per installation (R-MD-05) and never
 /// changes (R-MD-06). Installation scope (D-47, RR-52).
 /// </summary>
+[CommandRules("R-MD-05", "RR-45", "RR-52")]
+[CommandAudits("ChartOfAccounts")]
+[CommandEvents("CHART_OF_ACCOUNTS_CREATED")]
+[CommandErrors("code_required", "name_required", "name_too_long", "template_too_long", "chart_of_accounts_code_duplicate")]
 [Command("CHART_OF_ACCOUNTS.CREATE")]
 public sealed record CreateChartOfAccounts(Code Code, string Name, string? Template = null) : ICommand<ChartOfAccountsView>, IScopedRequest
 {
@@ -20,6 +24,10 @@ public sealed record CreateChartOfAccounts(Code Code, string Name, string? Templ
 /// CHART_OF_ACCOUNTS.UPDATE (step 3 brief, item 1): name and template on the current version (R-API-02). A code in
 /// the body that differs from the stored one is rejected under R-MD-06; an equal one is ignored.
 /// </summary>
+[CommandRules("R-API-02", "R-MD-06")]
+[CommandAudits("ChartOfAccounts")]
+[CommandEvents("CHART_OF_ACCOUNTS_UPDATED")]
+[CommandErrors("name_required", "name_too_long", "template_too_long", "chart_of_accounts_not_found", "version_stale", "chart_of_accounts_code_fixed")]
 [Command("CHART_OF_ACCOUNTS.UPDATE")]
 public sealed record UpdateChartOfAccounts(Guid Id, string Name, long ExpectedVersion, string? Template = null, Code? Code = null) : ICommand<ChartOfAccountsView>, IVersionedCommand;
 
@@ -33,6 +41,10 @@ public sealed record ChartOfAccountsView(Guid Id, Code Code, string Name, string
 /// party from the legal name, organisation number, VAT number and country, numbered from the installation-level
 /// PARTY series (D-64). Installation scope (D-47, RR-52).
 /// </summary>
+[CommandRules("D-64", "D-65", "R-MD-05", "RR-45")]
+[CommandAudits("Party", "Company")]
+[CommandEvents("PARTY_CREATED", "COMPANY_CREATED")]
+[CommandErrors("code_required", "legal_name_required", "legal_name_too_long", "organisation_number_required", "organisation_number_too_long", "vat_number_too_long", "time_zone_required", "time_zone_invalid", "country_code_required", "base_currency_required", "fiscal_year_start_month_out_of_range", "chart_of_accounts_required", "tax_rounding_level_required", "base_currency_unknown", "chart_of_accounts_unknown", "company_code_duplicate", "organisation_number_duplicate", "number_series_missing")]
 [Command("COMPANY.CREATE")]
 public sealed record CreateCompany(
     Code Code,
@@ -56,6 +68,10 @@ public sealed record CreateCompany(
 /// changes (a differing code in the body is rejected under R-MD-06, an equal one ignored). The company's own party
 /// follows the legal name, organisation number, VAT number and country (D-64). Status changes come with step 7.
 /// </summary>
+[CommandRules("D-64", "D-65", "R-API-02", "R-MD-05", "R-MD-06", "RR-130")]
+[CommandAudits("Company", "Party")]
+[CommandEvents("COMPANY_UPDATED", "PARTY_UPDATED")]
+[CommandErrors("legal_name_required", "legal_name_too_long", "organisation_number_required", "organisation_number_too_long", "vat_number_too_long", "time_zone_required", "time_zone_invalid", "country_code_required", "base_currency_required", "fiscal_year_start_month_out_of_range", "chart_of_accounts_required", "tax_rounding_level_required", "rounding_mode_required", "company_not_found", "version_stale", "base_currency_unknown", "chart_of_accounts_unknown", "organisation_number_duplicate", "company_code_fixed", "company_base_currency_fixed", "company_time_zone_fixed", "company_country_code_fixed", "company_organisation_number_fixed", "company_rounding_mode_fixed", "company_chart_of_accounts_fixed", "company_fiscal_year_start_month_fixed")]
 [Command("COMPANY.UPDATE")]
 public sealed record UpdateCompany(
     Guid Id,
@@ -77,6 +93,10 @@ public sealed record UpdateCompany(
 /// The code is unique per company (R-MD-05) and never changes (R-MD-06); the time zone is optional and must be an
 /// IANA name (empty means the company's). A site has no status; its address waits for Address (D-55).
 /// </summary>
+[CommandRules("R-MD-05", "R-SEC-01")]
+[CommandAudits("Site")]
+[CommandEvents("SITE_CREATED")]
+[CommandErrors("company_required", "code_required", "name_required", "name_too_long", "time_zone_invalid", "company_unknown", "site_code_duplicate")]
 [Command("SITE.CREATE")]
 public sealed record CreateSite(Guid CompanyId, Code Code, string Name, string? TimeZone = null) : ICommand<SiteInfo>, IScopedRequest
 {
@@ -84,6 +104,10 @@ public sealed record CreateSite(Guid CompanyId, Code Code, string Name, string? 
 }
 
 /// <summary>SITE.UPDATE (step 3 brief, item 6): name and time zone on the current version; the code never changes (R-MD-06).</summary>
+[CommandRules("R-API-02", "R-MD-06")]
+[CommandAudits("Site")]
+[CommandEvents("SITE_UPDATED")]
+[CommandErrors("name_required", "name_too_long", "time_zone_invalid", "site_not_found", "version_stale", "site_code_fixed")]
 [Command("SITE.UPDATE")]
 public sealed record UpdateSite(Guid Id, string Name, long ExpectedVersion, string? TimeZone = null, Code? Code = null) : ICommand<SiteInfo>, IVersionedCommand;
 
@@ -95,6 +119,10 @@ public sealed record UpdateSite(Guid Id, string Name, long ExpectedVersion, stri
 /// pattern of the settings). The code is unique per company (R-MD-05) and never changes (R-MD-06); status Active at
 /// create. Making it the default moves the site's default (Specification, Organisation commands).
 /// </summary>
+[CommandRules("R-MD-05", "R-SEC-01", "RR-133")]
+[CommandAudits("Warehouse")]
+[CommandEvents("WAREHOUSE_CREATED", "WAREHOUSE_UPDATED")]
+[CommandErrors("company_required", "site_required", "code_required", "name_required", "name_too_long", "site_unknown", "site_other_company", "warehouse_code_duplicate", "warehouse_default_taken")]
 [Command("WAREHOUSE.CREATE")]
 public sealed record CreateWarehouse(Guid CompanyId, Guid SiteId, Code Code, string Name, bool IsDefault = false) : ICommand<WarehouseView>;
 
@@ -104,6 +132,10 @@ public sealed record CreateWarehouse(Guid CompanyId, Guid SiteId, Code Code, str
 /// audit event and WAREHOUSE_UPDATED event; clearing it leaves the site without one. BLOCK and the rest of the
 /// lifecycle come with step 7.
 /// </summary>
+[CommandRules("R-API-02", "R-MD-06", "R-DOC-01")]
+[CommandAudits("Warehouse")]
+[CommandEvents("WAREHOUSE_UPDATED")]
+[CommandErrors("name_required", "name_too_long", "warehouse_not_found", "site_not_found", "version_stale", "warehouse_code_fixed", "warehouse_not_active", "warehouse_default_taken")]
 [Command("WAREHOUSE.UPDATE")]
 public sealed record UpdateWarehouse(Guid Id, string Name, bool IsDefault, long ExpectedVersion, Code? Code = null) : ICommand<WarehouseView>, IVersionedCommand;
 

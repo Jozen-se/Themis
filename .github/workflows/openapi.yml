@@ -1,0 +1,69 @@
+# OpenAPI breaking-change check (RR-10, Build Brief milestone 2 step 4). openapi/v1.json is generated from code and
+# committed; the unit test OpenApiDocumentTests (CI job "Build and test") fails when it is stale. This workflow compares
+# the pull request's openapi/v1.json with the base branch's using oasdiff and fails on a breaking change unless the pull
+# request carries the api-breaking label, which the owner sets. Adding or removing a label reruns it (labeled and
+# unlabeled events). A base branch without openapi/v1.json yet passes with a notice. The check is
+# .github/scripts/openapi-check.sh; the self-test step proves it on synthetic breaking changes before it runs.
+#
+# oasdiff is not a NuGet package, so the D-38 licence scan cannot see it: its licence (Apache-2.0) was confirmed by hand
+# and is recorded in eng/licenses/oasdiff.md. It is built from source with the runner's Go, pinned by version and by the
+# module checksum the Go checksum database records for that version (sum.golang.org), with the Go toolchain itself
+# pinned; the go command verifies the toolchain and every dependency against the same database. Dependabot does not
+# update it; a new version is its own pull request that updates the version, the checksum and the licence record
+# together. Runner and action pins follow ci.yml (RR-104, RR-50). Only GITHUB_TOKEN, read-only.
+name: OpenAPI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: openapi-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  OASDIFF_VERSION: "1.34.1"
+  # The module checksum of github.com/oasdiff/oasdiff@v<version> in the Go checksum database (sum.golang.org/lookup).
+  OASDIFF_MODULE_SUM: "h1:RWfdeDpIo7uR5TXi07P5dEKIQWuds6M22vQq7BWktmg="
+  # The Go toolchain that builds it (oasdiff 1.34.1 needs Go 1.26 or later); the runner's Go downloads it and verifies it.
+  OASDIFF_GO_TOOLCHAIN: "go1.26.10"
+
+jobs:
+  openapi:
+    name: OpenAPI breaking changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out with the full history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install oasdiff, pinned by version and module checksum (RR-10, D-38)
+        run: |
+          dir="${RUNNER_TEMP}/oasdiff"
+          mkdir -p "$dir/bin" "$dir/gopath"
+          export GOTOOLCHAIN="${OASDIFF_GO_TOOLCHAIN}" GOFLAGS=-mod=mod GOBIN="$dir/bin" GOPATH="$dir/gopath" GOMODCACHE="$dir/gopath/pkg/mod" GONOSUMDB= GONOSUMCHECK= GOPRIVATE= GOSUMDB=sum.golang.org
+          sum="$(cd "$dir" && go mod download -json "github.com/oasdiff/oasdiff@v${OASDIFF_VERSION}" | jq -r '.Sum')"
+          if [ "$sum" != "${OASDIFF_MODULE_SUM}" ]; then
+            echo "::error title=oasdiff checksum::github.com/oasdiff/oasdiff@v${OASDIFF_VERSION} has checksum $sum, not the pinned ${OASDIFF_MODULE_SUM} (RR-10)."
+            exit 1
+          fi
+          (cd "$dir" && go install "github.com/oasdiff/oasdiff@v${OASDIFF_VERSION}")
+          echo "OASDIFF=$dir/bin/oasdiff" >> "$GITHUB_ENV"
+          go version
+          "$dir/bin/oasdiff" --version
+
+      - name: The check fails a synthetic breaking change without the label and passes it with the label (RR-10)
+        run: .github/scripts/openapi-check-selftest.sh
+
+      # RR-85: event values reach the shell only through environment variables, quoted.
+      - name: openapi/v1.json has no breaking change against the base branch, unless labelled api-breaking (RR-10)
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          API_BREAKING_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'api-breaking') }}
+        run: .github/scripts/openapi-check.sh "${BASE_SHA}" openapi/v1.json "${API_BREAKING_LABEL}"

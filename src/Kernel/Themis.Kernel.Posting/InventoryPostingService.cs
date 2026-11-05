@@ -2,6 +2,7 @@ using System.Data.Common;
 using System.Globalization;
 using Themis.Kernel.Contracts.Commands;
 using Themis.Kernel.Contracts.Documents;
+using Themis.Kernel.Contracts.Organisation;
 using Themis.Kernel.Contracts.Persistence;
 using Themis.Kernel.Contracts.Posting;
 using Themis.Kernel.Primitives;
@@ -18,7 +19,8 @@ namespace Themis.Kernel.Posting;
 /// to line (R-INV-05, R-INV-07, R-INV-09);
 /// refuses an outbound line that would take its balance key below 0, Available stock less its reservations
 /// (R-INV-03, R-INV-04); resolves both accounts of every line with a non-zero cost (R-PP-01, R-PP-02, D-49) and
-/// builds the one journal entry of the document in memory (E-01, E-02; D-15); takes the numbers as the last lock
+/// builds the one journal entry of the document in memory (E-01, E-02; D-15); locks the resolved accounts FOR SHARE and
+/// rejects one that is no longer Active (lock class just before the number series, R-PP-02, D-69); takes the numbers as the last lock
 /// class, the journal entry series only when a journal entry is written (R-DOC-07, R-DOC-08, D-52); then writes the
 /// journal entry with its lines, the inventory entries (one per Open line, referencing the entry when the cost is
 /// not 0, R-INV-06; a zero-cost line writes no journal lines, I-02, I-08) and the cache updates. Ledger rows carry
@@ -154,6 +156,27 @@ internal sealed class InventoryPostingService : IPostingService
             JournalLineRow inventoryLine = new(EntityId.New(), 0, inventory.Value.AccountId, inventory.Value.AccountRole, inventory.Value.PostingRuleId, costing.CostAmount, line.ItemId, line.WarehouseId, line.LineId);
             JournalLineRow adjustmentLine = new(EntityId.New(), 0, adjustment.Value.AccountId, adjustment.Value.AccountRole, adjustment.Value.PostingRuleId, -costing.CostAmount, line.ItemId, line.WarehouseId, line.LineId);
             journalLines.AddRange(costing.CostAmount > 0 ? [inventoryLine, adjustmentLine] : [adjustmentLine, inventoryLine]);
+        }
+
+        // D-69, R-LED-08: the accounts the lines resolved, FOR SHARE on the account table alone, just before the number series;
+        // the status read from the lock decides (R-PP-02). Zero-cost lines resolved nothing, so they lock nothing.
+        if (journalLines.Count > 0)
+        {
+            Guid[] resolved = [.. journalLines.Select(journalLine => journalLine.AccountId).Distinct()];
+            IReadOnlyList<(Guid Id, MasterDataStatus Status)> locked = await LedgerStore.LockAccountsAsync(unitOfWork, resolved, cancellationToken);
+            if (locked.Count != resolved.Length)
+            {
+                throw new InvalidOperationException("A resolved account has no row to lock; accounts are never deleted (R-MD-03).");
+            }
+
+            foreach ((Guid accountId, MasterDataStatus status) in locked)
+            {
+                if (status != MasterDataStatus.Active)
+                {
+                    JournalLineRow line = journalLines.First(journalLine => journalLine.AccountId == accountId);
+                    return Error.Rule("R-PP-02", AccountResolver.AccountNotActive, $"no active account for {line.AccountRole}: rule {line.PostingRuleId} maps to account {accountId}, which is {status} (D-69)");
+                }
+            }
         }
 
         // Last lock class: the series the command uses, the journal entry series only when a journal entry is written (D-52); the IA number first, the JE number last (R-DOC-07).

@@ -1,6 +1,8 @@
 using Npgsql;
 using Testcontainers.PostgreSql;
+using Themis.Kernel.Contracts.Posting;
 using Themis.Kernel.Organisation;
+using Themis.Kernel.Posting;
 
 namespace Themis.Integration.Tests;
 
@@ -73,7 +75,8 @@ public sealed class PostgresFixture : IAsyncLifetime
     /// Since milestone 2 step 3 it also removes the companies, parties, sites, warehouses, charts and role assignments
     /// the organisation command tests create, restores SE01, its party, site, warehouse and chart to the fixture's values
     /// at version 1, and winds the PARTY series back to the number after the fixture's party, not to 1, since the fixture
-    /// party took P-000001 from it (D-64).
+    /// party took P-000001 from it (D-64). Since step 4 it also restores the fixture's accounts and posting profile rules
+    /// and removes every other one (RR-133).
     /// </summary>
     public async Task TruncateAsync(CancellationToken cancellationToken) =>
         await CleanupAsync(
@@ -100,8 +103,7 @@ public sealed class PostgresFixture : IAsyncLifetime
             return
                 $"DELETE FROM kernel.role_assignment WHERE company_id <> '{company}'; " +
                 $"DELETE FROM kernel.number_series WHERE company_id IS NOT NULL AND company_id <> '{company}'; " +
-                $"DELETE FROM kernel.posting_profile_rule WHERE company_id <> '{company}'; " +
-                $"DELETE FROM kernel.account WHERE chart_id <> '{chart}'; " +
+                GeneralLedgerCleanupSql(company, chart) +
                 $"DELETE FROM kernel.fiscal_period WHERE company_id <> '{company}'; " +
                 $"DELETE FROM kernel.fiscal_year WHERE company_id <> '{company}'; " +
                 $"DELETE FROM kernel.warehouse WHERE id <> '{warehouse}'; " +
@@ -115,6 +117,35 @@ public sealed class PostgresFixture : IAsyncLifetime
                 $"UPDATE kernel.warehouse SET name = 'Main warehouse', is_default = true, status = 'Active', version = 1 WHERE id = '{warehouse}'; " +
                 $"UPDATE kernel.chart_of_accounts SET name = 'BAS-kontoplan', template = 'BAS 2026', version = 1 WHERE id = '{chart}'; ";
         }
+    }
+
+    /// <summary>
+    /// RR-133 (milestone 2 step 4): every posting profile rule and account the fixture did not seed is removed, the rules
+    /// of other companies and of SE01 alike, and the fixture's own rules and accounts are restored to their seeded values
+    /// at version 1, so a test that blocks, renames or retypes 1460 or TEST-ADJ leaves nothing behind. Rules go before
+    /// accounts; the cleanup runs with foreign key triggers off, so the order only keeps the references whole.
+    /// </summary>
+    private static string GeneralLedgerCleanupSql(Guid company, Guid chart)
+    {
+        GeneralLedgerFixtureDefinition fixture = Milestone1GeneralLedgerFixture.For(company, chart);
+        string rules = string.Join(", ", fixture.Rules.Select(rule => $"'{rule.Id}'"));
+        string accounts = string.Join(", ", fixture.Accounts.Select(account => $"'{account.Id}'"));
+        System.Text.StringBuilder sql = new();
+        sql.Append($"DELETE FROM kernel.posting_profile_rule WHERE id NOT IN ({rules}); ");
+        sql.Append($"DELETE FROM kernel.account WHERE id NOT IN ({accounts}); ");
+        foreach (AccountDefinition account in fixture.Accounts)
+        {
+            sql.Append($"UPDATE kernel.account SET chart_id = '{account.ChartId}', account_number = '{account.AccountNumber.Value}', name = '{account.Name.Replace("'", "''", StringComparison.Ordinal)}', ")
+                .Append($"account_type = '{account.AccountType}', is_control = {(account.IsControl ? "true" : "false")}, status = '{account.Status}', version = 1 WHERE id = '{account.Id}'; ");
+        }
+
+        foreach (PostingProfileRuleDefinition rule in fixture.Rules)
+        {
+            string validTo = rule.ValidTo is { } to ? $"'{to}'" : "NULL";
+            sql.Append($"UPDATE kernel.posting_profile_rule SET company_id = '{rule.CompanyId}', account_id = '{rule.AccountId}', valid_from = '{rule.ValidFrom}', valid_to = {validTo}, version = 1 WHERE id = '{rule.Id}'; ");
+        }
+
+        return sql.ToString();
     }
 
     /// <summary>

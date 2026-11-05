@@ -11,6 +11,10 @@ including transitive packages, and fails on any package whose licence is not in 
 - A package whose licence is correct but cannot be read by the tool goes into `package-overrides.json` with the
   licence identifier and a reason. Prefer fixing the package metadata upstream.
 
+Tools that are not NuGet packages are outside the scan. Their licence is confirmed by hand, from the licence text of
+the pinned version, and recorded in a file of their own here; the workflow that runs them pins the tool by version
+and checksum. Today that is oasdiff, the OpenAPI breaking-change tool (`oasdiff.md`, RR-10).
+
 Run locally:
 
 ```bash

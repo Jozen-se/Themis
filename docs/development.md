@@ -831,6 +831,54 @@ seam (`ICompanyUpdateSeam`) holds `COMPANY.UPDATE` after its versioned UPDATE fo
 party duplicate check, fiscal year and number series commands, the chart's accounts, addresses, paging of the lists,
 the first administrator of a real installation.
 
+## Accounts and the command catalogue
+
+Milestone 2 step 4 (D-69, D-70) builds the accounts of a chart through commands; the test and development seeder keeps
+`1460` and `TEST-ADJ` for the tests.
+
+| Command | Route | Notes |
+|---|---|---|
+| `ACCOUNT.CREATE` | `POST /v1/kernel/accounts` | `chartId`, `accountNumber` (a Code, unique per chart, R-MD-05), `name`, `accountType`, `isControl`; Active |
+| `ACCOUNT.UPDATE` | `POST /v1/kernel/accounts/{id}/update` | name, type and control flag on the current version, in Active or Blocked; a differing `accountNumber` or `chartId` in the body is 422 (`account_number_fixed`, `account_chart_fixed`) |
+| `ACCOUNT.BLOCK` | `POST /v1/kernel/accounts/{id}/block` | `reason` required, at most 500 characters (400 `reason_required`, `reason_too_long`); the reason is in the audit event's changes and the `ACCOUNT_BLOCKED` payload, with no column |
+| `ACCOUNT.UNBLOCK`, `ACCOUNT.DEACTIVATE`, `ACCOUNT.REACTIVATE` | `POST /v1/kernel/accounts/{id}/unblock`, `/deactivate`, `/reactivate` | the master data lifecycle; another state is 422 `transition_not_allowed` under R-DOC-01 |
+| `ACCOUNT.READ` | `GET /v1/kernel/accounts/{id}`, `GET /v1/kernel/charts-of-accounts/{chartId}/accounts` | one account, or the chart's accounts by account number, at most 1,000 |
+
+Each lifecycle command runs the versioned update of the account row first (lock class 1), then every guard in its own
+statement. BLOCK and DEACTIVATE are rejected with `account_used_by_posting_rule` (R-PP-05) while an active posting profile
+rule of any company references the account, naming each rule's company, role, keys and validity; a rule is inactive only
+when its whole validity lies inside Closed fiscal periods of its company, so in a company without fiscal years every rule
+is active. The definition is written once (`PostingRuleActivity`, behind `IPostingRuleActivity`) for
+VALIDATE_POSTING_PROFILE to reuse in step 6. DEACTIVATE also needs a zero balance over all history in every company
+(`account_balance_not_zero`, R-DOC-01): until year-end close exists, a Revenue or Expense account with history cannot be
+deactivated. UPDATE refuses a type or control flag change after the account's first journal line or first rule in any
+company (`account_type_fixed`, `account_control_fixed`, R-MD-06) before it writes either, so
+`fk_posting_profile_rule_account_control` never answers in its place. A posting reads the accounts it resolved FOR SHARE
+just before the number series, and the status from that lock decides (R-PP-02).
+
+For access reviews: the six account commands are Sensitive and installation-scope. A holder with a company-wide
+assignment in one company changes the accounts of every company that shares the chart, as a holder of
+`CHART_OF_ACCOUNTS.UPDATE` does; review them as installation-wide permissions. The catalogue marks each permission
+installation-scope or not beside its risk level (`PermissionDefinition.InstallationScope`): `COMPANY.CREATE`, the three
+chart of accounts permissions, the seven account permissions and `SETTING.SET`, `SETTING.CLEAR` and `SETTING.READ`
+(whose installation-level requests declare installation scope). A conflict pair with an installation-scope permission
+is checked across all of a user's assignments, not per company (D-70); the four account pairs with
+`MANUAL_JOURNAL.POST` replace `ACCOUNT.MAINTAIN`, whose row the migration `RetireAccountMaintainPair` deletes with its
+audit event. The organisation administrator of the fixture holds the account permissions and no `MANUAL_JOURNAL.POST`.
+
+The command catalogue (RR-07) is in code: beside `[Command]`, every command declares `[CommandRules]`,
+`[CommandAudits]`, `[CommandEvents]` (each in `EventNames.Registered`), `[CommandErrors]` and, for a document command,
+`[CommandTransition]`. The architecture test `CommandCatalogueTests` fails when an entry is missing or wrong, or when no
+test method name cites a declared rule ID, and compares the generated [`docs/commands.md`](commands.md):
+
+```bash
+THEMIS_COMMANDS_RECORD=1 dotnet test --project tests/Themis.Architecture.Tests --filter-class Themis.Architecture.Tests.CommandCatalogueTests
+```
+
+Test seams of step 4 (docs/development/test-seams.md): the account status seam sets an account's status without the
+R-PP-05 guard, at once or held in an open transaction, for the lock-order tests; posting profile rules for the tests come
+from the test and development seeder until step 5 adds the rule commands.
+
 ## Reporting
 
 Step 10 brings the first reporting view, `reporting.stock_by_warehouse` (step 10 brief; D-54, I-15), created by a
@@ -902,6 +950,34 @@ the same tests with many more sequences on manual start; a nightly schedule come
 ```bash
 THEMIS_PROPERTY_SEQUENCES=20 dotnet test --project tests/Themis.Integration.Tests --filter-trait "Category=Invariant"
 THEMIS_PROPERTY_SEED=77n5PqrBEsc1 dotnet test --project tests/Themis.Integration.Tests --filter-trait "Category=Invariant"   # reproduce a reported sequence
+```
+
+## The OpenAPI document
+
+The OpenAPI document is generated from code (D-06) and committed as `openapi/v1.json` (RR-10). The unit test
+`OpenApiDocumentTests` starts `Themis.Host` through its own `Program` in Development, where the host maps
+`/openapi/v1.json`, with a connection string at a closed port and the relay and the purge off, so no database is
+needed; it fails on any difference from the committed file (line endings and the trailing newline are normalised). A
+change that adds, removes or reshapes a route regenerates the file in one command and commits it with the change:
+
+```bash
+THEMIS_OPENAPI_RECORD=1 dotnet test --project tests/Themis.Kernel.Tests --filter-class Themis.Kernel.Tests.OpenApi.OpenApiDocumentTests
+```
+
+Unlike the golden migration scripts, record mode rewrites the file: the document is meant to change, and what the
+change does to clients is the next check. The workflow `.github/workflows/openapi.yml` compares the pull request's
+`openapi/v1.json` with the base branch's using oasdiff (`.github/scripts/openapi-check.sh`) and fails on a breaking
+change, as oasdiff classifies it at level ERR, unless the pull request carries the `api-breaking` label, which the
+owner sets; adding or removing a label reruns the check. While the base branch has no `openapi/v1.json` the check passes
+with a notice. oasdiff is not a NuGet package: its licence is recorded in `eng/licenses/oasdiff.md` and the workflow
+builds it from source, pinned by version and by its module checksum in the Go checksum database, with the Go toolchain
+pinned. `.github/scripts/openapi-check-selftest.sh` proves the check on
+synthetic breaking changes built from the committed document. To run the check by hand, build the pinned version
+(`GOTOOLCHAIN=go1.26.10 go install github.com/oasdiff/oasdiff@v1.34.1`) and run:
+
+```bash
+OASDIFF=oasdiff .github/scripts/openapi-check-selftest.sh
+OASDIFF=oasdiff .github/scripts/openapi-check.sh origin/main openapi/v1.json false
 ```
 
 ## Linting, formatting, the licence scan and the DCO check
