@@ -237,13 +237,44 @@ public sealed partial class ReviewAndCiHygieneTests
         Assert.Contains("## Deviations and out-of-scope findings", template, StringComparison.Ordinal);
         Assert.Contains("## Owner checklist", template, StringComparison.Ordinal);
         Assert.Contains("- [ ] The required checks are green on the head commit", template, StringComparison.Ordinal);
-        // D-59 as amended 2026-10-24: review is tiered, and the template names the sign-off of each tier.
+        // D-59 as amended 2026-10-24: review is tiered. D-68 (note of 2026-11-05, RR-139): the planner's conformance result
+        // names the head commit of every pull request, and full tier also needs the reviewer's summary of it.
         Assert.Contains("- **Review tier (D-59):**", template, StringComparison.Ordinal);
         Assert.Contains("- [ ] Full tier: the reviewer's summary names that head commit", template, StringComparison.Ordinal);
-        Assert.Contains("- [ ] Light tier: the planner's conformance check names that head commit", template, StringComparison.Ordinal);
+        Assert.Contains("- [ ] Every pull request: the planner's conformance result names that head commit", template, StringComparison.Ordinal);
+        Assert.DoesNotContain("Light tier:", template, StringComparison.Ordinal);
+        // RR-139: a rule gap or a proposed change goes to the planner, who brings it to the owner (CLAUDE.md, D-68).
+        Assert.Contains("goes to the planner, who brings it to the owner", template, StringComparison.Ordinal);
         Assert.Contains("- [ ] Every conversation is resolved", template, StringComparison.Ordinal);
         Assert.DoesNotContain("Owner sign-off", template, StringComparison.Ordinal);
         Assert.DoesNotContain("explicit review", template, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void RR_141_CLAUDE_md_equals_the_CLAUDE_md_block_of_the_Build_Brief_snapshot()
+    {
+        // RR-141: CLAUDE.md is the Build Brief's CLAUDE.md section, copied; a docs pull request refreshes both together.
+        string root = RepositoryRoot();
+        string[] brief = File.ReadAllText(Path.Combine(root, "docs", "design", "themis-build-brief.md")).Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+        int section = Array.IndexOf(brief, "## CLAUDE.md for the repository");
+        Assert.True(section >= 0, "The Build Brief snapshot has no \"## CLAUDE.md for the repository\" section (RR-141).");
+        int open = Array.IndexOf(brief, "```markdown", section);
+        int close = open < 0 ? -1 : Array.IndexOf(brief, "```", open + 1);
+        Assert.True(open > section && close > open, "The Build Brief's CLAUDE.md section holds no ```markdown block (RR-141).");
+        string block = string.Join('\n', brief[(open + 1)..close]);
+
+        string claude = File.ReadAllText(Path.Combine(root, "CLAUDE.md")).Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd('\n');
+        Assert.True(block == claude, "CLAUDE.md differs from the CLAUDE.md block of docs/design/themis-build-brief.md; refresh them together from the released Build Brief (RR-141).");
+    }
+
+    [Fact]
+    public void RR_141_CI_runs_the_snapshot_converter_fixture_test()
+    {
+        string root = RepositoryRoot();
+        Assert.True(File.Exists(Path.Combine(root, "eng", "snapshots", "snapshot.py")), "eng/snapshots/snapshot.py is missing (RR-141).");
+        Assert.True(File.Exists(Path.Combine(root, "eng", "snapshots", "test_snapshot.py")), "eng/snapshots/test_snapshot.py is missing (RR-141).");
+        string ci = File.ReadAllText(Path.Combine(root, ".github", "workflows", "ci.yml"));
+        Assert.Contains("run: python3 -m unittest discover --start-directory eng/snapshots --pattern 'test_*.py'", ci, StringComparison.Ordinal);
     }
 
     /// <summary>The entries of every ports: list of a compose file.</summary>

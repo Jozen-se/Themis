@@ -17,7 +17,7 @@
 ## Checklist
 
 - [ ] One task, one pull request; the title and commits name the rule IDs they implement
-- [ ] No rule invented: every behaviour traces to a rule or decision in the Foundation or the Phase 0 specification; any gap is an open "Rule gap" issue, not a guess
+- [ ] No rule invented: every behaviour traces to a rule or decision in the Foundation or the Phase 0 specification; a rule gap or a proposed change goes to the planner, who brings it to the owner, not a guess (CLAUDE.md, Ground rules; D-68)
 - [ ] CI is green on the head commit (tick only after the checks passed)
 - Local results (local, not CI): 
 - [ ] Tests cover the acceptance above (invariant tests for I-nn where ledgers or stock are touched)
@@ -27,5 +27,5 @@
 
 - [ ] The required checks are green on the head commit
 - [ ] Full tier: the reviewer's summary names that head commit
-- [ ] Light tier: the planner's conformance check names that head commit
+- [ ] Every pull request: the planner's conformance result names that head commit
 - [ ] Every conversation is resolved

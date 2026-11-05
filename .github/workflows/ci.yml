@@ -94,6 +94,11 @@ jobs:
         if: always()
         run: .github/scripts/require-tests.sh Architecture TestResults/architecture
 
+      # RR-141: the snapshot converter under eng/snapshots is proved on its fixture; unittest exits non-zero when it
+      # finds no test, so a moved or renamed test file cannot pass silently.
+      - name: Snapshot converter fixture test (RR-141)
+        run: python3 -m unittest discover --start-directory eng/snapshots --pattern 'test_*.py' --verbose
+
       - name: Unit tests
         run: |
           for project in $(.github/scripts/require-tests.sh --projects Unit); do

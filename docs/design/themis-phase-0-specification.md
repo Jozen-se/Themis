@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/code/artifact/237492a8-0f0a-4e9d-a8da-44f65de0a56b), revision 278, taken 2026-11-04.
+> **Snapshot** of the live document *Themis Phase 0 Specification* (https://claude.ai/code/artifact/237492a8-0f0a-4e9d-a8da-44f65de0a56b), revision 283, taken 2026-11-05.
 > The live document is authoritative; this copy exists so that code review and offline reading can cite rule IDs
 > without leaving the repository. Where this copy and the live document differ, the live document wins.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -532,7 +532,7 @@ Twelve entities hold the books. JournalEntry, JournalLine and InventoryEntry are
 | Account | `account_number`, `name` | Code, Name | Y | Number unique per chart. |
 | Account | `account_type` | Enum: Asset, Liability, Equity, Revenue, Expense | Y |  |
 | Account | `is_control` | boolean | Y | Control accounts (inventory, receivables, payables, VAT) accept postings only from their sub-ledger or the system documents VAT_SETTLEMENT and OPENING_OPEN_ITEMS, never from manual journals (R-ACC-01). |
-| Account | `status` | Enum: Active, Blocked, Inactive | Y | Blocked accepts no new postings. |
+| Account | `status` | Enum: Active, Blocked, Inactive | Y | Blocked accepts no new postings, except a reversal, which may post to a Blocked account because it mirrors an existing entry (R-PP-03, D-56). |
 
 **Account commands** (milestone 2 step 4; D-56, D-69). ACCOUNT.CREATE, UPDATE, BLOCK, UNBLOCK, DEACTIVATE and REACTIVATE are installation-scope and Sensitive, because a chart may serve several companies; ACCOUNT.READ returns one account and a list per chart ordered by account number. Status changes only through the lifecycle commands. BLOCK and DEACTIVATE are rejected under R-PP-05 when an active posting profile rule references the account, naming each rule's company, role, keys and validity. A rule is inactive only when its whole validity lies inside Closed fiscal periods of its company; every other rule is active, so a company without fiscal years cannot block an account its rules reference. The check runs by account over the rules of every company, not by chart, because nothing yet ties a rule's account to its company's chart (Gate B adds that constraint). VALIDATE_POSTING_PROFILE uses the same definition. Because a Closed period is final in v1 (R-PER-01), a rule once inactive stays inactive; should a later decision allow a Closed period to reopen, that command must first run this check. A rule whose validity lies wholly before the company's first fiscal year is never inside Closed periods, so it stays active and its account cannot be blocked; this is accepted with the case of a company without fiscal years. DEACTIVATE also needs a zero balance over all history in every company, otherwise 422 under R-DOC-01 with code account_balance_not_zero; until CLOSE_YEAR exists, a Revenue or Expense account with history therefore cannot be deactivated (known limitation, D-69). UNBLOCK and REACTIVATE have no guard. BLOCK requires a reason of at most 500 characters (an empty reason is 400, code reason_required); it is recorded in the audit event's changes and in the ACCOUNT_BLOCKED event, with no column of its own. ACCOUNT.UPDATE takes no chart; a different chart in the request is 422 under R-MD-06, code account_chart_fixed (D-69). Codes: account_used_by_posting_rule (R-PP-05); account_balance_not_zero (R-DOC-01); account_number_fixed, account_chart_fixed, account_type_fixed and account_control_fixed (R-MD-06); reason_required and reason_too_long (400, not stored).
 
@@ -658,7 +658,7 @@ Costing follows recording order, not posting date. A back-dated posting in an op
 | 3 | StockBalance | Missing rows inserted the same way, then locked with one SELECT ... ORDER BY company, item, warehouse, lot, stock status FOR UPDATE before they are updated | Phase 0, milestone 1 |
 | 4 | Reservations and the source lines they claim | Id order | Phase 1 (specified there) |
 | 5 | OpenItem | Id order | Phase 2 (specified there) |
-| Before last | Accounts the posting resolved | One SELECT id, status FROM account WHERE id = ANY(...) ORDER BY id FOR SHARE, on the account table alone, after all resolution; the status in this locked result decides, never a status read through a join (R-PP-02). ACCOUNT.BLOCK and DEACTIVATE lock their row by the versioned update (class 1) and take no further lock; from step 5, posting profile rule commands read their account FOR SHARE after their own row (D-69) | Phase 0, milestone 2 step 4 |
+| Before last | Accounts the posting resolved | One SELECT id, status FROM account WHERE id = ANY(...) ORDER BY id FOR SHARE, on the account table alone, after all resolution; the status in this locked result decides, never a status read through a join (R-PP-02). ACCOUNT.BLOCK and DEACTIVATE lock their row by the versioned update (class 1) and take no further lock; from step 5, posting profile rule commands read their account FOR SHARE after their own row (D-69). Postings that name their accounts directly (REVERSE, MANUAL_JOURNAL POST) take no account lock yet; open for Gates D and D2 (RR-138) | Phase 0, milestone 2 step 4 |
 | Last | NumberSeries | The series rows the command uses (for a posting: the document's series, and the journal entry series only when it writes a journal entry, D-52), in primary key order; numbers are taken after every check, calculation, account resolution and other lock, and only writes follow them (D-61) | Phase 0, milestone 1 |
 
 StockBalance rows written by a posting always belong to items whose ItemCostState row is already locked, so milestone 1 cannot deadlock. A concurrency test posts two adjustments on the same items in opposite line order.
@@ -764,7 +764,7 @@ Each transition table reads: from state, command, to state, the guards that must
 | From | Command | To | Guards | Effects |
 |---|---|---|---|---|
 | (none) | CREATE | Active | Required attributes valid; duplicate check passed, or overridden with permission (R-MD-01) | Audit event |
-| Active | BLOCK | Blocked | Reason given | No new documents, lines or postings. Released documents may still complete, so goods are not trapped. An Account in Blocked rejects all postings. |
+| Active | BLOCK | Blocked | Reason given | No new documents, lines or postings. Released documents may still complete, so goods are not trapped. An Account in Blocked rejects all postings except a reversal (R-PP-03, D-56). |
 | Blocked | UNBLOCK | Active |  |  |
 | Active, Blocked | DEACTIVATE | Inactive | No open documents, no stock on hand, no open items, no active reservations | Hidden from selection lists |
 | Inactive | REACTIVATE | Active |  |  |
@@ -970,6 +970,7 @@ Charge lines (freight, small-order surcharge) reference a Service item such as F
 | `account_role` | Code | Y | One of the roles above. A rule sets only the mapping keys of its role; the others stay empty (R-PP-06). |
 | `item_posting_group`, `party_posting_group`, `tax_code_id`, `reason_code` | as above | N | Empty means "any value". Rules also carry ship_to_scope (Domestic, EU, NonEU), used by REVENUE and COGS. |
 | `account_id` | → Account | Y | Must be Active. Control roles map only to control accounts and other roles only to non-control accounts (R-PP-04). |
+| `chart_id` | → ChartOfAccounts | Y | The company's chart, set on create; it does not change, because the company's chart is fixed (R-MD-06). Composite foreign keys (account_id, chart_id) to Account and (company_id, chart_id) to Company keep the rule's account in its company's chart (D-69). Built from milestone 2 step 5. |
 | `valid_from`, `valid_to` | Date | Y, N | No two rules with the same role and the same key values may overlap in time. |
 
 ## Posting profile: the resolution algorithm
