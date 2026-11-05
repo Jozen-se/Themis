@@ -2,7 +2,10 @@
 # Proves the DCO check (D-36) on synthetic repositories: a signed commit passes, an unsigned commit fails, a sign-off
 # by another identity fails, a sign-off with the e-mail in another case passes, dependabot[bot] and
 # github-actions[bot] commits pass without a sign-off, an impostor using a bot's name with a non-GitHub address fails,
-# and a merge commit passes without a sign-off. Run by .github/workflows/dco.yml and by hand:
+# and a merge commit passes without a sign-off. The dispatch wrapper (dco-dispatch.sh, RR-134) checks <main>..<head>:
+# it fails an unsigned commit under an exempt lock-file commit, ignores main's own commits, refuses a short main name
+# and is not shadowed by a tag, also when the main ref itself is absent.
+# Run by .github/workflows/dco.yml and by hand:
 #   .github/scripts/dco-check-selftest.sh
 set -euo pipefail
 
@@ -33,54 +36,65 @@ commit() {
   git -C "$dir" -c user.name="$name" -c user.email="$email" commit -q -m "$message" "$@"
 }
 
-# expect <case name> <expected exit code> <dir>
-expect() {
+# reset_work <dir>: the work branch starts again at main.
+reset_work() {
+  git -C "$1" checkout -q main
+  git -C "$1" branch -q -D work
+  git -C "$1" branch -q work
+  git -C "$1" checkout -q work
+}
+
+# run_case <case name> <expected exit code> <dir> <command...>: runs the command in <dir> and compares its exit code.
+run_case() {
   local name="$1" expected="$2" dir="$3" actual=0
-  (cd "$dir" && "$check" main work) >"$work/$name.log" 2>&1 || actual=$?
+  shift 3
+  (cd "$dir" && "$@") >"$work/case.log" 2>&1 || actual=$?
   if [ "$actual" -eq "$expected" ]; then
     echo "pass: $name (exit $actual)"
   else
     echo "FAIL: $name expected exit $expected, got $actual"
-    sed 's/^/    /' "$work/$name.log"
+    sed 's/^/    /' "$work/case.log"
     failures=$((failures + 1))
   fi
-  git -C "$dir" checkout -q main
-  git -C "$dir" branch -q -D work
-  git -C "$dir" branch -q work
-  git -C "$dir" checkout -q work
+}
+
+# expect <case name> <expected exit code> <dir>: the check over main..work, then the work branch is reset.
+expect() {
+  run_case "$1" "$2" "$3" "$check" main work
+  reset_work "$3"
 }
 
 repo="$work/repo"
 new_repo "$repo"
 
 commit "$repo" a.txt "Alice Example" "alice@example.com" "Signed" -s
-expect "a signed commit passes" 0 "$repo"
+expect "D-36: a signed commit passes" 0 "$repo"
 
 commit "$repo" b.txt "Alice Example" "alice@example.com" "Unsigned"
-expect "an unsigned commit fails" 1 "$repo"
+expect "D-36: an unsigned commit fails" 1 "$repo"
 
 commit "$repo" c.txt "Alice Example" "alice@example.com" "Signed by another identity" --trailer "Signed-off-by: Bob Example <bob@example.com>"
-expect "a sign-off by another identity fails" 1 "$repo"
+expect "D-36: a sign-off by another identity fails" 1 "$repo"
 
 commit "$repo" d.txt "Alice Example" "alice@example.com" "Signed with the e-mail in another case" --trailer "Signed-off-by: Alice Example <Alice@Example.com>"
-expect "a sign-off whose e-mail differs only in case passes" 0 "$repo"
+expect "D-36: a sign-off whose e-mail differs only in case passes" 0 "$repo"
 
 commit "$repo" e.txt "Alice Example" "alice@example.com" "Signed with another name" --trailer "Signed-off-by: A. Example <alice@example.com>"
-expect "a sign-off with another name fails" 1 "$repo"
+expect "D-36: a sign-off with another name fails" 1 "$repo"
 
 commit "$repo" f.txt "dependabot[bot]" "49699333+dependabot[bot]@users.noreply.github.com" "Bump a package"
-expect "a dependabot[bot] commit passes without a sign-off" 0 "$repo"
+expect "D-36: a dependabot[bot] commit passes without a sign-off" 0 "$repo"
 
 commit "$repo" g.txt "github-actions[bot]" "41898282+github-actions[bot]@users.noreply.github.com" "Regenerate lock files"
-expect "a github-actions[bot] commit passes without a sign-off" 0 "$repo"
+expect "D-36: a github-actions[bot] commit passes without a sign-off" 0 "$repo"
 
 commit "$repo" h.txt "dependabot[bot]" "someone@example.com" "Impostor"
-expect "a commit using a bot's name with another address fails" 1 "$repo"
+expect "D-36: a commit using a bot's name with another address fails" 1 "$repo"
 
 commit "$repo" i.txt "Alice Example" "alice@example.com" "Signed" -s
 commit "$repo" j.txt "Alice Example" "alice@example.com" "Unsigned among signed"
 commit "$repo" k.txt "Alice Example" "alice@example.com" "Signed" -s
-expect "one unsigned commit among signed ones fails" 1 "$repo"
+expect "D-36: one unsigned commit among signed ones fails" 1 "$repo"
 
 # A merge commit without a sign-off: main moves on with a signed commit, work merges it.
 commit "$repo" l.txt "Alice Example" "alice@example.com" "Signed on work" -s
@@ -88,7 +102,38 @@ git -C "$repo" checkout -q main
 commit "$repo" m.txt "Alice Example" "alice@example.com" "Signed on main" -s
 git -C "$repo" checkout -q work
 git -C "$repo" merge -q --no-ff --no-edit main
-expect "a merge commit passes without a sign-off" 0 "$repo"
+expect "D-36: a merge commit passes without a sign-off" 0 "$repo"
+
+# RR-134: the dispatch path. The range is <main full ref>..<head>, the commits on the head that main does not have.
+dispatch="$(cd "$(dirname "$0")" && pwd)/dco-dispatch.sh"
+drepo="$work/dispatch"
+new_repo "$drepo"
+commit "$drepo" u.txt "Alice Example" "alice@example.com" "Unsigned"
+run_case "RR-134: a dispatch fails an unsigned branch" 1 "$drepo" "$dispatch" "$(git -C "$drepo" rev-parse work)" refs/heads/main
+# A tag named like the main branch, pointing at the head: a short name would resolve to the tag and check nothing.
+# update-ref, not git tag: a developer's global tag.gpgSign would make git tag ask for a message and abort the run.
+git -C "$drepo" update-ref refs/tags/main work
+git -C "$drepo" update-ref refs/tags/refs/heads/main work
+run_case "RR-134: a short main name is refused, so a tag cannot shadow it" 2 "$drepo" "$dispatch" "$(git -C "$drepo" rev-parse work)" main
+run_case "RR-134: HEAD is refused, so a pseudo-ref cannot make the range empty" 2 "$drepo" "$dispatch" "$(git -C "$drepo" rev-parse work)" HEAD
+run_case "RR-134: the full main ref ignores a tag named after it and still fails the unsigned branch" 1 "$drepo" "$dispatch" "$(git -C "$drepo" rev-parse work)" refs/heads/main
+# With the main ref itself absent, git's name lookup would fall back to the tag refs/tags/refs/heads/main and check nothing.
+main_sha="$(git -C "$drepo" show-ref --verify --hash refs/heads/main)"
+git -C "$drepo" update-ref -d refs/heads/main
+run_case "RR-134: an absent main ref is refused, not replaced by a tag of the same name" 2 "$drepo" "$dispatch" "$(git -C "$drepo" rev-parse work)" refs/heads/main
+git -C "$drepo" update-ref refs/heads/main "$main_sha"
+git -C "$drepo" tag -d main refs/heads/main >/dev/null
+# The real shape of a lock-file head: an unsigned human commit under the exempt github-actions[bot] commit. A range
+# that checked only the tip would pass it.
+commit "$drepo" g.txt "github-actions[bot]" "41898282+github-actions[bot]@users.noreply.github.com" "Regenerate lock files"
+run_case "RR-134: a dispatch on a lock-file commit still fails the unsigned commit under it" 1 "$drepo" "$dispatch" "$(git -C "$drepo" rev-parse work)" refs/heads/main
+reset_work "$drepo"
+commit "$drepo" s.txt "Alice Example" "alice@example.com" "Signed" -s
+git -C "$drepo" checkout -q main
+# Main's own commit is unsigned, as squash commits on main are not checked (D-36): a range that reached into main fails.
+commit "$drepo" n.txt "Alice Example" "alice@example.com" "Main moves on"
+git -C "$drepo" checkout -q work
+run_case "RR-134: a dispatch passes a signed branch after main moved on and never checks main's own commits" 0 "$drepo" "$dispatch" "$(git -C "$drepo" rev-parse work)" refs/heads/main
 
 if [ "$failures" -gt 0 ]; then
   echo "DCO self-test: $failures case(s) failed."

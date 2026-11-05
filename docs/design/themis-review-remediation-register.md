@@ -1,6 +1,6 @@
 <!-- SNAPSHOT. Do not edit by hand. Regenerate from the live document. -->
 
-> **Snapshot** of the live document *Themis Review Remediation Register* (https://claude.ai/code/artifact/91610c8f-7465-46a7-9f48-0bf2c5171ede), revision 61, taken 2026-10-24.
+> **Snapshot** of the live document *Themis Review Remediation Register* (https://claude.ai/code/artifact/91610c8f-7465-46a7-9f48-0bf2c5171ede), revision 65, taken 2026-11-04.
 > Reference only: findings RR-xx and the owner's decision on each. Accepted items are already in the Foundation, the
 > Phase 0 Specification and the Build Brief, which win on any conflict. The live document is authoritative.
 > Diagrams are not reproduced; their captions are kept in place.
@@ -221,6 +221,35 @@ The Themis Whole-Project Review read the documents at Foundation rev 219, Specif
 | RR-128 | (SG-05) A real installation can be tried only from step 13 | Kept at step 13; revisited at Gate E | Gate E | [Pending] |
 
 **Status pass (RR-121), your decision 2026-10-24:** RR-07 and RR-10 in milestone 2 step 4; RR-12 closed, built as D-58; RR-13 in step 13a; RR-14 as D-66 in step 8; RR-16, RR-18, RR-24 and RR-26 in the Phase 1 and Phase 2 specifications; RR-17 and RR-20 at Gate C; RR-21 at the Phase 1 gate, from the questionnaire; RR-23 applied as Foundation wording; RR-25 open with the owner, who is choosing two accountants; RR-27 before the first production installation.
+
+## Pull requests 49 and 50 (2026-10-24)
+
+The step 3 docs pull request was full tier under D-59 because it changed CLAUDE.md, and it merged before its reviewer session ran.
+
+| ID | Finding | Resolution | When | Decision |
+|---|---|---|---|---|
+| RR-129 | Pull request 49 (the step 3 snapshots and CLAUDE.md) merged on head d854437 without the reviewer layer | Its content is covered by the planner's conformance check of d854437 (all four snapshots match their named revisions; CLAUDE.md changed in exactly the three intended lines) and by the review of pull request 50, which reviewed the merged CLAUDE.md change (dbb42ce) and passed on head 570cdaa. Before ticking the owner checklist, the owner checks that the reviewer's summary exists on the pull request; the template's tier lines (pull request 50) make that check explicit | Closed 2026-10-24 | [Accept] |
+
+## Review of pull request 51 (2026-10-24)
+
+The D-59 review of milestone 2 step 3 (two passes, merged on cd6f8c9) left four points for the owner; your decisions of 2026-10-24 are below. The review's own references are in brackets.
+
+| ID | Finding | Resolution | When | Decision |
+|---|---|---|---|---|
+| RR-130 | (R-MD-06 comparison) After the company's first posting, COMPANY.UPDATE compares the organisation number as raw text, so the same number written in another format is rejected | Compare the normalised form (DuplicateKeys.Normalise), as R-MD-05 uniqueness and the duplicate key do: a different number is rejected, a reformatted one is accepted. The Specification's Fixed attributes table says so with the next release | Milestone 2 step 4 | [Accept] |
+| RR-131 | (N1, N2) For an unknown site or a site of another company, WAREHOUSE.CREATE declares the body's company as scope, so the caller needs access there to get the 400, and site_other_company shows that the site id exists elsewhere | Accepted as built: nothing is written, site ids are random UUIDs, and the settings commands behave the same way (RR-102) | Closed | [Accept] |
+| RR-132 | (e3) The migration's backfill of organisation_number_normalised can differ from DuplicateKeys.Normalise outside ASCII | Accepted: the backfill ran once on development and test rows only; no real installation exists | Closed | [Accept] |
+| RR-133 | (N3, N4) The test cleanup does not restore SE01's posting profile rules; the new 400s on WAREHOUSE.CREATE carry no details.field | Both fixed as small items | Milestone 2 step 4 | [Accept] |
+| RR-136 | (Step 3 deviation) The lock class 1b read locks the company row alone (FOR SHARE) and reads the currency's minor units in a second statement, while D-65 says a posting takes every company attribute it uses from that locked read. A locking statement with a join is re-checked against the stale joined row after a wait, so the join was not safe | Accepted as built with the step 3 merge (owner, 2026-10-24); safe because a currency's minor units are fixed once a company or document uses it. Specification aligned at rev 267; recorded here 2026-11-04 after the independent review of the step 4 brief (F15) | Closed | [Accept] |
+
+## Dependabot pull requests 52 to 56 (2026-11-04)
+
+Two CI problems block the Dependabot updates; the owner accepted both fixes on 2026-11-04 as one CI task, separate from step 4 (P4-9).
+
+| ID | Finding | Resolution | When | Decision |
+|---|---|---|---|---|
+| RR-134 | The required DCO sign-off check never reports on a Dependabot pull request whose lock files the workflow regenerated: the workflow pushes with GITHUB_TOKEN and dispatches only CI, and the pull_request runs on the new head wait for approval, so 52, 53 and 56 are blocked | The lock-file workflow also triggers the DCO check on the new head (bot commits stay exempt under D-36); until then the owner approves the waiting runs | CI task, before the Dependabot merges | [Accept] |
+| RR-135 | The RR-39 golden migration test fails on every EF patch update: the generated history insert carries the EF product version (10.0.13 in the golden files, 10.0.14 generated on 52), which the existing mask does not cover | The comparison ignores the product version value in the history insert, cited to RR-39; the coder confirms with the failing log which lines differ, and changes no golden file | CI task, before pull request 52 merges | [Accept] |
 
 ## Where the review overreaches
 
