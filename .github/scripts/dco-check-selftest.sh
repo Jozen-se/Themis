@@ -2,7 +2,8 @@
 # Proves the DCO check (D-36) on synthetic repositories: a signed commit passes, an unsigned commit fails, a sign-off
 # by another identity fails, a sign-off with the e-mail in another case passes, dependabot[bot] and
 # github-actions[bot] commits pass without a sign-off, an impostor using a bot's name with a non-GitHub address fails,
-# and a merge commit passes without a sign-off. The dispatch wrapper (dco-dispatch.sh, RR-134) checks <main>..<head>:
+# a merge commit passes without a sign-off, and an unsigned root commit merged in from an unrelated history fails
+# (RR-142). The dispatch wrapper (dco-dispatch.sh, RR-134) checks <main>..<head>:
 # it fails an unsigned commit under an exempt lock-file commit, ignores main's own commits, refuses a short main name
 # and is not shadowed by a tag, also when the main ref itself is absent.
 # Run by .github/workflows/dco.yml and by hand:
@@ -103,6 +104,16 @@ commit "$repo" m.txt "Alice Example" "alice@example.com" "Signed on main" -s
 git -C "$repo" checkout -q work
 git -C "$repo" merge -q --no-ff --no-edit main
 expect "D-36: a merge commit passes without a sign-off" 0 "$repo"
+
+# RR-142: an unsigned root commit, brought in by merging an unrelated history, is checked like any other commit; its
+# empty parent list must not make it pass as a merge commit.
+git -C "$repo" checkout -q --orphan unrelated
+git -C "$repo" rm -rfq .
+commit "$repo" o.txt "Alice Example" "alice@example.com" "Unsigned root commit"
+git -C "$repo" checkout -q work
+git -C "$repo" merge -q --allow-unrelated-histories --no-edit unrelated
+git -C "$repo" branch -q -D unrelated
+expect "RR-142: an unsigned root commit merged in from an unrelated history fails" 1 "$repo"
 
 # RR-134: the dispatch path. The range is <main full ref>..<head>, the commits on the head that main does not have.
 dispatch="$(cd "$(dirname "$0")" && pwd)/dco-dispatch.sh"
