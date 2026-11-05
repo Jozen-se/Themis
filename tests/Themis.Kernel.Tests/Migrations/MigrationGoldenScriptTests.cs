@@ -46,7 +46,7 @@ public sealed partial class MigrationGoldenScriptTests
         string script = KernelMigrations.GenerateScript(previous, migrationId);
         string generated = Normalise(script);
         string golden = Normalise(ReadGolden(GoldenDirectory(), migrationId, script, Environment.GetEnvironmentVariable(RecordVariable) == "1"));
-        Assert.True(golden == generated, $"The generated script of {migrationId} differs from db/migrations/golden/{migrationId}.sql. A merged migration's SQL is fixed (RR-39); a provider or EF upgrade that changes the generated script needs the owner's review before the golden file is updated.{Environment.NewLine}{FirstDifference(golden, generated)}");
+        Assert.True(golden == generated, $"The generated script of {migrationId} differs from db/migrations/golden/{migrationId}.sql. A merged migration's SQL is fixed (RR-39); a provider or EF upgrade that changes the generated script needs the owner's review before the golden file is updated. {RecordVariable}=1 never rewrites an existing golden file: once the owner approves the change, delete the file and record it again (RR-137).{Environment.NewLine}{FirstDifference(golden, generated)}");
     }
 
     [Fact]

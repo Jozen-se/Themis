@@ -44,7 +44,7 @@ public sealed partial class ReviewAndCiHygieneTests
     [GeneratedRegex(@"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|mailto:", RegexOptions.IgnoreCase)]
     private static partial Regex ContactAddress();
 
-    [GeneratedRegex(@"gh workflow run (?<file>[A-Za-z0-9._-]+\.ya?ml)\b.*--ref ""(?<ref>[^""]+)""")]
+    [GeneratedRegex(@"^.*\bgh workflow run (?<file>\S+).*$", RegexOptions.Multiline)]
     private static partial Regex WorkflowDispatchCall();
 
     [GeneratedRegex(@"^  workflow_dispatch:", RegexOptions.Multiline)]
@@ -139,12 +139,13 @@ public sealed partial class ReviewAndCiHygieneTests
         // could resolve to a tag of the same name and attach the check runs to another commit.
         string directory = Path.Combine(RepositoryRoot(), ".github", "workflows");
         MatchCollection calls = WorkflowDispatchCall().Matches(File.ReadAllText(Path.Combine(directory, "dependabot-lock-files.yml")));
+        // Every call is collected first, whatever its arguments, so a dispatch without --ref cannot escape the check.
         Assert.Equal(["ci.yml", "dco.yml"], calls.Select(call => call.Groups["file"].Value).Order(StringComparer.Ordinal));
         foreach (Match call in calls)
         {
             string file = call.Groups["file"].Value;
             Assert.True(WorkflowDispatchTrigger().IsMatch(File.ReadAllText(Path.Combine(directory, file))), $"{file} is dispatched by dependabot-lock-files.yml but declares no workflow_dispatch trigger (RR-134).");
-            Assert.StartsWith("refs/heads/", call.Groups["ref"].Value, StringComparison.Ordinal);
+            Assert.Contains("--ref \"refs/heads/${HEAD_REF}\"", call.Value, StringComparison.Ordinal);
         }
     }
 
