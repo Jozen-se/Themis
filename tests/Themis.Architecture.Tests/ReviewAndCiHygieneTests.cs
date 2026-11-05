@@ -50,6 +50,12 @@ public sealed partial class ReviewAndCiHygieneTests
     [GeneratedRegex(@"^  workflow_dispatch:", RegexOptions.Multiline)]
     private static partial Regex WorkflowDispatchTrigger();
 
+    [GeneratedRegex(@"^(?<fence>`{3,})markdown$")]
+    private static partial Regex MarkdownFence();
+
+    [GeneratedRegex(@"^  (?<job>[A-Za-z0-9_-]+):\s*$")]
+    private static partial Regex JobKey();
+
     [GeneratedRegex(@"^\s*ports:\s*$", RegexOptions.Multiline)]
     private static partial Regex PortsKey();
 
@@ -237,13 +243,69 @@ public sealed partial class ReviewAndCiHygieneTests
         Assert.Contains("## Deviations and out-of-scope findings", template, StringComparison.Ordinal);
         Assert.Contains("## Owner checklist", template, StringComparison.Ordinal);
         Assert.Contains("- [ ] The required checks are green on the head commit", template, StringComparison.Ordinal);
-        // D-59 as amended 2026-10-24: review is tiered, and the template names the sign-off of each tier.
+        // D-59 as amended 2026-10-24: review is tiered. D-68 (note of 2026-11-05, RR-139): the planner's conformance result
+        // names the head commit of every pull request, and full tier also needs the reviewer's summary of it.
         Assert.Contains("- **Review tier (D-59):**", template, StringComparison.Ordinal);
         Assert.Contains("- [ ] Full tier: the reviewer's summary names that head commit", template, StringComparison.Ordinal);
-        Assert.Contains("- [ ] Light tier: the planner's conformance check names that head commit", template, StringComparison.Ordinal);
+        Assert.Contains("- [ ] Every pull request: the planner's conformance result names that head commit", template, StringComparison.Ordinal);
+        Assert.DoesNotContain("Light tier:", template, StringComparison.Ordinal);
+        // RR-139: a rule gap or a proposed change goes to the planner, who brings it to the owner (sessions, D-68); other
+        // contributors open a Rule gap issue (owner-approved wording, 2026-11-05).
+        Assert.Contains("goes to the planner, who brings it to the owner (sessions, D-68); other contributors open a Rule gap issue", template, StringComparison.Ordinal);
+
+        // RR-139: CONTRIBUTING.md carries the same route, links the issue form, and takes D-59's wording of what the
+        // owner reads himself.
+        string contributing = string.Join(' ', File.ReadAllLines(Path.Combine(root, "CONTRIBUTING.md")).Select(line => line.Trim()));
+        Assert.Contains("goes to the planner, who brings it to the owner (sessions, D-68); other contributors open a Rule gap issue", contributing, StringComparison.Ordinal);
+        Assert.Contains(".github/ISSUE_TEMPLATE/rule-gap.yml", contributing, StringComparison.Ordinal);
+        Assert.Contains("the owner reads ledger, inventory, posting profile and migration changes himself (D-59)", contributing, StringComparison.Ordinal);
+        Assert.DoesNotContain("explicit review", contributing, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("- [ ] Every conversation is resolved", template, StringComparison.Ordinal);
         Assert.DoesNotContain("Owner sign-off", template, StringComparison.Ordinal);
         Assert.DoesNotContain("explicit review", template, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void RR_141_CLAUDE_md_equals_the_CLAUDE_md_block_of_the_Build_Brief_snapshot()
+    {
+        // RR-141: CLAUDE.md is the Build Brief's CLAUDE.md section, copied; a docs pull request refreshes both together.
+        string root = RepositoryRoot();
+        string[] brief = File.ReadAllText(Path.Combine(root, "docs", "design", "themis-build-brief.md")).Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+        int section = Array.IndexOf(brief, "## CLAUDE.md for the repository");
+        Assert.True(section >= 0, "The Build Brief snapshot has no \"## CLAUDE.md for the repository\" section (RR-141).");
+        // The converter makes the fence longer than any backtick run inside the block, so the block ends at the first
+        // line that repeats its opening fence exactly.
+        int open = Array.FindIndex(brief, section, line => MarkdownFence().IsMatch(line));
+        string fence = open < 0 ? "" : MarkdownFence().Match(brief[open]).Groups["fence"].Value;
+        int close = open < 0 ? -1 : Array.IndexOf(brief, fence, open + 1);
+        Assert.True(open > section && close > open, "The Build Brief's CLAUDE.md section holds no ```markdown block (RR-141).");
+        string block = string.Join('\n', brief[(open + 1)..close]);
+
+        string claude = File.ReadAllText(Path.Combine(root, "CLAUDE.md")).Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd('\n');
+        Assert.True(block == claude, "CLAUDE.md differs from the CLAUDE.md block of docs/design/themis-build-brief.md; refresh them together from the released Build Brief (RR-141).");
+    }
+
+    [Fact]
+    public void RR_141_CI_runs_the_snapshot_converter_fixture_test()
+    {
+        string root = RepositoryRoot();
+        Assert.True(File.Exists(Path.Combine(root, "eng", "snapshots", "snapshot.py")), "eng/snapshots/snapshot.py is missing (RR-141).");
+        Assert.True(File.Exists(Path.Combine(root, "eng", "snapshots", "test_snapshot.py")), "eng/snapshots/test_snapshot.py is missing (RR-141).");
+        // The step must be a live run value (not a comment), in the build-and-test job whose "Build and test" check is
+        // required, with no continue-on-error on the step or the job.
+        string[] ci = File.ReadAllLines(Path.Combine(root, ".github", "workflows", "ci.yml"));
+        const string command = "python3 -m unittest discover --start-directory eng/snapshots --pattern 'test_*.py' --verbose";
+        Assert.Contains(command, RunBlocks(ci));
+        int run = Array.FindIndex(ci, line => RunKey().Match(line) is { Success: true } key && key.Groups["value"].Value.Trim() == command);
+        int job = Array.FindLastIndex(ci, run, line => JobKey().IsMatch(line));
+        Assert.True(job >= 0 && JobKey().Match(ci[job]).Groups["job"].Value == "build-and-test", "The snapshot converter test does not run in the build-and-test job (RR-141).");
+        int stepStart = Array.FindLastIndex(ci, run, line => line.StartsWith("      - ", StringComparison.Ordinal));
+        int stepEnd = Array.FindIndex(ci, run + 1, line => line.StartsWith("      - ", StringComparison.Ordinal) || JobKey().IsMatch(line));
+        string[] step = ci[stepStart..(stepEnd < 0 ? ci.Length : stepEnd)];
+        Assert.DoesNotContain(step, line => line.TrimStart().StartsWith("continue-on-error", StringComparison.Ordinal));
+        Assert.DoesNotContain(step, line => line.TrimStart().StartsWith("if:", StringComparison.Ordinal));
+        int jobEnd = Array.FindIndex(ci, job + 1, line => JobKey().IsMatch(line));
+        Assert.DoesNotContain(ci[job..(jobEnd < 0 ? ci.Length : jobEnd)], line => line.StartsWith("    continue-on-error", StringComparison.Ordinal) || line.StartsWith("    if:", StringComparison.Ordinal));
     }
 
     /// <summary>The entries of every ports: list of a compose file.</summary>

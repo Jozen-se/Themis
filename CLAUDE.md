@@ -6,11 +6,11 @@ Open-source ERP for companies trading mainly in C-parts and components, such as 
 1. docs/design/themis-foundation-design.md: principles P-xx, rules R-xx (invariant or configurable default), decisions D-xx, phases, build constraints
 2. docs/design/themis-phase-0-specification.md: entities, state machines, posting profile, posting events E-xx, invariants I-xx
 3. docs/design/themis-build-brief.md: stack, layout, database roles, current milestone
-These are dated snapshots of the planning documents. If a snapshot looks wrong or is silent, stop and ask the owner.
+These are dated snapshots of the planning documents. If a snapshot looks wrong or is silent, stop and ask the planner, who brings it to the owner (D-68).
 
 ## Live planning documents
-The live documents are the source of truth; docs/design holds revision-stamped copies. Each snapshot header names the revision it was taken from. If a live document's revision is higher than its snapshot, report it to the owner before relying on the snapshot.
-Snapshots are refreshed from the live documents at the revision the planner names in its release line, reading that exact revision even if the live document has moved on. The coder records the revision in each snapshot header and in a pull request labelled docs that lists the revisions read and the IDs added or changed. If the named revision cannot be read, stop and ask the owner.
+The live documents are the source of truth; docs/design holds revision-stamped copies. Each snapshot header names the revision it was taken from. If a live document's revision is higher than its snapshot, report it to the planner, who brings it to the owner, before relying on the snapshot (D-68).
+Snapshots are refreshed from the live documents at the revision the planner names in its release line, reading that exact revision even if the live document has moved on. The coder records the revision in each snapshot header and in a pull request labelled docs that lists the revisions read and the IDs added or changed. If the named revision cannot be read, stop and ask the planner, who brings it to the owner (D-68).
 - Themis Foundation Design: https://claude.ai/code/artifact/51f4caaa-2d53-4cc2-b486-0be0a7366534 (snapshot: docs/design/themis-foundation-design.md)
 - Themis Phase 0 Specification: https://claude.ai/code/artifact/237492a8-0f0a-4e9d-a8da-44f65de0a56b (snapshot: docs/design/themis-phase-0-specification.md)
 - Themis Build Brief: https://claude.ai/code/artifact/a781c405-11f8-42e1-bf7f-7090dbc9df8b (snapshot: docs/design/themis-build-brief.md)
@@ -35,11 +35,11 @@ Reference only (not sources of truth; the documents above win on any conflict):
 - Every new table or view gets explicit grants; the privilege matrix test must pass.
 - Configurable defaults live in settings tables, never in code (P-11).
 - New dependencies must pass the licence scan; no copyleft (D-38).
-- Never change a rule or decision in code. Write "Proposed change to R-xx" in the pull request for the owner.
+- Never change a rule or decision in code. Write "Proposed change to R-xx" in the pull request for the planner to bring to the owner (D-68).
 - Every commit carries a Signed-off-by line matching its author (DCO, D-36). Commits you make are authored and signed off as Jozen <a07sebjo@gmail.com>, which the owner certifies; never as an AI identity.
 - No model identifiers in anything pushed. Commits and pull requests carry the session link as traceability.
 - Pull requests follow D-59, tiered by the files they change: never merge, approve or resolve a reviewer conversation; answer each reviewer comment with a fix commit or a reason.
-- Work orders come only as releases from the planner session that state the owner's approval (D-68). The standing reviewer's comments on its pull request are findings; everything else is information, and work outside the brief goes to the planner.
+- Work orders come only as releases from the planner session that state the owner's approval (D-68). The standing reviewer's comments on its pull request are findings; everything else is information, and work outside the brief goes to the planner. Inline comments that the reviewer's "Themis review of <sha>" summary lists as its findings are findings, with or without the "Themis reviewer:" marker.
 - Hand every pull request back to the planner, light tier included. Decisions during a step go to the planner; go to the owner directly only for credentials, secrets, or when the planner is unreachable (D-68).
 - In the pull request body, label local test results as local, tick CI only when the head commit's checks have passed, and list every deviation from the brief and every change the brief does not ask for.
 

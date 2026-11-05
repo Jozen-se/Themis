@@ -39,8 +39,10 @@ is_exempt_bot() {
   esac
 }
 
-# One line per commit: sha, parent count, author name, author email, tab separated; the trailers are read per commit.
-while IFS=$'\t' read -r sha parents name email; do
+# One line per commit: sha, parents, author name, author email, separated by the unit separator (0x1f); the trailers
+# are read per commit. RR-142: not by tab, which is IFS whitespace, so a root commit's empty parents field would
+# collapse and its two-word author name would be read as two parents, passing the commit as a merge commit.
+while IFS=$'\x1f' read -r sha parents name email; do
   parent_count=$(wc -w <<<"$parents")
   if [ "$parent_count" -gt 1 ]; then
     echo "exempt  $sha merge commit"
@@ -72,7 +74,7 @@ while IFS=$'\t' read -r sha parents name email; do
     echo "::error title=DCO sign-off missing::Commit $sha by $expected has no 'Signed-off-by: $expected' line (D-36). Amend it with 'git commit --amend -s' or sign off the branch with 'git rebase --signoff'."
     failures=$((failures + 1))
   fi
-done < <(git log --format='%H%x09%P%x09%an%x09%ae' --reverse "$base..$head")
+done < <(git log --format='%H%x1f%P%x1f%an%x1f%ae' --reverse "$base..$head")
 
 echo "DCO: $checked commit(s) checked, $exempt exempt, $failures without a matching sign-off."
 if [ "$failures" -gt 0 ]; then
