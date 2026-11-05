@@ -11,6 +11,10 @@ namespace Themis.Kernel.Contracts.Settings;
 /// value declares installation scope (RR-52), a Warehouse value the warehouse's company and site (D-63, RR-102). A
 /// history-bearing definition takes the caller's valid_from; a plain one refuses it.
 /// </summary>
+[CommandRules("R-SET-01", "D-63", "R-API-02")]
+[CommandAudits("SettingValue")]
+[CommandEvents("SETTING_CHANGED")]
+[CommandErrors("setting_key_invalid", "setting_target_invalid", "setting_value_required", "setting_unknown", "setting_not_settable", "setting_locked", "setting_level_not_allowed", "valid_from_required", "valid_from_not_allowed", "version_stale", "company_unknown", "site_unknown", "site_other_company", "warehouse_unknown", "warehouse_other_company")]
 [Command("SETTING.SET")]
 public sealed record SetSetting(
     string Key,
@@ -23,6 +27,10 @@ public sealed record SetSetting(
     BusinessDate? ValidFrom = null) : ICommand<SettingValueView>, IVersionedCommand;
 
 /// <summary>SETTING.CLEAR (step 2 brief; D-58): inserts a Cleared row at the slot, so the level falls through; nothing is updated or deleted. Scoped like SETTING.SET (D-63, RR-102).</summary>
+[CommandRules("R-SET-01", "D-63", "R-API-02")]
+[CommandAudits("SettingValue")]
+[CommandEvents("SETTING_CHANGED")]
+[CommandErrors("setting_key_invalid", "setting_target_invalid", "setting_unknown", "setting_not_settable", "setting_locked", "setting_level_not_allowed", "valid_from_required", "valid_from_not_allowed", "version_stale", "company_unknown", "site_unknown", "site_other_company", "warehouse_unknown", "warehouse_other_company", "setting_value_absent")]
 [Command("SETTING.CLEAR")]
 public sealed record ClearSetting(
     string Key,

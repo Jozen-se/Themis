@@ -3,7 +3,7 @@ namespace Themis.Kernel.Contracts.Persistence;
 /// <summary>
 /// The one way a kernel Contracts service hands the connection back (RR-62, R-DB-01): on successful return it resets
 /// the role, so the caller's next statement that does not switch runs as themis_app and is refused. Used by
-/// IOrganisationReader, ISettingsReader, IPostingService, INumberSeriesService, IAccountResolver and IAccessControl,
+/// IOrganisationReader, ISettingsReader, IPostingService, INumberSeriesService, IAccountResolver, IAccessControl and (step 4) IPostingRuleActivity,
 /// and by any Contracts service added later; not by IIdempotencyStore, IAuditStore or IOutboxStore, which only the
 /// pipeline calls. A service that threw, or that caught a database error, never comes here: the transaction is
 /// aborted and the reset would raise 25P02 over the original error.

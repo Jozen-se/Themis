@@ -32,7 +32,7 @@ public sealed partial class MigrationDriftTests
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
-    public async Task RR_39_the_milestone_1_database_migrated_to_head_has_the_same_catalog_as_a_database_built_from_scratch()
+    public async Task RR_39_the_milestone_1_database_migrated_to_head_has_the_same_catalog_as_a_database_built_from_scratch_and_D_69_the_retired_ACCOUNT_MAINTAIN_pair_is_deleted_with_its_audit_event()
     {
         string restored = await _db.CreateBareDatabaseAsync();
         string fresh = await _db.CreateEmptyDatabaseAsync(Ct);
@@ -48,6 +48,13 @@ public sealed partial class MigrationDriftTests
             Assert.Equal(8L, await ScalarAsync(restored, "SELECT count(*) FROM kernel.__ef_migrations_history"));
             Assert.Equal(0, await Themis.Migrator.Program.RunAsync(["--connection", Migrator(restored)], PostgresFixture.MigratorEnvironment));
             Assert.Equal(0, await Themis.Migrator.Program.RunAsync(["--connection", Migrator(fresh)], PostgresFixture.MigratorEnvironment));
+
+            // D-69, R-SEC-02 (step 4, planner's option a): the tag's database held the ACCOUNT.MAINTAIN pair; the head migrator
+            // deletes it with its SYSTEM. audit event, and the catalogue seed after the migrations adds the four pairs that replace it.
+            Assert.Equal(0L, await ScalarAsync(restored, "SELECT count(*) FROM kernel.sod_conflict WHERE permission_a = 'ACCOUNT.MAINTAIN'"));
+            Assert.Equal(1L, await ScalarAsync(restored, "SELECT count(*) FROM kernel.audit_event WHERE command_name = 'SYSTEM.MIGRATE' AND entity_type = 'SodConflict' AND changes->'permissionA'->>'before' = 'ACCOUNT.MAINTAIN' AND changes->'permissionB'->>'before' = 'MANUAL_JOURNAL.POST' AND changes->'permissionA'->>'after' IS NULL AND user_id = '00000000-0000-7000-8000-000000000001'"));
+            Assert.Equal(4L, await ScalarAsync(restored, "SELECT count(*) FROM kernel.sod_conflict WHERE permission_b = 'MANUAL_JOURNAL.POST' AND permission_a IN ('ACCOUNT.CREATE', 'ACCOUNT.UPDATE', 'ACCOUNT.UNBLOCK', 'ACCOUNT.REACTIVATE')"));
+            Assert.Equal(0L, await ScalarAsync(fresh, "SELECT count(*) FROM kernel.sod_conflict WHERE permission_a = 'ACCOUNT.MAINTAIN'"));
 
             IReadOnlyList<string> migrated = await CatalogAsync(restored);
             IReadOnlyList<string> scratch = await CatalogAsync(fresh);

@@ -151,7 +151,7 @@ public static class Program
 
                 // R-SEC-02: a role or an assignment that would give one user both permissions of a conflict pair is refused.
                 IdentityFixtureDefinition identity = Milestone1IdentityFixture.For(organisation.Company.Id);
-                Result<int> identityRows = await IdentitySeeder.ApplyFixtureAsync(connectionString, identity, definition => SegregationOfDuties.CheckFixture(definition, PermissionCatalog.Definition.Conflicts), now, WellKnownUsers.System, CancellationToken.None);
+                Result<int> identityRows = await IdentitySeeder.ApplyFixtureAsync(connectionString, identity, definition => SegregationOfDuties.CheckFixture(definition, PermissionCatalog.Definition), now, WellKnownUsers.System, CancellationToken.None);
                 if (identityRows.IsFailure)
                 {
                     Console.Error.WriteLine($"Fixture '{fixture}' refused: {identityRows.Primary}");

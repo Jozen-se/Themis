@@ -64,7 +64,7 @@ internal static class Milestone1IdentityFixture
 
     /// <summary>
     /// Administers the organisation (milestone 2 step 3): the chart of accounts header, company, site and warehouse
-    /// commands with their reads, held by the organisation administrator only, so the clerk's permissions stay those
+    /// commands with their reads and, since step 4, the account commands with ACCOUNT.READ, held by the organisation administrator only, so the clerk's permissions stay those
     /// milestone 1 proves. Its company-wide assignment in SE01 satisfies the installation-scope commands (RR-52).
     /// </summary>
     public const string OrganisationAdministratorRoleCode = "ORGANISATION_ADMINISTRATOR";
@@ -119,6 +119,14 @@ internal static class Milestone1IdentityFixture
                 PermissionCatalog.WarehouseCreate,
                 PermissionCatalog.WarehouseUpdate,
                 PermissionCatalog.WarehouseRead,
+                // Milestone 2 step 4 (D-69): the account commands and ACCOUNT.READ. The role holds no MANUAL_JOURNAL.POST (R-SEC-02, D-70).
+                PermissionCatalog.AccountCreate,
+                PermissionCatalog.AccountUpdate,
+                PermissionCatalog.AccountBlock,
+                PermissionCatalog.AccountUnblock,
+                PermissionCatalog.AccountDeactivate,
+                PermissionCatalog.AccountReactivate,
+                PermissionCatalog.AccountRead,
             ]),
         ],
         [

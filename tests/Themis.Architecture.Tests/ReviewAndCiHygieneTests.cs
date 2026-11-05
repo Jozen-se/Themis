@@ -6,7 +6,7 @@ namespace Themis.Architecture.Tests;
 /// Repository-level items of milestone 2 step 2a that live outside the compiled code: pinned runners (RR-104), workflow
 /// hygiene, the nightly long run and the security policy (RR-85), documents that cannot drift from their sources
 /// (RR-69), and the review files of D-59 (REVIEW.md, CODEOWNERS, the pull request template). The compose job in CI
-/// proves the development setup itself (RR-59, RR-65).
+/// proves the development setup itself (RR-59, RR-65). Milestone 2 step 4: the OpenAPI breaking-change check (RR-10).
 /// </summary>
 [Trait("Category", "Architecture")]
 public sealed partial class ReviewAndCiHygieneTests
@@ -61,6 +61,15 @@ public sealed partial class ReviewAndCiHygieneTests
 
     [GeneratedRegex(@"^\s*-\s*""?(?<binding>[^""\s]+)""?\s*$")]
     private static partial Regex ListEntry();
+
+    [GeneratedRegex(@"^  pull_request:\s*\n    types: \[(?<types>[^\]]*)\]\s*$", RegexOptions.Multiline)]
+    private static partial Regex PullRequestTypes();
+
+    [GeneratedRegex(@"^\s*permissions:", RegexOptions.Multiline)]
+    private static partial Regex PermissionsKey();
+
+    [GeneratedRegex(@"^  OASDIFF_VERSION: ""(?<version>[^""]+)""\s*$", RegexOptions.Multiline)]
+    private static partial Regex OasdiffVersion();
 
     [Fact]
     public void RR_79_every_port_the_compose_stack_publishes_is_bound_to_127_0_0_1_only()
@@ -308,6 +317,72 @@ public sealed partial class ReviewAndCiHygieneTests
         Assert.DoesNotContain(ci[job..(jobEnd < 0 ? ci.Length : jobEnd)], line => line.StartsWith("    continue-on-error", StringComparison.Ordinal) || line.StartsWith("    if:", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void RR_10_the_OpenAPI_check_runs_on_pull_requests_reruns_on_label_changes_and_holds_read_only_permissions()
+    {
+        string text = File.ReadAllText(OpenApiWorkflow());
+        Match types = PullRequestTypes().Match(text);
+        Assert.True(types.Success, "openapi.yml does not run on pull_request with a types list (RR-10).");
+        string[] events = [.. types.Groups["types"].Value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).Order(StringComparer.Ordinal)];
+        Assert.Equal(["labeled", "opened", "reopened", "synchronize", "unlabeled"], events);
+        Assert.DoesNotContain("pull_request_target", text, StringComparison.Ordinal);
+
+        // GITHUB_TOKEN only, read-only: one permissions block, contents: read, no write anywhere, no other secret.
+        Assert.Equal(1, PermissionsKey().Count(text));
+        Assert.Contains("permissions:\n  contents: read\n", text.Replace("\r\n", "\n", StringComparison.Ordinal), StringComparison.Ordinal);
+        Assert.DoesNotContain(": write", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("secrets.", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RR_10_oasdiff_is_pinned_by_version_and_module_checksum_and_its_licence_is_recorded_in_eng_licenses()
+    {
+        string root = RepositoryRoot();
+        string text = File.ReadAllText(OpenApiWorkflow());
+        Match version = OasdiffVersion().Match(text);
+        Assert.True(version.Success, "openapi.yml pins no OASDIFF_VERSION (RR-10).");
+        Assert.Matches(@"^\d+\.\d+\.\d+$", version.Groups["version"].Value);
+        Assert.Matches(@"(?m)^  OASDIFF_MODULE_SUM: ""h1:[A-Za-z0-9+/]{43}=""\s*$", text);
+        Assert.Matches(@"(?m)^  OASDIFF_GO_TOOLCHAIN: ""go\d+\.\d+\.\d+""\s*$", text);
+
+        string[] run = [.. RunBlocks(File.ReadAllLines(OpenApiWorkflow()))];
+        string install = Assert.Single(run, block => block.Contains("go install", StringComparison.Ordinal));
+        // The module checksum is compared before anything is built, the checksum database is the public one, and the toolchain is pinned.
+        Assert.Contains("go mod download -json \"github.com/oasdiff/oasdiff@v${OASDIFF_VERSION}\"", install, StringComparison.Ordinal);
+        Assert.Contains("if [ \"$sum\" != \"${OASDIFF_MODULE_SUM}\" ]; then", install, StringComparison.Ordinal);
+        Assert.Contains("GOSUMDB=sum.golang.org", install, StringComparison.Ordinal);
+        Assert.Contains("GOTOOLCHAIN=\"${OASDIFF_GO_TOOLCHAIN}\"", install, StringComparison.Ordinal);
+        Assert.True(install.IndexOf("!= \"${OASDIFF_MODULE_SUM}\"", StringComparison.Ordinal) < install.IndexOf("go install", StringComparison.Ordinal), "openapi.yml builds oasdiff before it checks the module checksum (RR-10).");
+        Assert.DoesNotContain("GOFLAGS=-insecure", install, StringComparison.Ordinal);
+
+        // D-38: not a NuGet package, so the licence is confirmed by hand and recorded with the pinned version.
+        string record = File.ReadAllText(Path.Combine(root, "eng", "licenses", "oasdiff.md"));
+        Assert.Contains($"| Version | {version.Groups["version"].Value} |", record, StringComparison.Ordinal);
+        Assert.Contains("| Licence | Apache-2.0 |", record, StringComparison.Ordinal);
+        Assert.Contains("| Confirmed | ", record, StringComparison.Ordinal);
+        Assert.Contains("\"Apache-2.0\"", File.ReadAllText(Path.Combine(root, "eng", "licenses", "allowed-licenses.json")), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RR_10_the_OpenAPI_job_runs_the_self_test_and_then_the_check_with_the_label_from_the_event_and_neither_can_be_skipped()
+    {
+        string root = RepositoryRoot();
+        string[] lines = File.ReadAllLines(OpenApiWorkflow());
+        string[] run = [.. RunBlocks(lines)];
+        int selfTest = Array.IndexOf(run, ".github/scripts/openapi-check-selftest.sh");
+        int check = Array.IndexOf(run, ".github/scripts/openapi-check.sh \"${BASE_SHA}\" openapi/v1.json \"${API_BREAKING_LABEL}\"");
+        Assert.True(selfTest >= 0 && check > selfTest, "openapi.yml does not run the self-test and then the check (RR-10).");
+        Assert.True(File.Exists(Path.Combine(root, ".github", "scripts", "openapi-check.sh")), "openapi-check.sh is missing (RR-10).");
+        Assert.True(File.Exists(Path.Combine(root, ".github", "scripts", "openapi-check-selftest.sh")), "openapi-check-selftest.sh is missing (RR-10).");
+        Assert.True(File.Exists(Path.Combine(root, "openapi", "v1.json")), "openapi/v1.json is missing (RR-10).");
+
+        // RR-85: the label and the base reach the shell through environment variables.
+        Assert.Contains(lines, line => line.Trim() == "API_BREAKING_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'api-breaking') }}");
+        Assert.Contains(lines, line => line.Trim() == "BASE_SHA: ${{ github.event.pull_request.base.sha }}");
+        Assert.DoesNotContain(lines, line => line.TrimStart().StartsWith("continue-on-error", StringComparison.Ordinal));
+        Assert.DoesNotContain(lines, line => line.TrimStart().StartsWith("if:", StringComparison.Ordinal));
+    }
+
     /// <summary>The entries of every ports: list of a compose file.</summary>
     private static IEnumerable<string> PublishedPorts(string[] lines)
     {
@@ -365,6 +440,8 @@ public sealed partial class ReviewAndCiHygieneTests
         string list = end < 0 ? readme[start..] : readme[start..end];
         return BacktickedName().Matches(list).Select(match => match.Groups[1].Value);
     }
+
+    private static string OpenApiWorkflow() => Path.Combine(RepositoryRoot(), ".github", "workflows", "openapi.yml");
 
     private static string[] Workflows() => Directory.GetFiles(Path.Combine(RepositoryRoot(), ".github", "workflows"), "*.yml");
 

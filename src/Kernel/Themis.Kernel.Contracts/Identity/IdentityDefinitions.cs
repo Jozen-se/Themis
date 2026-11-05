@@ -16,8 +16,13 @@ public enum PermissionRiskLevel
     Sensitive,
 }
 
-/// <summary>A system-defined permission: TYPE.COMMAND for a command, TYPE.READ for a resource type's queries (D-47).</summary>
-public sealed record PermissionDefinition(string Code, PermissionRiskLevel RiskLevel);
+/// <summary>
+/// A system-defined permission: TYPE.COMMAND for a command, TYPE.READ for a resource type's queries (D-47). Installation
+/// scope marks a permission one of whose requests declares installation scope, which a company-wide assignment in any
+/// company satisfies (RR-52); a conflict pair with such a permission is checked across all of a user's assignments, not
+/// per company (D-70). The marking lives in the catalogue in code, beside the risk level; it has no column.
+/// </summary>
+public sealed record PermissionDefinition(string Code, PermissionRiskLevel RiskLevel, bool InstallationScope = false);
 
 /// <summary>Two permissions one user may not hold in the same company (R-SEC-02). Stored with the codes in order, so a pair exists once.</summary>
 public sealed record SodConflictDefinition(string PermissionA, string PermissionB);

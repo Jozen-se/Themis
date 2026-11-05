@@ -11,6 +11,7 @@ internal static class OrganisationErrors
     public const string RuleUnique = "R-MD-05";
     public const string RuleFixed = "R-MD-06";
     public const string RuleGuard = "R-DOC-01";
+    public const string RulePostingProfile = "R-PP-05";
 
     // R-MD-05 (422): a business key that already exists within its uniqueness scope.
     public const string CompanyCodeDuplicate = "company_code_duplicate";
@@ -18,6 +19,7 @@ internal static class OrganisationErrors
     public const string ChartCodeDuplicate = "chart_of_accounts_code_duplicate";
     public const string SiteCodeDuplicate = "site_code_duplicate";
     public const string WarehouseCodeDuplicate = "warehouse_code_duplicate";
+    public const string AccountNumberDuplicate = "account_number_duplicate";
 
     // R-MD-06 (422): an attribute the Specification fixes, after its trigger (D-65).
     public const string CompanyCodeFixed = "company_code_fixed";
@@ -31,16 +33,26 @@ internal static class OrganisationErrors
     public const string ChartCodeFixed = "chart_of_accounts_code_fixed";
     public const string SiteCodeFixed = "site_code_fixed";
     public const string WarehouseCodeFixed = "warehouse_code_fixed";
+    public const string AccountNumberFixed = "account_number_fixed";
+    public const string AccountChartFixed = "account_chart_fixed";
+    public const string AccountTypeFixed = "account_type_fixed";
+    public const string AccountControlFixed = "account_control_fixed";
+
+    // R-PP-05 (422): an account an active posting profile rule of any company references cannot be blocked or deactivated (D-56, D-69).
+    public const string AccountUsedByPostingRule = "account_used_by_posting_rule";
 
     // R-DOC-01 (422): a guard without a rule of its own (Specification, State machines).
     public const string WarehouseNotActive = "warehouse_not_active";
     public const string WarehouseDefaultTaken = "warehouse_default_taken";
+    public const string AccountBalanceNotZero = "account_balance_not_zero";
+    public const string TransitionNotAllowed = "transition_not_allowed";
 
     // 404 and 412.
     public const string CompanyNotFound = "company_not_found";
     public const string ChartNotFound = "chart_of_accounts_not_found";
     public const string SiteNotFound = "site_not_found";
     public const string WarehouseNotFound = "warehouse_not_found";
+    public const string AccountNotFound = "account_not_found";
     public const string VersionStale = "version_stale";
 
     // 400 found inside the transaction, stored as the key's result (Build Brief, Errors).
@@ -49,6 +61,10 @@ internal static class OrganisationErrors
     public const string CompanyUnknown = "company_unknown";
     public const string SiteUnknown = "site_unknown";
     public const string SiteOtherCompany = "site_other_company";
+
+    // 400 before the transaction, never stored (RR-51): ACCOUNT.BLOCK's reason (D-69).
+    public const string ReasonRequired = "reason_required";
+    public const string ReasonTooLong = "reason_too_long";
 }
 
 /// <summary>Shape checks the validators share (RR-51): pure, before the transaction, never stored.</summary>
@@ -121,12 +137,14 @@ internal static class OrganisationAudit
     public const string ChartEntity = "ChartOfAccounts";
     public const string SiteEntity = "Site";
     public const string WarehouseEntity = "Warehouse";
+    public const string AccountEntity = "Account";
 
     public const string CompanyType = "COMPANY";
     public const string PartyType = "PARTY";
     public const string ChartType = "CHART_OF_ACCOUNTS";
     public const string SiteType = "SITE";
     public const string WarehouseType = "WAREHOUSE";
+    public const string AccountType = "ACCOUNT";
 
     public static IReadOnlyDictionary<string, FieldChange> CompanyChanges(CompanyInfo? before, CompanyInfo after) => Diff(before is null ? null : Fields(before), Fields(after));
 
@@ -137,6 +155,8 @@ internal static class OrganisationAudit
     public static IReadOnlyDictionary<string, FieldChange> SiteChanges(SiteInfo? before, SiteInfo after) => Diff(before is null ? null : Fields(before), Fields(after));
 
     public static IReadOnlyDictionary<string, FieldChange> WarehouseChanges(WarehouseView? before, WarehouseView after) => Diff(before is null ? null : Fields(before), Fields(after));
+
+    public static IReadOnlyDictionary<string, FieldChange> AccountChanges(AccountView? before, AccountView after) => Diff(before is null ? null : Fields(before), Fields(after));
 
     private static Dictionary<string, string?> Fields(CompanyInfo c) => new(StringComparer.Ordinal)
     {
@@ -196,6 +216,17 @@ internal static class OrganisationAudit
         ["isDefault"] = w.IsDefault ? "True" : "False",
         ["status"] = w.Status.ToString(),
         ["version"] = w.Version.ToString(CultureInfo.InvariantCulture),
+    };
+
+    private static Dictionary<string, string?> Fields(AccountView a) => new(StringComparer.Ordinal)
+    {
+        ["chartId"] = a.ChartId.ToString(),
+        ["accountNumber"] = a.AccountNumber.Value,
+        ["name"] = a.Name,
+        ["accountType"] = a.AccountType.ToString(),
+        ["isControl"] = a.IsControl ? "True" : "False",
+        ["status"] = a.Status.ToString(),
+        ["version"] = a.Version.ToString(CultureInfo.InvariantCulture),
     };
 
     private static Dictionary<string, FieldChange> Diff(Dictionary<string, string?>? before, Dictionary<string, string?> after)
