@@ -70,7 +70,7 @@ jobs:
           git add -- '**/packages.lock.json'
           git commit -m "${LOCK_COMMIT_SUBJECT}" \
             -m "Lock files of projects that receive the updated packages transitively, regenerated with dotnet restore --force-evaluate by the Dependabot lock files workflow (D-38)."
-          git push origin "HEAD:${HEAD_REF}"
+          git push origin "HEAD:refs/heads/${HEAD_REF}"
 
       # RR-134: the dispatches run whenever the branch head is this workflow's own lock-file commit, not only when this
       # run made it, so "Re-run jobs" dispatches again. Both dispatches name the branch by its full ref, as the fetch
