@@ -50,6 +50,12 @@ public sealed partial class ReviewAndCiHygieneTests
     [GeneratedRegex(@"^  workflow_dispatch:", RegexOptions.Multiline)]
     private static partial Regex WorkflowDispatchTrigger();
 
+    [GeneratedRegex(@"^(?<fence>`{3,})markdown$")]
+    private static partial Regex MarkdownFence();
+
+    [GeneratedRegex(@"^  (?<job>[A-Za-z0-9_-]+):\s*$")]
+    private static partial Regex JobKey();
+
     [GeneratedRegex(@"^\s*ports:\s*$", RegexOptions.Multiline)]
     private static partial Regex PortsKey();
 
@@ -258,8 +264,11 @@ public sealed partial class ReviewAndCiHygieneTests
         string[] brief = File.ReadAllText(Path.Combine(root, "docs", "design", "themis-build-brief.md")).Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
         int section = Array.IndexOf(brief, "## CLAUDE.md for the repository");
         Assert.True(section >= 0, "The Build Brief snapshot has no \"## CLAUDE.md for the repository\" section (RR-141).");
-        int open = Array.IndexOf(brief, "```markdown", section);
-        int close = open < 0 ? -1 : Array.IndexOf(brief, "```", open + 1);
+        // The converter makes the fence longer than any backtick run inside the block, so the block ends at the first
+        // line that repeats its opening fence exactly.
+        int open = Array.FindIndex(brief, section, line => MarkdownFence().IsMatch(line));
+        string fence = open < 0 ? "" : MarkdownFence().Match(brief[open]).Groups["fence"].Value;
+        int close = open < 0 ? -1 : Array.IndexOf(brief, fence, open + 1);
         Assert.True(open > section && close > open, "The Build Brief's CLAUDE.md section holds no ```markdown block (RR-141).");
         string block = string.Join('\n', brief[(open + 1)..close]);
 
@@ -273,8 +282,20 @@ public sealed partial class ReviewAndCiHygieneTests
         string root = RepositoryRoot();
         Assert.True(File.Exists(Path.Combine(root, "eng", "snapshots", "snapshot.py")), "eng/snapshots/snapshot.py is missing (RR-141).");
         Assert.True(File.Exists(Path.Combine(root, "eng", "snapshots", "test_snapshot.py")), "eng/snapshots/test_snapshot.py is missing (RR-141).");
-        string ci = File.ReadAllText(Path.Combine(root, ".github", "workflows", "ci.yml"));
-        Assert.Contains("run: python3 -m unittest discover --start-directory eng/snapshots --pattern 'test_*.py'", ci, StringComparison.Ordinal);
+        // The step must be a live run value (not a comment), in the build-and-test job whose "Build and test" check is
+        // required, with no continue-on-error on the step or the job.
+        string[] ci = File.ReadAllLines(Path.Combine(root, ".github", "workflows", "ci.yml"));
+        const string command = "python3 -m unittest discover --start-directory eng/snapshots --pattern 'test_*.py' --verbose";
+        Assert.Contains(command, RunBlocks(ci));
+        int run = Array.FindIndex(ci, line => RunKey().Match(line) is { Success: true } key && key.Groups["value"].Value.Trim() == command);
+        int job = Array.FindLastIndex(ci, run, line => JobKey().IsMatch(line));
+        Assert.True(job >= 0 && JobKey().Match(ci[job]).Groups["job"].Value == "build-and-test", "The snapshot converter test does not run in the build-and-test job (RR-141).");
+        int stepStart = Array.FindLastIndex(ci, run, line => line.StartsWith("      - ", StringComparison.Ordinal));
+        int stepEnd = Array.FindIndex(ci, run + 1, line => line.StartsWith("      - ", StringComparison.Ordinal) || JobKey().IsMatch(line));
+        string[] step = ci[stepStart..(stepEnd < 0 ? ci.Length : stepEnd)];
+        Assert.DoesNotContain(step, line => line.TrimStart().StartsWith("continue-on-error", StringComparison.Ordinal));
+        int jobEnd = Array.FindIndex(ci, job + 1, line => JobKey().IsMatch(line));
+        Assert.DoesNotContain(ci[job..(jobEnd < 0 ? ci.Length : jobEnd)], line => line.StartsWith("    continue-on-error", StringComparison.Ordinal));
     }
 
     /// <summary>The entries of every ports: list of a compose file.</summary>

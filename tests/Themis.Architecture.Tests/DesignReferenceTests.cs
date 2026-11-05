@@ -11,7 +11,7 @@ namespace Themis.Architecture.Tests;
 public sealed partial class DesignReferenceTests
 {
     private static readonly string[] SourceRoots = ["src", "tests", "db", "eng"];
-    private static readonly string[] SourceExtensions = [".cs", ".sql", ".txt", ".csproj", ".props"];
+    private static readonly string[] SourceExtensions = [".cs", ".sql", ".txt", ".csproj", ".props", ".py"];
 
     [GeneratedRegex(@"\b(?:R-[A-Z]{2,4}-\d{2}|[PDIE]-\d{2})\b")]
     private static partial Regex DesignId();
