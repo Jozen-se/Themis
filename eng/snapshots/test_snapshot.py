@@ -122,6 +122,39 @@ class ConvertTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             _convert_paragraph("<dropdown enum='43671c2e-fff4' index='7'/>")
 
+    def test_RR_141_a_dropdown_nobody_has_picked_is_written_as_an_empty_choice(self):
+        self.assertEqual("Decision: [ ]", _convert_paragraph("<text>Decision: </text><dropdown enum='67728217-b1e3'/>"))
+
+    def test_RR_141_every_line_of_a_code_block_in_a_list_item_or_a_quote_is_prefixed(self):
+        doc = snapshot.convert(
+            "<doc node='n' rev='1'><list kind='ordered'><listItem><paragraph><text>Run</text></paragraph>"
+            "<codeBlock language='bash'>docker compose up -d\ndotnet run</codeBlock></listItem>"
+            "<listItem><paragraph><text>Next</text></paragraph></listItem></list></doc>")
+        self.assertEqual(["1. Run", "   ```bash", "   docker compose up -d", "   dotnet run", "   ```", "", "2. Next", ""], doc.split("\n"))
+        quote = snapshot.convert("<doc node='n' rev='1'><blockquote><codeBlock>a\nb</codeBlock></blockquote></doc>")
+        self.assertEqual(["> ```", "> a", "> b", "> ```", ">"], quote.split("\n")[:5])
+
+    def test_RR_141_an_item_that_starts_with_a_code_block_keeps_its_marker(self):
+        doc = snapshot.convert(
+            "<doc node='n' rev='1'><list kind='ordered'><listItem><paragraph><text>A</text></paragraph></listItem>"
+            "<listItem><codeBlock>x</codeBlock></listItem><listItem><paragraph><text>C</text></paragraph></listItem></list></doc>")
+        self.assertEqual(["1. A", "2. ```", "   x", "   ```", "", "3. C", ""], doc.split("\n"))
+
+    def test_RR_141_an_inline_code_span_holding_a_backtick_gets_a_longer_fence(self):
+        self.assertEqual("``a`b``", _convert_paragraph("<code>a`b</code>"))
+        self.assertEqual("`` `x ``", _convert_paragraph("<code>`x</code>"))
+        self.assertEqual("``a`b``", _convert_paragraph("<text><code>a`</code></text><text><code>b</code></text>"))
+
+    def test_RR_141_content_the_converter_does_not_know_is_refused(self):
+        unknown = [
+            "<paragraph heading='2'><text>Risks</text></paragraph><pending id='x' intent='Risks'/>",
+            "<paragraph><text>a</text><widget/></paragraph>",
+            "<table><row><cell><codeBlock>x</codeBlock></cell></row></table>",
+        ]
+        for xml in unknown:
+            with self.subTest(xml=xml), self.assertRaises(ValueError):
+                snapshot.convert(f"<doc node='n' rev='1'>{xml}</doc>")
+
 
 class SnapshotTests(unittest.TestCase):
     def test_RR_141_the_header_and_its_url_are_kept_and_the_revision_line_names_the_new_revision_and_date(self):

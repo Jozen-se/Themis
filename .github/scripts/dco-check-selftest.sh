@@ -111,7 +111,7 @@ git -C "$repo" checkout -q --orphan unrelated
 git -C "$repo" rm -rfq .
 commit "$repo" o.txt "Alice Example" "alice@example.com" "Unsigned root commit"
 git -C "$repo" checkout -q work
-git -C "$repo" merge -q --allow-unrelated-histories --no-edit unrelated
+git -C "$repo" merge -q --no-ff --allow-unrelated-histories --no-edit unrelated
 git -C "$repo" branch -q -D unrelated
 expect "RR-142: an unsigned root commit merged in from an unrelated history fails" 1 "$repo"
 

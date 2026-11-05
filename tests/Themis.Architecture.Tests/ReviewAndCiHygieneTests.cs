@@ -252,6 +252,14 @@ public sealed partial class ReviewAndCiHygieneTests
         // RR-139: a rule gap or a proposed change goes to the planner, who brings it to the owner (sessions, D-68); other
         // contributors open a Rule gap issue (owner-approved wording, 2026-11-05).
         Assert.Contains("goes to the planner, who brings it to the owner (sessions, D-68); other contributors open a Rule gap issue", template, StringComparison.Ordinal);
+
+        // RR-139: CONTRIBUTING.md carries the same route, links the issue form, and takes D-59's wording of what the
+        // owner reads himself.
+        string contributing = string.Join(' ', File.ReadAllLines(Path.Combine(root, "CONTRIBUTING.md")).Select(line => line.Trim()));
+        Assert.Contains("goes to the planner, who brings it to the owner (sessions, D-68); other contributors open a Rule gap issue", contributing, StringComparison.Ordinal);
+        Assert.Contains(".github/ISSUE_TEMPLATE/rule-gap.yml", contributing, StringComparison.Ordinal);
+        Assert.Contains("the owner reads ledger, inventory, posting profile and migration changes himself (D-59)", contributing, StringComparison.Ordinal);
+        Assert.DoesNotContain("explicit review", contributing, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("- [ ] Every conversation is resolved", template, StringComparison.Ordinal);
         Assert.DoesNotContain("Owner sign-off", template, StringComparison.Ordinal);
         Assert.DoesNotContain("explicit review", template, StringComparison.OrdinalIgnoreCase);
@@ -295,8 +303,9 @@ public sealed partial class ReviewAndCiHygieneTests
         int stepEnd = Array.FindIndex(ci, run + 1, line => line.StartsWith("      - ", StringComparison.Ordinal) || JobKey().IsMatch(line));
         string[] step = ci[stepStart..(stepEnd < 0 ? ci.Length : stepEnd)];
         Assert.DoesNotContain(step, line => line.TrimStart().StartsWith("continue-on-error", StringComparison.Ordinal));
+        Assert.DoesNotContain(step, line => line.TrimStart().StartsWith("if:", StringComparison.Ordinal));
         int jobEnd = Array.FindIndex(ci, job + 1, line => JobKey().IsMatch(line));
-        Assert.DoesNotContain(ci[job..(jobEnd < 0 ? ci.Length : jobEnd)], line => line.StartsWith("    continue-on-error", StringComparison.Ordinal));
+        Assert.DoesNotContain(ci[job..(jobEnd < 0 ? ci.Length : jobEnd)], line => line.StartsWith("    continue-on-error", StringComparison.Ordinal) || line.StartsWith("    if:", StringComparison.Ordinal));
     }
 
     /// <summary>The entries of every ports: list of a compose file.</summary>

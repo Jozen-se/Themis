@@ -33,6 +33,8 @@ def _escape(text, code):
 
 
 MARKS = {"bold": "**", "italic": "*", "code": "`"}
+INLINE_TAGS = {"text", "bold", "italic", "code", "link", "mention", "date", "dropdown", "embed", "hardBreak"}
+BLOCK_TAGS = {"paragraph", "list", "table", "codeBlock", "blockquote", "embed", "horizontalRule"}
 
 
 def _mark_run(child):
@@ -45,33 +47,45 @@ def _mark_run(child):
     return None, None
 
 
+def _wrap(tag, inner):
+    """Wraps a run's text in its mark. A code span's fence is longer than any backtick run inside it (CommonMark)."""
+    if tag != "code":
+        return MARKS[tag] + inner + MARKS[tag]
+    fence = "`" * (max((len(run) for run in re.findall(r"`+", inner)), default=0) + 1)
+    pad = " " if inner.startswith("`") or inner.endswith("`") else ""
+    return fence + pad + inner + pad + fence
+
+
 def _inline(el, code=False):
     out = _escape(el.text or "", code)
-    open_mark = None  # the mark of the run that ends out, when nothing has followed it
+    run = None  # [tag, text] of the open mark run; adjacent runs of one mark join into one span
+
+    def flush():
+        nonlocal out, run
+        if run:
+            out += _wrap(run[0], run[1])
+            run = None
+
     for child in el:
         tag = child.tag
+        if tag not in INLINE_TAGS:
+            raise ValueError(f"unknown inline element <{tag}> in the read")
         mark_tag, mark_el = (None, None) if code else _mark_run(child)
         if mark_tag:
             inner = _inline(mark_el, mark_tag == "code")
-            mark = MARKS[mark_tag]
-            if inner:
-                # Adjacent runs of the same mark join into one span, as the live document shows them; an empty run
-                # writes nothing, so no stray "****" or lone "*" changes the text around it.
-                if open_mark == mark:
-                    out = out[:-len(mark)] + inner + mark
+            if inner:  # an empty run writes nothing
+                if run and run[0] == mark_tag:
+                    run[1] += inner
                 else:
-                    out += mark + inner + mark
-                open_mark = mark
-            tail = _escape(child.tail or "", code)
-            out += tail
-            if tail:
-                open_mark = None
+                    flush()
+                    run = [mark_tag, inner]
+            if child.tail:
+                flush()
+                out += _escape(child.tail, code)
             continue
-        open_mark = None
-        if tag == "text":
-            out += _inline(child, code)
-        elif tag in MARKS:
-            out += _inline(child, True)
+        flush()
+        if tag == "text" or (tag in MARKS and code):
+            out += _inline(child, code or tag == "code")
         elif tag == "link":
             out += "[" + _inline(child, code) + "](" + child.get("href", "") + ")"
         elif tag == "mention":
@@ -79,23 +93,29 @@ def _inline(el, code=False):
         elif tag == "date":
             out += child.get("value", "")
         elif tag == "dropdown":
-            # The read carries the selected option's name; a status is never guessed from its index.
+            # The read carries the selected option's name; a status is never guessed from its index. A chip nobody
+            # has picked yet has no index and is written as a visible empty choice.
             label = "".join(child.itertext()).strip()
-            if not label:
+            if child.get("index") is None and not label:
+                out += "[ ]"
+            elif not label:
                 raise ValueError(f"a dropdown (enum {child.get('enum')}, index {child.get('index')}) has no label in the read")
-            out += "[" + label + "]"
+            else:
+                out += "[" + label + "]"
         elif tag == "embed":
             out += "<embed " + " ".join(f"{k}={v}" for k, v in child.attrib.items() if k not in ("id", "h", "rev")) + ">"
         elif tag == "hardBreak":
             out += "\n"
-        else:
-            out += _inline(child, code)
         out += _escape(child.tail or "", code)
+    flush()
     return out
 
 
 def _block(el, out, depth=0):
     tag = el.tag
+    if tag not in BLOCK_TAGS:
+        # An element the converter does not know (a pending section, for example) is refused, never dropped.
+        raise ValueError(f"unknown block element <{tag}> in the read")
     if tag == "paragraph":
         text = _inline(el).strip()
         heading = el.get("heading")
@@ -104,6 +124,7 @@ def _block(el, out, depth=0):
     elif tag == "list":
         # depth is the indent, in columns, of this list's markers. Content under an item is indented by the width of
         # the item's marker (two columns for "- ", three for "1. "), as CommonMark needs for it to stay in the item.
+        # The marker goes on the item's first line, whatever its first child is.
         kind = el.get("kind", "bullet")
         for i, item in enumerate(el):
             marker = f"{i + 1}. " if kind in ("ordered", "number") else "- "
@@ -113,20 +134,28 @@ def _block(el, out, depth=0):
             for child in item:
                 if child.tag == "paragraph":
                     out.append(" " * depth + (marker + box if first else " " * len(marker)) + _inline(child).strip())
-                    first = False
                 elif child.tag == "list":
                     _block(child, out, inner)
                 else:
-                    start = len(out)
-                    _block(child, out, inner)
-                    out[start:] = [(" " * inner + line) if line else line for line in out[start:]]
+                    lines = []
+                    _block(child, lines, 0)
+                    for n, line in enumerate(lines):
+                        lead = " " * depth + marker + box if first and n == 0 else " " * inner
+                        out.append(lead + line if line else line)
+                first = False
         if depth == 0:
             out.append("")
     elif tag == "table":
-        # A cell is one line: its hard breaks become <br>, and "|" is escaped.
-        rows = [[" ".join(_inline(p).strip() for p in cell.iter("paragraph")).replace("|", "\\|").replace("\n", "<br>")
-                 for cell in row]
-                for row in el.iter("row")]
+        # A cell is one line: its hard breaks become <br>, and "|" is escaped. A cell holds paragraphs only.
+        rows = []
+        for row in el.iter("row"):
+            cells = []
+            for cell in row:
+                for part in cell:
+                    if part.tag != "paragraph":
+                        raise ValueError(f"a table cell holds <{part.tag}>, which a Markdown table cannot")
+                cells.append(" ".join(_inline(p).strip() for p in cell.iter("paragraph")).replace("|", "\\|").replace("\n", "<br>"))
+            rows.append(cells)
         if rows:
             out.append("| " + " | ".join(rows[0]) + " |")
             out.append("|" + "---|" * len(rows[0]))
@@ -134,10 +163,11 @@ def _block(el, out, depth=0):
             out.append("")
     elif tag == "codeBlock":
         # The fence is one backtick longer than the longest backtick run in the content, so the content cannot close it.
+        # The content is written line by line, so a list item or a quote prefixes every line.
         content = "".join(el.itertext())
         fence = "`" * max(3, max((len(run) for run in re.findall(r"`+", content)), default=0) + 1)
         out.append(fence + (el.get("language") or ""))
-        out.append(content)
+        out.extend(content.split("\n"))
         out.append(fence)
         out.append("")
     elif tag == "blockquote":
@@ -151,15 +181,6 @@ def _block(el, out, depth=0):
     elif tag == "horizontalRule":
         out.append("---")
         out.append("")
-    elif list(el):
-        out.append(f"<!-- {tag} -->")
-        for child in el:
-            _block(child, out, depth)
-    else:
-        text = _inline(el).strip()
-        if text:
-            out.append(f"<!-- {tag} --> " + text)
-            out.append("")
 
 
 def convert(xml):
