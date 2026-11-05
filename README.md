@@ -48,8 +48,8 @@ An architecture test checks that every package this list names is in `Directory.
 
 Every package version is held in `Directory.Packages.props` and the committed `packages.lock.json` files; CI
 restores in locked mode. Dependabot updates the central file and the directly affected lock files only, so the
-workflow `.github/workflows/dependabot-lock-files.yml` regenerates the rest on its pull requests and runs CI again
-on the result.
+workflow `.github/workflows/dependabot-lock-files.yml` regenerates the rest on its pull requests and runs CI and the
+DCO check again on the result (RR-134).
 
 ## Toolchain notes
 

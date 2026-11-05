@@ -44,6 +44,12 @@ public sealed partial class ReviewAndCiHygieneTests
     [GeneratedRegex(@"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|mailto:", RegexOptions.IgnoreCase)]
     private static partial Regex ContactAddress();
 
+    [GeneratedRegex(@"^.*\bgh workflow run (?<file>\S+).*$", RegexOptions.Multiline)]
+    private static partial Regex WorkflowDispatchCall();
+
+    [GeneratedRegex(@"^  workflow_dispatch:", RegexOptions.Multiline)]
+    private static partial Regex WorkflowDispatchTrigger();
+
     [GeneratedRegex(@"^\s*ports:\s*$", RegexOptions.Multiline)]
     private static partial Regex PortsKey();
 
@@ -123,6 +129,24 @@ public sealed partial class ReviewAndCiHygieneTests
         string[] blocks = [.. RunBlocks(workflow)];
         Assert.Equal(2, blocks.Length);
         Assert.All(blocks, block => Assert.Contains(Expression().Matches(block), expression => UntrustedEventText().IsMatch(expression.Value)));
+    }
+
+    [Fact]
+    public void RR_134_every_workflow_the_lock_files_workflow_dispatches_declares_workflow_dispatch_and_is_dispatched_on_the_full_branch_ref()
+    {
+        // RR-134: "DCO sign-off", "Build and test" and "License scan" reach a lock-file head only through these dispatches.
+        // A workflow without the trigger answers HTTP 422 at run time, with this pull request's CI still green; a short ref
+        // could resolve to a tag of the same name and attach the check runs to another commit.
+        string directory = Path.Combine(RepositoryRoot(), ".github", "workflows");
+        MatchCollection calls = WorkflowDispatchCall().Matches(File.ReadAllText(Path.Combine(directory, "dependabot-lock-files.yml")));
+        // Every call is collected first, whatever its arguments, so a dispatch without --ref cannot escape the check.
+        Assert.Equal(["ci.yml", "dco.yml"], calls.Select(call => call.Groups["file"].Value).Order(StringComparer.Ordinal));
+        foreach (Match call in calls)
+        {
+            string file = call.Groups["file"].Value;
+            Assert.True(WorkflowDispatchTrigger().IsMatch(File.ReadAllText(Path.Combine(directory, file))), $"{file} is dispatched by dependabot-lock-files.yml but declares no workflow_dispatch trigger (RR-134).");
+            Assert.Contains("--ref \"refs/heads/${HEAD_REF}\"", call.Value, StringComparison.Ordinal);
+        }
     }
 
     [Fact]
