@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Themis.Host;
@@ -70,6 +71,51 @@ public sealed class OpenApiDocumentTests
     {
         // A document that changed from one start to the next would make the RR-10 check fail at random.
         Assert.Equal(Normalise(await GenerateAsync()), Normalise(await GenerateAsync()));
+    }
+
+    [Fact]
+    public async Task RR_10_RR_73_no_command_body_holds_a_route_value_or_the_computed_scope_and_a_command_with_nothing_left_in_its_body_takes_it_as_optional()
+    {
+        JsonNode document = JsonNode.Parse(await GenerateAsync())!;
+        JsonObject schemas = document["components"]!["schemas"]!.AsObject();
+        int commands = 0;
+        int optional = 0;
+        foreach ((string path, JsonNode? item) in document["paths"]!.AsObject())
+        {
+            JsonNode? post = item?["post"];
+            bool isCommand = post?["parameters"]?.AsArray().Any(parameter => (string?)parameter?["name"] == "Idempotency-Key") == true;
+            if (post?["requestBody"]?["content"]?["application/json"]?["schema"]?["$ref"] is not { } reference || !isCommand)
+            {
+                continue;
+            }
+
+            commands++;
+            string name = ((string)reference!)["#/components/schemas/".Length..];
+            JsonObject schema = schemas[name]!.AsObject();
+            string[] properties = schema["properties"]?.AsObject().Select(property => property.Key).ToArray() ?? [];
+            string[] required = schema["required"]?.AsArray().Select(value => (string)value!).ToArray() ?? [];
+            string[] route = [.. path.Split('/').Where(segment => segment.StartsWith('{')).Select(segment => segment.Trim('{', '}').Split(':')[0])];
+
+            // RR-73: the route wins over the body, so no body member names a route value, in any letter case.
+            Assert.DoesNotContain(properties, property => route.Contains(property, StringComparer.OrdinalIgnoreCase));
+            // The scope is computed from the command's data and the version travels in If-Match (R-API-02).
+            Assert.DoesNotContain("scope", properties);
+            Assert.DoesNotContain("expectedVersion", properties);
+            Assert.All(required, member => Assert.Contains(member, properties));
+            bool bodyRequired = (bool?)post["requestBody"]!["required"] ?? false;
+            if (properties.Length == 0)
+            {
+                Assert.False(bodyRequired, $"POST {path} has nothing left in its body but still requires one (RR-10).");
+            }
+
+            if (!bodyRequired)
+            {
+                optional++;
+            }
+        }
+
+        Assert.True(commands >= 19, $"Only {commands} command operations with a body schema were found.");
+        Assert.True(optional >= 5, $"Only {optional} command operations take their body as optional.");
     }
 
     /// <summary>RR-10: starts Themis.Host through its own Program and reads the document it serves.</summary>

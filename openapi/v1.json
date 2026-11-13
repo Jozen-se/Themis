@@ -1524,8 +1524,7 @@
                 "$ref": "#/components/schemas/UnblockAccount"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -1647,8 +1646,7 @@
                 "$ref": "#/components/schemas/DeactivateAccount"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -1770,8 +1768,7 @@
                 "$ref": "#/components/schemas/ReactivateAccount"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -2837,8 +2834,7 @@
                 "$ref": "#/components/schemas/DiscardInventoryAdjustment"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -2960,8 +2956,7 @@
                 "$ref": "#/components/schemas/PostInventoryAdjustment"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -3479,15 +3474,10 @@
       },
       "BlockAccount": {
         "required": [
-          "id",
           "reason"
         ],
         "type": "object",
         "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
           "reason": {
             "type": [
               "null",
@@ -3707,9 +3697,6 @@
           "isControl": {
             "type": "boolean",
             "default": false
-          },
-          "scope": {
-            "$ref": "#/components/schemas/RequestScope"
           }
         },
         "description": "ACCOUNT.CREATE (milestone 2 step 4 brief, item 1; D-69): an account in a chart. The number is a Code, unique per\nchart (R-MD-05), and with the chart fixed from creation (R-MD-06); the type and the control flag are fixed from the\naccount's first journal line or first posting profile rule in any company. Status Active at create. Installation\nscope and Sensitive, because a chart may serve several companies (D-69, RR-52)."
@@ -3732,9 +3719,6 @@
               "null",
               "string"
             ]
-          },
-          "scope": {
-            "$ref": "#/components/schemas/RequestScope"
           }
         },
         "description": "CHART_OF_ACCOUNTS.CREATE (milestone 2 step 3 brief, item 1): the header of a chart, installation-level, so\ncompanies can share it (Specification, ChartOfAccounts). The code is unique per installation (R-MD-05) and never\nchanges (R-MD-06). Installation scope (D-47, RR-52)."
@@ -3804,9 +3788,6 @@
                 "$ref": "#/components/schemas/RoundingMode"
               }
             ]
-          },
-          "scope": {
-            "$ref": "#/components/schemas/RequestScope"
           }
         },
         "description": "COMPANY.CREATE (step 3 brief, item 3; D-64, D-65): every attribute of the Specification's Company except\npayment_tolerance (Phase 2). The rounding mode defaults to the company.rounding_mode setting definition when\nleft out; the VAT rounding level is required while D-10 is open. The command also creates the company's own\nparty from the legal name, organisation number, VAT number and country, numbered from the installation-level\nPARTY series (D-64). Installation scope (D-47, RR-52)."
@@ -3862,9 +3843,6 @@
             "items": {
               "$ref": "#/components/schemas/InventoryAdjustmentLineInput"
             }
-          },
-          "scope": {
-            "$ref": "#/components/schemas/RequestScope"
           }
         },
         "description": "INVENTORY_ADJUSTMENT.CREATE (step 7 brief): a Draft for the company in the body, which is the command's scope\n(R-SEC-01). The currency is the company's base currency, set by the system; the draft reference is the document\nid. A draft may be incomplete: the POST guards (reason code, at least one Open line, items Stocked and Active,\nstock coverage, period open) run at posting in step 8."
@@ -3949,9 +3927,6 @@
               "string"
             ],
             "format": "decimal"
-          },
-          "scope": {
-            "$ref": "#/components/schemas/RequestScope"
           }
         },
         "description": "ITEM.CREATE (step 5 brief): creates the installation-wide Item and its ItemCompany row for the company in the\nbody, in one command (D-43). The company in the body is the command's scope (R-SEC-01). The item number is\nstored uppercase; a duplicate is rejected with R-MD-05. Default sales and purchase units are not part of any\ncommand in milestone 1."
@@ -3979,9 +3954,6 @@
               "null",
               "string"
             ]
-          },
-          "scope": {
-            "$ref": "#/components/schemas/RequestScope"
           }
         },
         "description": "SITE.CREATE (step 3 brief, item 6): a site of the company in the body, which is the command's scope (R-SEC-01).\nThe code is unique per company (R-MD-05) and never changes (R-MD-06); the time zone is optional and must be an\nIANA name (empty means the company's). A site has no status; its address waits for Address (D-55)."
@@ -4021,29 +3993,11 @@
         "description": "An ISO 4217 currency code: three uppercase letters. Every amount carries one (R-MON-01)."
       },
       "DeactivateAccount": {
-        "required": [
-          "id"
-        ],
         "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          }
-        },
         "description": "ACCOUNT.DEACTIVATE (step 4 brief, item 2): Active or Blocked to Inactive on the current version. Rejected under\nR-PP-05 while an active posting profile rule references the account (D-56), and under R-DOC-01 while its lifetime\nbalance is not zero in any company (D-69)."
       },
       "DiscardInventoryAdjustment": {
-        "required": [
-          "id"
-        ],
         "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          }
-        },
         "description": "INVENTORY_ADJUSTMENT.DISCARD (step 7 brief): Draft to Discarded on the current version; the row stays (R-DOC-06)."
       },
       "DocumentStatus": {
@@ -4467,16 +4421,7 @@
         "description": "One SodConflict row as SETTING.READ returns it: two permission codes one user may not hold together (R-SEC-02)."
       },
       "PostInventoryAdjustment": {
-        "required": [
-          "id"
-        ],
         "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          }
-        },
         "description": "INVENTORY_ADJUSTMENT.POST (step 8 brief; Sensitive permission): Draft to Posted on the current version. In one\ntransaction the posting service writes the inventory entries, the balanced journal entry, the cache updates,\nthe audit events and INVENTORY_ADJUSTED, or nothing (R-LED-05, R-LED-07). The guards of the state machine run\nfirst (R-DOC-01, R-LED-04, R-INV-05), the stock and cost checks after their rows are locked (R-INV-03, R-LED-08)."
       },
       "ProblemDetails": {
@@ -4516,16 +4461,7 @@
         }
       },
       "ReactivateAccount": {
-        "required": [
-          "id"
-        ],
         "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          }
-        },
         "description": "ACCOUNT.REACTIVATE (step 4 brief, item 2): Inactive to Active on the current version; no guard."
       },
       "ReasonCode": {
@@ -4537,43 +4473,12 @@
           null
         ]
       },
-      "RequestScope": {
-        "type": "object",
-        "properties": {
-          "kind": {
-            "$ref": "#/components/schemas/ScopeKind"
-          },
-          "companyId": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "uuid"
-          },
-          "siteId": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "uuid"
-          }
-        },
-        "description": "The scope a command or query declares from its own data (Build Brief, Authorisation): a create command carries\nthe company in its body, a command on an existing record derives it from the record, an installation-wide one\ndeclares installation scope. The pipeline authorises against it after the record is loaded, inside the\ntransaction, before any business logic; a request without a scope is refused (D-47)."
-      },
       "RoundingMode": {
         "enum": [
           "HalfAwayFromZero",
           "HalfEven"
         ],
         "description": "How a midpoint is rounded (R-MON-02). The default is half away from zero; a company may configure half even\n(D-10, Company.rounding_mode)."
-      },
-      "ScopeKind": {
-        "enum": [
-          "Installation",
-          "Company",
-          "Site"
-        ],
-        "description": "Where a command or query acts: the whole installation, one company, or one site of a company (R-SEC-01, D-47)."
       },
       "SetSetting": {
         "required": [
@@ -4929,16 +4834,7 @@
         "description": "VAT rounding per line or per document total; the default is pending D-10."
       },
       "UnblockAccount": {
-        "required": [
-          "id"
-        ],
         "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          }
-        },
         "description": "ACCOUNT.UNBLOCK (step 4 brief, item 2): Blocked to Active on the current version; no guard."
       },
       "UnitCode": {
@@ -4947,17 +4843,12 @@
       },
       "UpdateAccount": {
         "required": [
-          "id",
           "name",
           "accountType",
           "isControl"
         ],
         "type": "object",
         "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
           "name": {
             "type": "string"
           },
@@ -4995,15 +4886,10 @@
       },
       "UpdateChartOfAccounts": {
         "required": [
-          "id",
           "name"
         ],
         "type": "object",
         "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
           "name": {
             "type": "string"
           },
@@ -5024,7 +4910,6 @@
       },
       "UpdateCompany": {
         "required": [
-          "id",
           "legalName",
           "organisationNumber",
           "countryCode",
@@ -5037,10 +4922,6 @@
         ],
         "type": "object",
         "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
           "legalName": {
             "type": "string"
           },
@@ -5101,15 +4982,10 @@
       },
       "UpdateInventoryAdjustment": {
         "required": [
-          "id",
           "documentDate"
         ],
         "type": "object",
         "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
           "documentDate": {
             "$ref": "#/components/schemas/BusinessDate"
           },
@@ -5156,15 +5032,10 @@
       },
       "UpdateSite": {
         "required": [
-          "id",
           "name"
         ],
         "type": "object",
         "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
           "name": {
             "type": "string"
           },
@@ -5185,16 +5056,11 @@
       },
       "UpdateWarehouse": {
         "required": [
-          "id",
           "name",
           "isDefault"
         ],
         "type": "object",
         "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
           "name": {
             "type": "string"
           },

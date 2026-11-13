@@ -40,5 +40,6 @@ internal static class KernelPipelineServices
             options.AddSchemaTransformer<DecimalSchemaTransformer>();
             options.AddSchemaTransformer<CommandSchemaTransformer>();
             options.AddOperationTransformer<CommandOperationTransformer>();
+            options.AddDocumentTransformer<CommandRequestBodyTransformer>();
         });
 }
