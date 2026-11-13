@@ -140,6 +140,31 @@ public sealed class AccountCommandTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task R_MD_06_R_PP_04_an_UPDATE_that_leaves_out_isControl_is_400_is_control_required_and_never_clears_the_control_flag()
+    {
+        (Guid account, _) = await CreateAccountAsync(_host, "6911", "Asset", isControl: true, cancellationToken: Ct);
+        CommandReply reply = await _host.PostAsync(Update(account), new { name = "No flag", accountType = "Asset" }, "upd-no-flag", ifMatch: "\"1\"", cancellationToken: Ct);
+
+        Assert.Equal(400, reply.Status);
+        Assert.Equal("is_control_required", reply.Code);
+        Assert.Equal("isControl", reply.Json!["errors"]![0]!["details"]!["field"]!.GetValue<string>());
+        Assert.Equal(true, await _host.ScalarAsync("SELECT is_control FROM kernel.account WHERE id = @id", Ct, ("id", account)));
+        Assert.Equal("Active", await _host.ScalarAsync("SELECT status FROM kernel.account WHERE id = @id", Ct, ("id", account)));
+        Assert.Equal(1L, await _host.ScalarAsync("SELECT version FROM kernel.account WHERE id = @id", Ct, ("id", account)));
+    }
+
+    [Fact]
+    public async Task R_MD_05_RR_133_the_ACCOUNT_CREATE_400s_name_the_JSON_property_in_details_field()
+    {
+        CommandReply reply = await _host.PostAsync(Accounts, new { name = "No chart, no number", accountType = "Expense", isControl = false }, "acc-no-chart", cancellationToken: Ct);
+
+        Assert.Equal(400, reply.Status);
+        Dictionary<string, string> fields = reply.Json!["errors"]!.AsArray().ToDictionary(error => error!["code"]!.GetValue<string>(), error => error!["details"]!["field"]!.GetValue<string>(), StringComparer.Ordinal);
+        Assert.Equal("chartId", fields["chart_required"]);
+        Assert.Equal("accountNumber", fields["account_number_required"]);
+    }
+
+    [Fact]
     public async Task R_PP_05_D_56_BLOCK_and_DEACTIVATE_of_an_account_an_active_rule_references_are_422_account_used_by_posting_rule_naming_the_rule()
     {
         CommandReply block = await _host.PostAsync(Lifecycle(TestAdj, "block"), new { reason = "Retired" }, "blk-fixture", ifMatch: "\"1\"", cancellationToken: Ct);
@@ -226,7 +251,7 @@ public sealed class AccountCommandTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task R_MD_06_D_69_BLOCK_needs_a_reason_400_reason_required_stores_nothing_a_reason_over_500_is_400_and_an_accepted_reason_is_in_the_audit_event_and_the_ACCOUNT_BLOCKED_payload_and_UNBLOCK_restores_Active()
+    public async Task D_69_BLOCK_needs_a_reason_400_reason_required_stores_nothing_a_reason_over_500_is_400_and_an_accepted_reason_is_in_the_audit_event_and_the_ACCOUNT_BLOCKED_payload_and_UNBLOCK_restores_Active()
     {
         (Guid account, _) = await CreateAccountAsync(_host, "6971", cancellationToken: Ct);
         CommandReply empty = await _host.PostAsync(Lifecycle(account, "block"), new { reason = "  " }, "blk-empty", ifMatch: "\"1\"", cancellationToken: Ct);
@@ -320,7 +345,7 @@ public sealed class AccountCommandTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task R_MD_06_ACCOUNT_READ_returns_one_account_by_id_and_the_list_per_chart_is_ordered_by_account_number_and_stops_at_the_list_limit()
+    public async Task D_69_ACCOUNT_READ_returns_one_account_by_id_and_the_list_per_chart_is_ordered_by_account_number_and_stops_at_the_list_limit()
     {
         await CreateAccountAsync(_host, "0100", cancellationToken: Ct);
         await CreateAccountAsync(_host, "9999", cancellationToken: Ct);

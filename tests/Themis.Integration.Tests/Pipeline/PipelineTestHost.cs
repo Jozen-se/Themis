@@ -315,6 +315,22 @@ internal sealed class PipelineTestHost : IAsyncDisposable
     public async Task<long> CountAsync(string table, CancellationToken cancellationToken) =>
         (long)(await ScalarAsync($"SELECT count(*) FROM {table}", cancellationToken))!;
 
+    /// <summary>Waits until a backend of the test database waits on a lock, so the second statement is proven to queue behind the first.</summary>
+    public async Task WaitForLockWaiterAsync(CancellationToken cancellationToken)
+    {
+        for (int attempt = 0; attempt < 600; attempt++)
+        {
+            if ((long)(await ScalarAsync("SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'", cancellationToken))! > 0)
+            {
+                return;
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(25), cancellationToken);
+        }
+
+        Assert.Fail("No backend waited on a lock within 15 seconds.");
+    }
+
     public async ValueTask DisposeAsync()
     {
         _meterListener.Dispose();

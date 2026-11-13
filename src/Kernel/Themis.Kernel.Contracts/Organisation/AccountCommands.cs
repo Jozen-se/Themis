@@ -25,16 +25,17 @@ public sealed record CreateAccount(Guid ChartId, Code AccountNumber, string Name
 /// <summary>
 /// ACCOUNT.UPDATE (step 4 brief, items 1 and 3; D-69, R-MD-06): name, type and control flag on the current version
 /// (R-API-02), in Active or Blocked. The command takes no chart: a chart or number in the body that differs from the
-/// stored one is rejected under R-MD-06 (account_chart_fixed, account_number_fixed), an equal one ignored. A type or
-/// control flag change after the account's first journal line or first posting profile rule, in any company, is
+/// stored one is rejected under R-MD-06 (account_chart_fixed, account_number_fixed), an equal one ignored. The type and
+/// the control flag are required, so an omitted flag is 400 is_control_required, never false. A type or control flag
+/// change after the account's first journal line or first posting profile rule, in any company, is
 /// rejected under R-MD-06 with the attribute's code.
 /// </summary>
 [CommandRules("D-69", "R-API-02", "R-MD-06", "R-PP-04")]
 [CommandAudits("Account")]
 [CommandEvents("ACCOUNT_UPDATED")]
-[CommandErrors("name_required", "name_too_long", "account_type_required", "account_not_found", "version_stale", "transition_not_allowed", "account_number_fixed", "account_chart_fixed", "account_type_fixed", "account_control_fixed")]
+[CommandErrors("name_required", "name_too_long", "account_type_required", "is_control_required", "account_not_found", "version_stale", "transition_not_allowed", "account_number_fixed", "account_chart_fixed", "account_type_fixed", "account_control_fixed")]
 [Command("ACCOUNT.UPDATE")]
-public sealed record UpdateAccount(Guid Id, string Name, AccountType? AccountType, bool IsControl, long ExpectedVersion, Code? AccountNumber = null, Guid? ChartId = null) : ICommand<AccountView>, IVersionedCommand;
+public sealed record UpdateAccount(Guid Id, string Name, AccountType? AccountType, bool? IsControl, long ExpectedVersion, Code? AccountNumber = null, Guid? ChartId = null) : ICommand<AccountView>, IVersionedCommand;
 
 /// <summary>
 /// ACCOUNT.BLOCK (step 4 brief, item 2): Active to Blocked on the current version, with a reason of at most 500

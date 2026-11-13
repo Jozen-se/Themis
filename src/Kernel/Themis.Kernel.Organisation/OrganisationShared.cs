@@ -74,11 +74,11 @@ internal static class OrganisationValidation
     public const int NumberMaxLength = 50;
     public const int TimeZoneMaxLength = 64;
 
-    public static Error? RequiredCode(Code code, string field, string what) =>
-        code.Value is null ? Error.Validation($"{field}_required", $"{what} needs a code.", details: Field(field)) : null;
+    public static Error? RequiredCode(Code code, string field, string what, string? property = null) =>
+        code.Value is null ? Error.Validation($"{field}_required", $"{what} needs a code.", details: Field(property ?? field)) : null;
 
-    public static Error? RequiredId(Guid id, string field, string what) =>
-        id == Guid.Empty ? Error.Validation($"{field}_required", $"{what} is required.", details: Field(field)) : null;
+    public static Error? RequiredId(Guid id, string field, string what, string? property = null) =>
+        id == Guid.Empty ? Error.Validation($"{field}_required", $"{what} is required.", details: Field(property ?? field)) : null;
 
     public static IEnumerable<Error> Name(string? value, string field, string what, bool required = true, int maxLength = NameMaxLength)
     {
@@ -123,7 +123,8 @@ internal static class OrganisationValidation
 
     public static string? Trimmed(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    private static Dictionary<string, string> Field(string field) => new(StringComparer.Ordinal) { ["field"] = field };
+    /// <summary>The details of a 400: details.field is the JSON property of the request that the error names (RR-133).</summary>
+    public static Dictionary<string, string> Field(string field) => new(StringComparer.Ordinal) { ["field"] = field };
 }
 
 /// <summary>

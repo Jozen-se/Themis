@@ -355,11 +355,25 @@ public sealed partial class ReviewAndCiHygieneTests
         Assert.True(install.IndexOf("!= \"${OASDIFF_MODULE_SUM}\"", StringComparison.Ordinal) < install.IndexOf("go install", StringComparison.Ordinal), "openapi.yml builds oasdiff before it checks the module checksum (RR-10).");
         Assert.DoesNotContain("GOFLAGS=-insecure", install, StringComparison.Ordinal);
 
+        // Go itself comes from actions/setup-go, pinned by commit SHA, at the pinned version, before oasdiff is built (owner, 2026-11-06).
+        string[] lines = File.ReadAllLines(OpenApiWorkflow());
+        int setupGo = Array.FindIndex(lines, line => line.Contains("uses: actions/setup-go@", StringComparison.Ordinal));
+        int goInstall = Array.FindIndex(lines, line => line.Contains("go install \"github.com/oasdiff/oasdiff@", StringComparison.Ordinal));
+        Assert.True(setupGo >= 0 && goInstall > setupGo, "openapi.yml does not set up Go with actions/setup-go before it builds oasdiff (RR-10).");
+        Assert.Matches(@"^\s*uses: actions/setup-go@[0-9a-f]{40} # v\d+\.\d+\.\d+$", lines[setupGo]);
+        Assert.Contains(lines, line => line.Trim() == "go-version: ${{ env.OASDIFF_GO_VERSION }}");
+        Match goVersion = Regex.Match(text, @"(?m)^  OASDIFF_GO_VERSION: ""(?<version>\d+\.\d+\.\d+)""\s*$");
+        Assert.True(goVersion.Success, "openapi.yml pins no OASDIFF_GO_VERSION (RR-10).");
+        Match goToolchain = Regex.Match(text, @"(?m)^  OASDIFF_GO_TOOLCHAIN: ""(?<toolchain>go\d+\.\d+\.\d+)""\s*$");
+        Assert.Equal("go" + goVersion.Groups["version"].Value, goToolchain.Groups["toolchain"].Value);
+
         // D-38: not a NuGet package, so the licence is confirmed by hand and recorded with the pinned version.
         string record = File.ReadAllText(Path.Combine(root, "eng", "licenses", "oasdiff.md"));
         Assert.Contains($"| Version | {version.Groups["version"].Value} |", record, StringComparison.Ordinal);
         Assert.Contains("| Licence | Apache-2.0 |", record, StringComparison.Ordinal);
         Assert.Contains("| Confirmed | ", record, StringComparison.Ordinal);
+        Assert.Contains("https://github.com/oasdiff/oasdiff", record, StringComparison.Ordinal);
+        Assert.Contains($"v{version.Groups["version"].Value}", record, StringComparison.Ordinal);
         Assert.Contains("\"Apache-2.0\"", File.ReadAllText(Path.Combine(root, "eng", "licenses", "allowed-licenses.json")), StringComparison.Ordinal);
     }
 

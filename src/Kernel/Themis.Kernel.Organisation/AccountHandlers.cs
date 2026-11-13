@@ -36,7 +36,7 @@ internal sealed class CreateAccountHandler : ICommandHandler<CreateAccount, Acco
 
         if (await OrganisationStore.FindChartAsync(unitOfWork, command.ChartId, cancellationToken) is null)
         {
-            return Error.Validation(OrganisationErrors.ChartUnknown, $"Chart of accounts {command.ChartId} does not exist.", details: AccountValidation.Field("chartId"));
+            return Error.Validation(OrganisationErrors.ChartUnknown, $"Chart of accounts {command.ChartId} does not exist.", details: OrganisationValidation.Field("chartId"));
         }
 
         // R-MD-05: the account number is unique per chart (Specification, Account).
@@ -91,7 +91,7 @@ internal sealed class UpdateAccountHandler : ICommandHandler<UpdateAccount, Acco
             return Error.Rule(OrganisationErrors.RuleFixed, OrganisationErrors.AccountChartFixed, $"Account {before.AccountNumber} stays in chart of accounts {before.ChartId}; the chart never changes (R-MD-06, D-69).");
         }
 
-        AccountView after = before with { Name = command.Name.Trim(), AccountType = command.AccountType!.Value, IsControl = command.IsControl, Version = before.Version + 1 };
+        AccountView after = before with { Name = command.Name.Trim(), AccountType = command.AccountType!.Value, IsControl = command.IsControl!.Value, Version = before.Version + 1 };
 
         // Lock class 1 (R-LED-08): the versioned update, which waits behind a posting's FOR SHARE of the account (D-69).
         if (await AccountStore.UpdateAsync(unitOfWork, before.Id, after.Name, before.Status, after.Version, command.ExpectedVersion, context.Now, context.Principal.UserId, cancellationToken) != 1)
@@ -357,12 +357,12 @@ internal sealed class CreateAccountValidator : ICommandValidator<CreateAccount>
     public IEnumerable<Error> Validate(CreateAccount command)
     {
         ArgumentNullException.ThrowIfNull(command);
-        if (OrganisationValidation.RequiredId(command.ChartId, "chart", "A chart of accounts") is { } chart)
+        if (OrganisationValidation.RequiredId(command.ChartId, "chart", "A chart of accounts", property: "chartId") is { } chart)
         {
             yield return chart;
         }
 
-        if (OrganisationValidation.RequiredCode(command.AccountNumber, "account_number", "An account") is { } number)
+        if (OrganisationValidation.RequiredCode(command.AccountNumber, "account_number", "An account", property: "accountNumber") is { } number)
         {
             yield return number;
         }
@@ -379,7 +379,15 @@ internal sealed class UpdateAccountValidator : ICommandValidator<UpdateAccount>
     public IEnumerable<Error> Validate(UpdateAccount command)
     {
         ArgumentNullException.ThrowIfNull(command);
-        return AccountValidation.NameAndType(command.Name, command.AccountType);
+        foreach (Error error in AccountValidation.NameAndType(command.Name, command.AccountType))
+        {
+            yield return error;
+        }
+
+        if (command.IsControl is null)
+        {
+            yield return Error.Validation("is_control_required", "The update names whether the account is a control account.", details: OrganisationValidation.Field("isControl"));
+        }
     }
 }
 
@@ -391,11 +399,11 @@ internal sealed class BlockAccountValidator : ICommandValidator<BlockAccount>
         ArgumentNullException.ThrowIfNull(command);
         if (string.IsNullOrWhiteSpace(command.Reason))
         {
-            yield return Error.Validation(OrganisationErrors.ReasonRequired, "Blocking an account needs a reason.", details: AccountValidation.Field("reason"));
+            yield return Error.Validation(OrganisationErrors.ReasonRequired, "Blocking an account needs a reason.", details: OrganisationValidation.Field("reason"));
         }
         else if (command.Reason.Trim().Length > AccountValidation.ReasonMaxLength)
         {
-            yield return Error.Validation(OrganisationErrors.ReasonTooLong, $"The reason holds at most {AccountValidation.ReasonMaxLength} characters.", details: AccountValidation.Field("reason"));
+            yield return Error.Validation(OrganisationErrors.ReasonTooLong, $"The reason holds at most {AccountValidation.ReasonMaxLength} characters.", details: OrganisationValidation.Field("reason"));
         }
     }
 }
@@ -413,11 +421,9 @@ internal static class AccountValidation
 
         if (type is null || !Enum.IsDefined(type.Value))
         {
-            yield return Error.Validation("account_type_required", "An account type (Asset, Liability, Equity, Revenue or Expense) is required.", details: Field("accountType"));
+            yield return Error.Validation("account_type_required", "An account type (Asset, Liability, Equity, Revenue or Expense) is required.", details: OrganisationValidation.Field("accountType"));
         }
     }
-
-    public static Dictionary<string, string> Field(string field) => new(StringComparer.Ordinal) { ["field"] = field };
 }
 
 /// <summary>GET one account (ACCOUNT.READ): 404 when it does not exist.</summary>

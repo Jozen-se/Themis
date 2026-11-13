@@ -89,22 +89,6 @@ internal static class AccountTestData
         return new HeldStatus(connection, transaction);
     }
 
-    /// <summary>Waits until a backend of the test database waits on a lock, so the second statement is proven to queue behind the first.</summary>
-    public static async Task WaitForLockWaiterAsync(PipelineTestHost host, CancellationToken cancellationToken)
-    {
-        for (int attempt = 0; attempt < 600; attempt++)
-        {
-            if ((long)(await host.ScalarAsync("SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'", cancellationToken))! > 0)
-            {
-                return;
-            }
-
-            await Task.Delay(TimeSpan.FromMilliseconds(25), cancellationToken);
-        }
-
-        Assert.Fail("No backend waited on a lock within 15 seconds.");
-    }
-
     /// <summary>A company created through COMPANY.CREATE on the chart, with no fiscal year; the fixture administrator gets a company-wide assignment in it.</summary>
     public static async Task<Guid> CreateCompanyAsync(PipelineTestHost host, string code, string organisationNumber, Guid? chart, CancellationToken cancellationToken)
     {

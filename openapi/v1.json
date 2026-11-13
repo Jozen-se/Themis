@@ -4972,7 +4972,10 @@
             ]
           },
           "isControl": {
-            "type": "boolean"
+            "type": [
+              "null",
+              "boolean"
+            ]
           },
           "accountNumber": {
             "type": [
@@ -4988,7 +4991,7 @@
             "format": "uuid"
           }
         },
-        "description": "ACCOUNT.UPDATE (step 4 brief, items 1 and 3; D-69, R-MD-06): name, type and control flag on the current version\n(R-API-02), in Active or Blocked. The command takes no chart: a chart or number in the body that differs from the\nstored one is rejected under R-MD-06 (account_chart_fixed, account_number_fixed), an equal one ignored. A type or\ncontrol flag change after the account's first journal line or first posting profile rule, in any company, is\nrejected under R-MD-06 with the attribute's code."
+        "description": "ACCOUNT.UPDATE (step 4 brief, items 1 and 3; D-69, R-MD-06): name, type and control flag on the current version\n(R-API-02), in Active or Blocked. The command takes no chart: a chart or number in the body that differs from the\nstored one is rejected under R-MD-06 (account_chart_fixed, account_number_fixed), an equal one ignored. The type and\nthe control flag are required, so an omitted flag is 400 is_control_required, never false. A type or control flag\nchange after the account's first journal line or first posting profile rule, in any company, is\nrejected under R-MD-06 with the attribute's code."
       },
       "UpdateChartOfAccounts": {
         "required": [

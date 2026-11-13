@@ -14,7 +14,7 @@ namespace Themis.Kernel.Contracts.Settings;
 [CommandRules("R-SET-01", "D-63", "R-API-02")]
 [CommandAudits("SettingValue")]
 [CommandEvents("SETTING_CHANGED")]
-[CommandErrors("setting_key_invalid", "setting_target_invalid", "setting_value_required", "setting_unknown", "setting_not_settable", "setting_locked", "setting_level_not_allowed", "valid_from_required", "valid_from_not_allowed", "version_stale", "company_unknown", "site_unknown", "site_other_company", "warehouse_unknown", "warehouse_other_company")]
+[CommandErrors("setting_key_invalid", "setting_target_invalid", "setting_value_required", "setting_value_invalid", "setting_unknown", "setting_not_settable", "setting_locked", "setting_level_not_allowed", "valid_from_required", "valid_from_not_allowed", "version_stale", "company_unknown", "site_unknown", "site_other_company", "warehouse_unknown", "warehouse_other_company")]
 [Command("SETTING.SET")]
 public sealed record SetSetting(
     string Key,

@@ -970,8 +970,8 @@ change does to clients is the next check. The workflow `.github/workflows/openap
 change, as oasdiff classifies it at level ERR, unless the pull request carries the `api-breaking` label, which the
 owner sets; adding or removing a label reruns the check. While the base branch has no `openapi/v1.json` the check passes
 with a notice. oasdiff is not a NuGet package: its licence is recorded in `eng/licenses/oasdiff.md` and the workflow
-builds it from source, pinned by version and by its module checksum in the Go checksum database, with the Go toolchain
-pinned. `.github/scripts/openapi-check-selftest.sh` proves the check on
+builds it from source, pinned by version and by its module checksum in the Go checksum database, with Go installed by
+actions/setup-go (pinned by commit SHA) at the pinned toolchain. `.github/scripts/openapi-check-selftest.sh` proves the check on
 synthetic breaking changes built from the committed document. To run the check by hand, build the pinned version
 (`GOTOOLCHAIN=go1.26.10 go install github.com/oasdiff/oasdiff@v1.34.1`) and run:
 

@@ -23,8 +23,6 @@ internal sealed class CreateWarehouseHandler : ICommandHandler<CreateWarehouse, 
 {
     private readonly IOrganisationCreateSeam _seam;
 
-    private static Dictionary<string, string> SiteField() => new(StringComparer.Ordinal) { ["field"] = "siteId" };
-
     public CreateWarehouseHandler(IOrganisationCreateSeam seam)
     {
         _seam = seam;
@@ -40,12 +38,12 @@ internal sealed class CreateWarehouseHandler : ICommandHandler<CreateWarehouse, 
         if (site is null)
         {
             // RR-133: the 400 names its field, as every other stored 400 of the organisation commands does.
-            return Error.Validation(OrganisationErrors.SiteUnknown, $"Site {command.SiteId} does not exist.", details: SiteField());
+            return Error.Validation(OrganisationErrors.SiteUnknown, $"Site {command.SiteId} does not exist.", details: OrganisationValidation.Field("siteId"));
         }
 
         if (site.CompanyId != command.CompanyId)
         {
-            return Error.Validation(OrganisationErrors.SiteOtherCompany, $"Site {command.SiteId} belongs to another company than {command.CompanyId}.", details: SiteField());
+            return Error.Validation(OrganisationErrors.SiteOtherCompany, $"Site {command.SiteId} belongs to another company than {command.CompanyId}.", details: OrganisationValidation.Field("siteId"));
         }
 
         // R-MD-05: the warehouse code is unique per company (Specification, Warehouse).

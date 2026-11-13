@@ -12,8 +12,10 @@ namespace Themis.Kernel.Persistence.Migrations;
 /// no role permission or assignment refers to it. The row's audit event is written first, from the row itself, under the
 /// system user with command name SYSTEM.MIGRATE (so the shared test cleanup keeps it) and the one command id of this
 /// migration (R-AUD-01, D-51); a database that no longer holds the row gets neither statement's effect. Deleting the row
-/// drops data, which the owner approved with D-69 and reads under D-59. No schema or grant change. The Down restores the
-/// pair with a new id and leaves the audit event, which the D-60 triggers keep. Literal statements, fixed once merged (RR-39).
+/// drops data, which the owner approved with D-69 and reads under D-59. No schema or grant change. The Down is not a full
+/// reverse: it puts the old pair row back with a new id and no audit event of its own, keeps the deletion's audit event
+/// (the D-60 triggers refuse its removal), and leaves the four replacement pairs, which the catalogue seed wrote and the
+/// earlier code would not remove. Literal statements, fixed once merged (RR-39).
 /// </summary>
 internal sealed partial class RetireAccountMaintainPair : Migration
 {

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # OpenAPI breaking-change check (RR-10, Build Brief milestone 2 step 4). Compares the head's OpenAPI document with
-# openapi/v1.json of the base commit using oasdiff (pinned by version and SHA-256 in .github/workflows/openapi.yml,
-# licence recorded in eng/licenses/oasdiff.md). A breaking change, as oasdiff classifies it at level ERR, fails the
+# openapi/v1.json of the base commit using oasdiff (built from source, pinned by version, module checksum and Go
+# toolchain in .github/workflows/openapi.yml, licence recorded in eng/licenses/oasdiff.md). A breaking change, as oasdiff classifies it at level ERR, fails the
 # check unless the pull request carries the api-breaking label, which the owner sets. When the base commit has no
 # openapi/v1.json yet there is nothing to compare: the check passes with a notice. A tool error, an unknown base commit
 # or a missing head document fails whatever the label says.

@@ -78,7 +78,7 @@ public sealed class AccountPostingLockTests : IAsyncLifetime
         await paused.Task.WaitAsync(TimeSpan.FromSeconds(15), Ct);
         // The posting holds 1460 and TEST-ADJ FOR SHARE: the seam's UPDATE of the row waits on it (the wait, not only the outcome).
         Task update = SetStatusAsync(_db, Inventory1460, MasterDataStatus.Blocked, Ct);
-        await WaitForLockWaiterAsync(_host, Ct);
+        await _host.WaitForLockWaiterAsync(Ct);
         Assert.False(update.IsCompleted);
         Assert.Equal(1L, await _host.ScalarAsync("SELECT count(*) FROM pg_locks l JOIN pg_stat_activity a ON a.pid = l.pid WHERE NOT l.granted AND l.locktype IN ('transactionid', 'tuple') AND a.datname = current_database()", Ct));
 
@@ -100,7 +100,7 @@ public sealed class AccountPostingLockTests : IAsyncLifetime
 
         // The posting resolves from the committed row (Active), then waits on its FOR SHARE behind the held update.
         Task<CommandReply> posting = PostAsync(draft, "order-b-post");
-        await WaitForLockWaiterAsync(_host, Ct);
+        await _host.WaitForLockWaiterAsync(Ct);
         Assert.False(posting.IsCompleted);
         await held.CommitAsync(Ct);
         CommandReply postedReply = await posting.WaitAsync(TimeSpan.FromSeconds(15), Ct);

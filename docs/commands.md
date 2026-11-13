@@ -76,7 +76,7 @@ The error codes are the command's own; every command also answers 401, 403, 409 
 | Rules | D-69, R-API-02, R-MD-06, R-PP-04 |
 | Audits | Account |
 | Events | `ACCOUNT_UPDATED` |
-| Errors | `name_required`, `name_too_long`, `account_type_required`, `account_not_found`, `version_stale`, `transition_not_allowed`, `account_number_fixed`, `account_chart_fixed`, `account_type_fixed`, `account_control_fixed` |
+| Errors | `name_required`, `name_too_long`, `account_type_required`, `is_control_required`, `account_not_found`, `version_stale`, `transition_not_allowed`, `account_number_fixed`, `account_chart_fixed`, `account_type_fixed`, `account_control_fixed` |
 
 ## CHART_OF_ACCOUNTS.CREATE
 
@@ -162,7 +162,7 @@ The error codes are the command's own; every command also answers 401, 403, 409 
 | Rules | R-LED-05, R-LED-08, R-INV-03, R-INV-05, R-PP-02, R-LED-04, R-DOC-07, D-69 |
 | Audits | Document, DocumentLine |
 | Events | `INVENTORY_ADJUSTED` |
-| Errors | `inventory_adjustment_not_found`, `version_stale`, `transition_not_allowed`, `no_open_lines`, `reason_code_required`, `item_not_stocked`, `item_not_active`, `lot_required`, `posting_date_required`, `fiscal_period_not_open`, `entered_unit_cost_on_outbound`, `document_currency_not_base_currency`, `stock_insufficient`, `posting_rule_missing`, `posting_rule_account_not_active`, `amount_out_of_range`, `number_series_missing` |
+| Errors | `inventory_adjustment_not_found`, `version_stale`, `transition_not_allowed`, `no_open_lines`, `reason_code_required`, `item_not_stocked`, `item_not_active`, `lot_required`, `posting_date_required`, `fiscal_period_not_found`, `fiscal_period_not_open`, `entered_unit_cost_on_outbound`, `entered_unit_cost_required`, `document_currency_not_base_currency`, `stock_insufficient`, `posting_rule_missing`, `posting_rule_account_not_active`, `amount_out_of_range`, `number_series_missing` |
 | Transition | INVENTORY_ADJUSTMENT: Draft to Posted |
 
 ## INVENTORY_ADJUSTMENT.UPDATE
@@ -212,7 +212,7 @@ The error codes are the command's own; every command also answers 401, 403, 409 
 | Rules | R-SET-01, D-63, R-API-02 |
 | Audits | SettingValue |
 | Events | `SETTING_CHANGED` |
-| Errors | `setting_key_invalid`, `setting_target_invalid`, `setting_value_required`, `setting_unknown`, `setting_not_settable`, `setting_locked`, `setting_level_not_allowed`, `valid_from_required`, `valid_from_not_allowed`, `version_stale`, `company_unknown`, `site_unknown`, `site_other_company`, `warehouse_unknown`, `warehouse_other_company` |
+| Errors | `setting_key_invalid`, `setting_target_invalid`, `setting_value_required`, `setting_value_invalid`, `setting_unknown`, `setting_not_settable`, `setting_locked`, `setting_level_not_allowed`, `valid_from_required`, `valid_from_not_allowed`, `version_stale`, `company_unknown`, `site_unknown`, `site_other_company`, `warehouse_unknown`, `warehouse_other_company` |
 
 ## SITE.CREATE
 
