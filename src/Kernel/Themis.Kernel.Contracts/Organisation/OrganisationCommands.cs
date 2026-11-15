@@ -41,7 +41,7 @@ public sealed record ChartOfAccountsView(Guid Id, Code Code, string Name, string
 /// party from the legal name, organisation number, VAT number and country, numbered from the installation-level
 /// PARTY series (D-64). Installation scope (D-47, RR-52).
 /// </summary>
-[CommandRules("D-64", "D-65", "R-MD-05", "RR-45")]
+[CommandRules("D-64", "D-65", "R-MD-05", "R-DOC-08", "RR-45")]
 [CommandAudits("Party", "Company")]
 [CommandEvents("PARTY_CREATED", "COMPANY_CREATED")]
 [CommandErrors("code_required", "legal_name_required", "legal_name_too_long", "organisation_number_required", "organisation_number_too_long", "vat_number_too_long", "time_zone_required", "time_zone_invalid", "country_code_required", "base_currency_required", "fiscal_year_start_month_out_of_range", "chart_of_accounts_required", "tax_rounding_level_required", "base_currency_unknown", "chart_of_accounts_unknown", "company_code_duplicate", "organisation_number_duplicate", "number_series_missing")]
@@ -119,7 +119,7 @@ public sealed record UpdateSite(Guid Id, string Name, long ExpectedVersion, stri
 /// pattern of the settings). The code is unique per company (R-MD-05) and never changes (R-MD-06); status Active at
 /// create. Making it the default moves the site's default (Specification, Organisation commands).
 /// </summary>
-[CommandRules("R-MD-05", "R-SEC-01", "RR-133")]
+[CommandRules("R-MD-05", "R-SEC-01", "R-DOC-01", "RR-133")]
 [CommandAudits("Warehouse")]
 [CommandEvents("WAREHOUSE_CREATED", "WAREHOUSE_UPDATED")]
 [CommandErrors("company_required", "site_required", "code_required", "name_required", "name_too_long", "site_unknown", "site_other_company", "warehouse_code_duplicate", "warehouse_default_taken")]

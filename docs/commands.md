@@ -13,7 +13,7 @@ The error codes are the command's own; every command also answers 401, 403, 409 
 | Command type | `BlockAccount` |
 | Permission | `ACCOUNT.BLOCK` |
 | If-Match | required |
-| Rules | D-56, D-69, R-API-02, R-PP-05 |
+| Rules | D-56, D-69, R-API-02, R-DOC-01, R-PP-05 |
 | Audits | Account |
 | Events | `ACCOUNT_BLOCKED` |
 | Errors | `reason_required`, `reason_too_long`, `account_not_found`, `version_stale`, `transition_not_allowed`, `account_used_by_posting_rule` |
@@ -49,7 +49,7 @@ The error codes are the command's own; every command also answers 401, 403, 409 
 | Command type | `ReactivateAccount` |
 | Permission | `ACCOUNT.REACTIVATE` |
 | If-Match | required |
-| Rules | D-69, R-API-02 |
+| Rules | D-69, R-API-02, R-DOC-01 |
 | Audits | Account |
 | Events | `ACCOUNT_REACTIVATED` |
 | Errors | `account_not_found`, `version_stale`, `transition_not_allowed` |
@@ -61,7 +61,7 @@ The error codes are the command's own; every command also answers 401, 403, 409 
 | Command type | `UnblockAccount` |
 | Permission | `ACCOUNT.UNBLOCK` |
 | If-Match | required |
-| Rules | D-69, R-API-02 |
+| Rules | D-69, R-API-02, R-DOC-01 |
 | Audits | Account |
 | Events | `ACCOUNT_UNBLOCKED` |
 | Errors | `account_not_found`, `version_stale`, `transition_not_allowed` |
@@ -73,7 +73,7 @@ The error codes are the command's own; every command also answers 401, 403, 409 
 | Command type | `UpdateAccount` |
 | Permission | `ACCOUNT.UPDATE` |
 | If-Match | required |
-| Rules | D-69, R-API-02, R-MD-06, R-PP-04 |
+| Rules | D-69, R-API-02, R-DOC-01, R-MD-06, R-PP-04 |
 | Audits | Account |
 | Events | `ACCOUNT_UPDATED` |
 | Errors | `name_required`, `name_too_long`, `account_type_required`, `is_control_required`, `account_not_found`, `version_stale`, `transition_not_allowed`, `account_number_fixed`, `account_chart_fixed`, `account_type_fixed`, `account_control_fixed` |
@@ -109,7 +109,7 @@ The error codes are the command's own; every command also answers 401, 403, 409 
 | Command type | `CreateCompany` |
 | Permission | `COMPANY.CREATE` |
 | If-Match | no |
-| Rules | D-64, D-65, R-MD-05, RR-45 |
+| Rules | D-64, D-65, R-MD-05, R-DOC-08, RR-45 |
 | Audits | Party, Company |
 | Events | `PARTY_CREATED`, `COMPANY_CREATED` |
 | Errors | `code_required`, `legal_name_required`, `legal_name_too_long`, `organisation_number_required`, `organisation_number_too_long`, `vat_number_too_long`, `time_zone_required`, `time_zone_invalid`, `country_code_required`, `base_currency_required`, `fiscal_year_start_month_out_of_range`, `chart_of_accounts_required`, `tax_rounding_level_required`, `base_currency_unknown`, `chart_of_accounts_unknown`, `company_code_duplicate`, `organisation_number_duplicate`, `number_series_missing` |
@@ -159,7 +159,7 @@ The error codes are the command's own; every command also answers 401, 403, 409 
 | Command type | `PostInventoryAdjustment` |
 | Permission | `INVENTORY_ADJUSTMENT.POST` |
 | If-Match | required |
-| Rules | R-LED-05, R-LED-08, R-INV-03, R-INV-05, R-PP-02, R-LED-04, R-DOC-07, D-69 |
+| Rules | R-LED-05, R-LED-08, R-INV-03, R-INV-05, R-PP-02, R-LED-04, R-DOC-01, R-DOC-07, R-DOC-08, D-69 |
 | Audits | Document, DocumentLine |
 | Events | `INVENTORY_ADJUSTED` |
 | Errors | `inventory_adjustment_not_found`, `version_stale`, `transition_not_allowed`, `no_open_lines`, `reason_code_required`, `item_not_stocked`, `item_not_active`, `lot_required`, `posting_date_required`, `fiscal_period_not_found`, `fiscal_period_not_open`, `entered_unit_cost_on_outbound`, `entered_unit_cost_required`, `document_currency_not_base_currency`, `stock_insufficient`, `posting_rule_missing`, `posting_rule_account_not_active`, `amount_out_of_range`, `number_series_missing` |
@@ -245,7 +245,7 @@ The error codes are the command's own; every command also answers 401, 403, 409 
 | Command type | `CreateWarehouse` |
 | Permission | `WAREHOUSE.CREATE` |
 | If-Match | no |
-| Rules | R-MD-05, R-SEC-01, RR-133 |
+| Rules | R-MD-05, R-SEC-01, R-DOC-01, RR-133 |
 | Audits | Warehouse |
 | Events | `WAREHOUSE_CREATED`, `WAREHOUSE_UPDATED` |
 | Errors | `company_required`, `site_required`, `code_required`, `name_required`, `name_too_long`, `site_unknown`, `site_other_company`, `warehouse_code_duplicate`, `warehouse_default_taken` |

@@ -1,4 +1,3 @@
-using System.Globalization;
 using Themis.Kernel.Contracts.Commands;
 using Themis.Kernel.Contracts.Messaging;
 using Themis.Kernel.Contracts.Organisation;
@@ -200,11 +199,12 @@ internal sealed class DeactivateAccountHandler : ICommandHandler<DeactivateAccou
             }
 
             // D-69: zero over all history in every company; until CLOSE_YEAR a Revenue or Expense account with history stays (known limitation).
-            IReadOnlyList<AccountCompanyBalance> balances = await AccountStore.NonZeroBalancesAsync(context.UnitOfWork, account.Id, ct);
-            if (balances.Count > 0)
+            IReadOnlyList<Code> companies = await AccountStore.NonZeroBalanceCompaniesAsync(context.UnitOfWork, account.Id, ct);
+            if (companies.Count > 0)
             {
-                string named = string.Join("; ", balances.Select(balance => $"company {balance.CompanyCode.Value}: {balance.Balance.ToString(CultureInfo.InvariantCulture)}"));
-                errors.Add(Error.Rule(OrganisationErrors.RuleGuard, OrganisationErrors.AccountBalanceNotZero, $"Account {account.AccountNumber} cannot be deactivated while its balance over all history is not zero ({named}) (R-DOC-01, D-69)."));
+                // R-SEC-01: the companies only, never the amounts, since the caller may hold no assignment in them (RR-52).
+                string named = string.Join(", ", companies.Select(company => company.Value));
+                errors.Add(Error.Rule(OrganisationErrors.RuleGuard, OrganisationErrors.AccountBalanceNotZero, $"Account {account.AccountNumber} cannot be deactivated while its balance over all history is not zero in company {named} (R-DOC-01, D-69)."));
             }
 
             return errors;

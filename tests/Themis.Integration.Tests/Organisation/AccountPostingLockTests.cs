@@ -108,6 +108,8 @@ public sealed class AccountPostingLockTests : IAsyncLifetime
         Assert.Equal(422, postedReply.Status);
         Assert.Equal(("R-PP-02", AccountResolver.AccountNotActive), (postedReply.RuleId, postedReply.Code));
         Assert.Contains("which is Blocked (D-69)", postedReply.Body, StringComparison.Ordinal);
+        // R-PP-02: the rejection from the lock names the role, the keys and the posting date, as the resolver's does.
+        Assert.Contains($"no active account for INVENTORY_ADJUSTMENT, item group TRADE_GOODS, reason code CountDifference, posting date {June}: rule ", postedReply.Body, StringComparison.Ordinal);
         await AssertNothingPostedAsync(draft);
         Assert.Equal(0L, _host.Retries);
     }

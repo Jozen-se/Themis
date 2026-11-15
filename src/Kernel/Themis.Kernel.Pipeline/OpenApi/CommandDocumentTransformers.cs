@@ -1,3 +1,5 @@
+using System.Reflection;
+using System.Text.Json.Serialization.Metadata;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
@@ -10,14 +12,13 @@ namespace Themis.Kernel.Pipeline.OpenApi;
 
 /// <summary>
 /// Keeps <c>expectedVersion</c> out of the request schema of a versioned command: the version travels in the
-/// <c>If-Match</c> header and the endpoint overwrites anything the body supplies (R-API-02). Keeps <c>scope</c> out of
-/// the request schema of a scoped command too: the scope is computed from the command's own data and never read from
-/// the body.
+/// <c>If-Match</c> header and the endpoint overwrites anything the body supplies (R-API-02). Keeps the members a scoped
+/// command computes (<see cref="RequestHash.ComputedMembers"/>, today <c>scope</c>) out of its request schema too: they
+/// come from the command's own data and are never read from the body. The same list keeps them out of the fingerprint
+/// (RR-60), and the JSON names come from the serializer's own metadata.
 /// </summary>
 internal sealed class CommandSchemaTransformer : IOpenApiSchemaTransformer
 {
-    internal const string ScopeProperty = "scope";
-
     public Task TransformAsync(OpenApiSchema schema, OpenApiSchemaTransformerContext context, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(schema);
@@ -31,8 +32,14 @@ internal sealed class CommandSchemaTransformer : IOpenApiSchemaTransformer
 
         if (typeof(IScopedRequest).IsAssignableFrom(context.JsonTypeInfo.Type))
         {
-            schema.Properties?.Remove(ScopeProperty);
-            schema.Required?.Remove(ScopeProperty);
+            foreach (JsonPropertyInfo member in context.JsonTypeInfo.Properties)
+            {
+                if (member.AttributeProvider is PropertyInfo property && RequestHash.ComputedMembers.Contains(property.Name))
+                {
+                    schema.Properties?.Remove(member.Name);
+                    schema.Required?.Remove(member.Name);
+                }
+            }
         }
 
         return Task.CompletedTask;

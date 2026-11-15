@@ -106,7 +106,7 @@ public sealed record DiscardInventoryAdjustment(Guid Id, long ExpectedVersion) :
 /// the audit events and INVENTORY_ADJUSTED, or nothing (R-LED-05, R-LED-07). The guards of the state machine run
 /// first (R-DOC-01, R-LED-04, R-INV-05), the stock and cost checks after their rows are locked (R-INV-03, R-LED-08).
 /// </summary>
-[CommandRules("R-LED-05", "R-LED-08", "R-INV-03", "R-INV-05", "R-PP-02", "R-LED-04", "R-DOC-07", "D-69")]
+[CommandRules("R-LED-05", "R-LED-08", "R-INV-03", "R-INV-05", "R-PP-02", "R-LED-04", "R-DOC-01", "R-DOC-07", "R-DOC-08", "D-69")]
 [CommandAudits("Document", "DocumentLine")]
 [CommandEvents("INVENTORY_ADJUSTED")]
 [CommandErrors("inventory_adjustment_not_found", "version_stale", "transition_not_allowed", "no_open_lines", "reason_code_required", "item_not_stocked", "item_not_active", "lot_required", "posting_date_required", "fiscal_period_not_found", "fiscal_period_not_open", "entered_unit_cost_on_outbound", "entered_unit_cost_required", "document_currency_not_base_currency", "stock_insufficient", "posting_rule_missing", "posting_rule_account_not_active", "amount_out_of_range", "number_series_missing")]

@@ -30,7 +30,7 @@ public sealed record CreateAccount(Guid ChartId, Code AccountNumber, string Name
 /// change after the account's first journal line or first posting profile rule, in any company, is
 /// rejected under R-MD-06 with the attribute's code.
 /// </summary>
-[CommandRules("D-69", "R-API-02", "R-MD-06", "R-PP-04")]
+[CommandRules("D-69", "R-API-02", "R-DOC-01", "R-MD-06", "R-PP-04")]
 [CommandAudits("Account")]
 [CommandEvents("ACCOUNT_UPDATED")]
 [CommandErrors("name_required", "name_too_long", "account_type_required", "is_control_required", "account_not_found", "version_stale", "transition_not_allowed", "account_number_fixed", "account_chart_fixed", "account_type_fixed", "account_control_fixed")]
@@ -42,7 +42,7 @@ public sealed record UpdateAccount(Guid Id, string Name, AccountType? AccountTyp
 /// characters that goes into the audit event's changes and the ACCOUNT_BLOCKED payload, with no column of its own
 /// (D-69). Rejected under R-PP-05 while an active posting profile rule of any company references the account (D-56).
 /// </summary>
-[CommandRules("D-56", "D-69", "R-API-02", "R-PP-05")]
+[CommandRules("D-56", "D-69", "R-API-02", "R-DOC-01", "R-PP-05")]
 [CommandAudits("Account")]
 [CommandEvents("ACCOUNT_BLOCKED")]
 [CommandErrors("reason_required", "reason_too_long", "account_not_found", "version_stale", "transition_not_allowed", "account_used_by_posting_rule")]
@@ -50,7 +50,7 @@ public sealed record UpdateAccount(Guid Id, string Name, AccountType? AccountTyp
 public sealed record BlockAccount(Guid Id, string? Reason, long ExpectedVersion) : ICommand<AccountView>, IVersionedCommand;
 
 /// <summary>ACCOUNT.UNBLOCK (step 4 brief, item 2): Blocked to Active on the current version; no guard.</summary>
-[CommandRules("D-69", "R-API-02")]
+[CommandRules("D-69", "R-API-02", "R-DOC-01")]
 [CommandAudits("Account")]
 [CommandEvents("ACCOUNT_UNBLOCKED")]
 [CommandErrors("account_not_found", "version_stale", "transition_not_allowed")]
@@ -70,7 +70,7 @@ public sealed record UnblockAccount(Guid Id, long ExpectedVersion) : ICommand<Ac
 public sealed record DeactivateAccount(Guid Id, long ExpectedVersion) : ICommand<AccountView>, IVersionedCommand;
 
 /// <summary>ACCOUNT.REACTIVATE (step 4 brief, item 2): Inactive to Active on the current version; no guard.</summary>
-[CommandRules("D-69", "R-API-02")]
+[CommandRules("D-69", "R-API-02", "R-DOC-01")]
 [CommandAudits("Account")]
 [CommandEvents("ACCOUNT_REACTIVATED")]
 [CommandErrors("account_not_found", "version_stale", "transition_not_allowed")]

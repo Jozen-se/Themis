@@ -6,9 +6,6 @@ using Themis.Kernel.Primitives;
 
 namespace Themis.Kernel.Organisation;
 
-/// <summary>A company whose lifetime balance on an account is not zero (D-69): the DEACTIVATE guard names each one.</summary>
-internal sealed record AccountCompanyBalance(Code CompanyCode, decimal Balance);
-
 /// <summary>
 /// Raw SQL on the command's unit of work as themis_kernel (R-DB-01) for the account commands and queries of milestone 2
 /// step 4: reads, the duplicate check, the insert, the versioned updates (lock class 1, R-API-02), the R-MD-06 trigger
@@ -98,11 +95,15 @@ internal static class AccountStore
             "SELECT EXISTS (SELECT 1 FROM kernel.journal_line WHERE account_id = @id) OR EXISTS (SELECT 1 FROM kernel.posting_profile_rule WHERE account_id = @id)",
             Id(id), cancellationToken) is true;
 
-    /// <summary>D-69: the companies whose balance on the account over all history is not zero, ordered by company code.</summary>
-    public static Task<IReadOnlyList<AccountCompanyBalance>> NonZeroBalancesAsync(IUnitOfWork unitOfWork, Guid id, CancellationToken cancellationToken) =>
+    /// <summary>
+    /// D-69: the codes of the companies whose balance on the account over all history is not zero, ordered by company
+    /// code. The amounts stay in the database: DEACTIVATE is installation-scope (RR-52), so its caller may hold no
+    /// assignment in those companies, and the rejection names the companies only (R-SEC-01).
+    /// </summary>
+    public static Task<IReadOnlyList<Code>> NonZeroBalanceCompaniesAsync(IUnitOfWork unitOfWork, Guid id, CancellationToken cancellationToken) =>
         unitOfWork.QueryAsync(DatabaseRole.Kernel,
             """
-            SELECT c.code, sum(l.amount)
+            SELECT c.code
             FROM kernel.journal_line l
             JOIN kernel.company c ON c.id = l.company_id
             WHERE l.account_id = @id
@@ -111,7 +112,7 @@ internal static class AccountStore
             ORDER BY c.code
             """,
             Id(id),
-            reader => new AccountCompanyBalance(Code.From(reader.GetString(0)), reader.GetDecimal(1)),
+            reader => Code.From(reader.GetString(0)),
             cancellationToken);
 
     private static AccountView Read(DbDataReader reader) => new(

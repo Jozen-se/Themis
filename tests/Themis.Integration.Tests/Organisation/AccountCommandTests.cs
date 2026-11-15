@@ -296,7 +296,10 @@ public sealed class AccountCommandTests : IAsyncLifetime
         Assert.Equal(422, busy.Status);
         string[] codes = [.. busy.Json!["errors"]!.AsArray().Select(error => error!["code"]!.GetValue<string>()).Order(StringComparer.Ordinal)];
         Assert.Equal(["account_balance_not_zero", "account_used_by_posting_rule"], codes);
-        Assert.Contains("company SE01: -10.0000", busy.Body, StringComparison.Ordinal);
+        // R-SEC-01: the rejection names the company, never its balance: DEACTIVATE is installation-scope (RR-52).
+        Assert.Contains("in company SE01", busy.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain("10.00", busy.Body, StringComparison.Ordinal);
+        Assert.DoesNotMatch(@"-?\d+\.\d{2,}", busy.Json["errors"]!.AsArray().Single(error => error!["code"]!.GetValue<string>() == "account_balance_not_zero")!["message"]!.GetValue<string>());
         Assert.Equal("R-DOC-01", busy.Json["errors"]!.AsArray().Single(error => error!["code"]!.GetValue<string>() == "account_balance_not_zero")!["ruleId"]!.GetValue<string>());
 
         (Guid account, _) = await CreateAccountAsync(_host, "6961", cancellationToken: Ct);

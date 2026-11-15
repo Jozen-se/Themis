@@ -97,6 +97,8 @@ internal sealed class InventoryPostingService : IPostingService
         // One pass over the Open lines in line order, carrying the cost state and the stock from line to line (R-INV-09).
         List<(PostingLine Line, InventoryEntryRow Entry)> entries = [];
         List<JournalLineRow> journalLines = [];
+        // R-PP-02: the keys each journal line resolved with, so a rejection from the account lock names them as the resolver does.
+        Dictionary<Guid, PostingKeys> keysByLine = [];
         foreach (PostingLine line in lines)
         {
             BalanceKey key = new(line.ItemId, line.WarehouseId, line.StockStatus);
@@ -141,13 +143,15 @@ internal sealed class InventoryPostingService : IPostingService
             }
 
             // E-01 (inbound: debit INVENTORY, credit INVENTORY_ADJUSTMENT) and E-02 (outbound: the reverse), the debit line first (D-15).
-            Result<AccountResolution> inventory = await _accounts.ResolveAsync(unitOfWork, posting.CompanyId, AccountRoles.Inventory, posting.PostingDate, new PostingKeys(line.ItemPostingGroup), cancellationToken);
+            PostingKeys inventoryKeys = new(line.ItemPostingGroup);
+            PostingKeys adjustmentKeys = new(line.ItemPostingGroup, ReasonCode: posting.ReasonCode);
+            Result<AccountResolution> inventory = await _accounts.ResolveAsync(unitOfWork, posting.CompanyId, AccountRoles.Inventory, posting.PostingDate, inventoryKeys, cancellationToken);
             if (inventory.IsFailure)
             {
                 return Result<PostingOutcome>.Failure(inventory.Errors);
             }
 
-            Result<AccountResolution> adjustment = await _accounts.ResolveAsync(unitOfWork, posting.CompanyId, AccountRoles.InventoryAdjustment, posting.PostingDate, new PostingKeys(line.ItemPostingGroup, ReasonCode: posting.ReasonCode), cancellationToken);
+            Result<AccountResolution> adjustment = await _accounts.ResolveAsync(unitOfWork, posting.CompanyId, AccountRoles.InventoryAdjustment, posting.PostingDate, adjustmentKeys, cancellationToken);
             if (adjustment.IsFailure)
             {
                 return Result<PostingOutcome>.Failure(adjustment.Errors);
@@ -156,6 +160,8 @@ internal sealed class InventoryPostingService : IPostingService
             JournalLineRow inventoryLine = new(EntityId.New(), 0, inventory.Value.AccountId, inventory.Value.AccountRole, inventory.Value.PostingRuleId, costing.CostAmount, line.ItemId, line.WarehouseId, line.LineId);
             JournalLineRow adjustmentLine = new(EntityId.New(), 0, adjustment.Value.AccountId, adjustment.Value.AccountRole, adjustment.Value.PostingRuleId, -costing.CostAmount, line.ItemId, line.WarehouseId, line.LineId);
             journalLines.AddRange(costing.CostAmount > 0 ? [inventoryLine, adjustmentLine] : [adjustmentLine, inventoryLine]);
+            keysByLine[inventoryLine.Id] = inventoryKeys;
+            keysByLine[adjustmentLine.Id] = adjustmentKeys;
         }
 
         // D-69, R-LED-08: the accounts the lines resolved, FOR SHARE on the account table alone, just before the number series;
@@ -174,7 +180,8 @@ internal sealed class InventoryPostingService : IPostingService
                 if (status != MasterDataStatus.Active)
                 {
                     JournalLineRow line = journalLines.First(journalLine => journalLine.AccountId == accountId);
-                    return Error.Rule("R-PP-02", AccountResolver.AccountNotActive, $"no active account for {line.AccountRole}: rule {line.PostingRuleId} maps to account {accountId}, which is {status} (D-69)");
+                    // R-PP-02 names the role and the keys, with the posting date, in the same shape as AccountResolver.
+                    return Error.Rule("R-PP-02", AccountResolver.AccountNotActive, $"no active account for {line.AccountRole}, {keysByLine[line.Id].Describe()}, posting date {posting.PostingDate}: rule {line.PostingRuleId} maps to account {accountId}, which is {status} (D-69)");
                 }
             }
         }

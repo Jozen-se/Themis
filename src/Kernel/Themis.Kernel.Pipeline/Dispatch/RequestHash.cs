@@ -21,8 +21,11 @@ namespace Themis.Kernel.Pipeline.Dispatch;
 /// </summary>
 internal static class RequestHash
 {
-    /// <summary>The members every scoped request computes (D-47), never part of the fingerprint.</summary>
-    private static readonly HashSet<string> ComputedMembers = [.. typeof(IScopedRequest).GetProperties().Select(property => property.Name)];
+    /// <summary>
+    /// The members every scoped request computes (D-47), never part of the fingerprint, and never part of a command's
+    /// request schema either (CommandSchemaTransformer): one list for both.
+    /// </summary>
+    internal static readonly IReadOnlySet<string> ComputedMembers = typeof(IScopedRequest).GetProperties().Select(property => property.Name).ToHashSet(StringComparer.Ordinal);
 
     private static readonly JsonSerializerOptions Options = CreateOptions();
 
