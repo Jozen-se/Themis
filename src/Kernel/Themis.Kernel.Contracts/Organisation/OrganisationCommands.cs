@@ -135,7 +135,7 @@ public sealed record CreateWarehouse(Guid CompanyId, Guid SiteId, Code Code, str
 [CommandRules("R-API-02", "R-MD-06", "R-DOC-01")]
 [CommandAudits("Warehouse")]
 [CommandEvents("WAREHOUSE_UPDATED")]
-[CommandErrors("name_required", "name_too_long", "warehouse_not_found", "site_not_found", "version_stale", "warehouse_code_fixed", "warehouse_not_active", "warehouse_default_taken")]
+[CommandErrors("name_required", "name_too_long", "warehouse_not_found", "version_stale", "warehouse_code_fixed", "warehouse_not_active", "warehouse_default_taken")]
 [Command("WAREHOUSE.UPDATE")]
 public sealed record UpdateWarehouse(Guid Id, string Name, bool IsDefault, long ExpectedVersion, Code? Code = null) : ICommand<WarehouseView>, IVersionedCommand;
 

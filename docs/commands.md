@@ -260,4 +260,4 @@ The error codes are the command's own; every command also answers 401, 403, 409 
 | Rules | R-API-02, R-MD-06, R-DOC-01 |
 | Audits | Warehouse |
 | Events | `WAREHOUSE_UPDATED` |
-| Errors | `name_required`, `name_too_long`, `warehouse_not_found`, `site_not_found`, `version_stale`, `warehouse_code_fixed`, `warehouse_not_active`, `warehouse_default_taken` |
+| Errors | `name_required`, `name_too_long`, `warehouse_not_found`, `version_stale`, `warehouse_code_fixed`, `warehouse_not_active`, `warehouse_default_taken` |

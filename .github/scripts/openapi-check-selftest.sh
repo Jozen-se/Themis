@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Proves the OpenAPI breaking-change check (RR-10) on synthetic repositories built from the committed openapi/v1.json:
 # an unchanged document passes; an added path passes; a synthetic breaking change (a path removed, a response property
-# removed) fails without the api-breaking label and passes with it; a base commit without openapi/v1.json passes with
-# a notice; a document oasdiff cannot read, an unknown base commit, a missing head document and a label value other
-# than true or false fail, the label included. The stale-document half of RR-10 is the unit test OpenApiDocumentTests.
+# removed) fails without the api-breaking label and passes with it, also when the check runs from a subdirectory; a
+# base commit without openapi/v1.json passes with a notice; a document oasdiff cannot read, an unknown base commit, a
+# missing head document and a label value other than true or false fail, the label included. The stale-document half of RR-10 is the unit test OpenApiDocumentTests.
 # Run by .github/workflows/openapi.yml and by hand, with oasdiff on PATH or named by OASDIFF:
 #   OASDIFF=/path/to/oasdiff .github/scripts/openapi-check-selftest.sh
 set -euo pipefail
@@ -103,6 +103,8 @@ run_case "RR-10: a synthetic breaking change (path removed) fails without the ap
 run_case "RR-10: a synthetic breaking change (path removed) passes with the api-breaking label" 0 "$committed" "$check" main "$work/path-removed.json" true
 run_case "RR-10: a synthetic breaking change (response property removed) fails without the api-breaking label" 1 "$committed" "$check" main "$work/property-removed.json" false
 run_case "RR-10: a synthetic breaking change (response property removed) passes with the api-breaking label" 0 "$committed" "$check" main "$work/property-removed.json" true
+mkdir -p "$committed/src"
+run_case "RR-10: run from a subdirectory, a synthetic breaking change still fails without the label" 1 "$committed/src" "$check" main "$work/path-removed.json" false
 run_case "RR-10: a base without openapi/v1.json passes with a notice" 0 "$empty" "$check" main "$document" false
 if ! grep -q '^::notice title=OpenAPI check::' "$work/case.log"; then
   echo "FAIL: RR-10: the pass without a base document gives no notice"

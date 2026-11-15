@@ -60,7 +60,9 @@ internal static class AccountStore
     /// <summary>
     /// Lock class 1 (R-LED-08): the versioned update of the account row with the name and, for the lifecycle commands,
     /// the status; 0 rows means the version is stale (R-API-02). It waits behind a posting's FOR SHARE of the account
-    /// (D-69), so the guards that run after it in their own statements see a posting or rule that committed meanwhile.
+    /// (D-69), so the guards that run after it in their own statements see a posting that committed meanwhile. A rule
+    /// insert takes only FOR KEY SHARE through its foreign key and does not wait here; rules are covered from step 5,
+    /// when the rule commands read their account FOR SHARE.
     /// The type and the control flag are not written here: they follow in <see cref="SetFixedAttributesAsync"/> once the
     /// R-MD-06 checks passed, so a change the checks refuse never reaches fk_posting_profile_rule_account_control.
     /// </summary>

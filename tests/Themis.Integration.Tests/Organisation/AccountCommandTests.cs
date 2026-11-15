@@ -154,7 +154,7 @@ public sealed class AccountCommandTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task R_MD_05_RR_133_the_ACCOUNT_CREATE_400s_name_the_JSON_property_in_details_field()
+    public async Task RR_133_the_ACCOUNT_CREATE_400s_name_the_JSON_property_in_details_field()
     {
         CommandReply reply = await _host.PostAsync(Accounts, new { name = "No chart, no number", accountType = "Expense", isControl = false }, "acc-no-chart", cancellationToken: Ct);
 

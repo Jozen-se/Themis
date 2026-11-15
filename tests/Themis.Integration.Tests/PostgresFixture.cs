@@ -1,6 +1,7 @@
 using Npgsql;
 using Testcontainers.PostgreSql;
 using Themis.Kernel.Contracts.Posting;
+using Themis.Kernel.Contracts.Security;
 using Themis.Kernel.Organisation;
 using Themis.Kernel.Posting;
 
@@ -121,31 +122,42 @@ public sealed class PostgresFixture : IAsyncLifetime
 
     /// <summary>
     /// RR-133 (milestone 2 step 4): every posting profile rule and account the fixture did not seed is removed, the rules
-    /// of other companies and of SE01 alike, and the fixture's own rules and accounts are restored to their seeded values
-    /// at version 1, so a test that blocks, renames or retypes 1460 or TEST-ADJ leaves nothing behind. Rules go before
-    /// accounts; the cleanup runs with foreign key triggers off, so the order only keeps the references whole.
+    /// of other companies and of SE01 alike, and the fixture's own rules and accounts are written back as seeded at
+    /// version 1 by an upsert, so a test that blocks, renames, retypes or deletes 1460, TEST-ADJ or one of SE01's rules
+    /// leaves nothing behind. Accounts go before rules on the way back, rules before accounts on the way out; the cleanup
+    /// runs with foreign key triggers off, so the order only keeps the references whole.
     /// </summary>
     private static string GeneralLedgerCleanupSql(Guid company, Guid chart)
     {
         GeneralLedgerFixtureDefinition fixture = Milestone1GeneralLedgerFixture.For(company, chart);
         string rules = string.Join(", ", fixture.Rules.Select(rule => $"'{rule.Id}'"));
         string accounts = string.Join(", ", fixture.Accounts.Select(account => $"'{account.Id}'"));
+        string system = WellKnownUsers.System.Value.ToString();
+        string audit = $"now(), '{system}', now(), '{system}', 1";
         System.Text.StringBuilder sql = new();
         sql.Append($"DELETE FROM kernel.posting_profile_rule WHERE id NOT IN ({rules}); ");
         sql.Append($"DELETE FROM kernel.account WHERE id NOT IN ({accounts}); ");
         foreach (AccountDefinition account in fixture.Accounts)
         {
-            sql.Append($"UPDATE kernel.account SET chart_id = '{account.ChartId}', account_number = '{account.AccountNumber.Value}', name = '{account.Name.Replace("'", "''", StringComparison.Ordinal)}', ")
-                .Append($"account_type = '{account.AccountType}', is_control = {(account.IsControl ? "true" : "false")}, status = '{account.Status}', version = 1 WHERE id = '{account.Id}'; ");
+            sql.Append("INSERT INTO kernel.account (id, chart_id, account_number, name, account_type, is_control, status, created_at, created_by, updated_at, updated_by, version) ")
+                .Append($"VALUES ('{account.Id}', '{account.ChartId}', {Text(account.AccountNumber.Value)}, {Text(account.Name)}, '{account.AccountType}', {(account.IsControl ? "true" : "false")}, '{account.Status}', {audit}) ")
+                .Append("ON CONFLICT (id) DO UPDATE SET chart_id = EXCLUDED.chart_id, account_number = EXCLUDED.account_number, name = EXCLUDED.name, account_type = EXCLUDED.account_type, ")
+                .Append("is_control = EXCLUDED.is_control, status = EXCLUDED.status, version = 1; ");
         }
 
         foreach (PostingProfileRuleDefinition rule in fixture.Rules)
         {
-            string validTo = rule.ValidTo is { } to ? $"'{to}'" : "NULL";
-            sql.Append($"UPDATE kernel.posting_profile_rule SET company_id = '{rule.CompanyId}', account_id = '{rule.AccountId}', valid_from = '{rule.ValidFrom}', valid_to = {validTo}, version = 1 WHERE id = '{rule.Id}'; ");
+            sql.Append("INSERT INTO kernel.posting_profile_rule (id, company_id, account_role, item_posting_group, party_posting_group, ship_to_scope, tax_code_id, reason_code, account_id, valid_from, valid_to, created_at, created_by, updated_at, updated_by, version) ")
+                .Append($"VALUES ('{rule.Id}', '{rule.CompanyId}', {Text(rule.AccountRole)}, {Text(rule.ItemPostingGroup?.Value)}, {Text(rule.PartyPostingGroup?.ToString())}, {Text(rule.ShipToScope?.ToString())}, ")
+                .Append($"{(rule.TaxCodeId is { } tax ? $"'{tax}'" : "NULL")}, {Text(rule.ReasonCode?.ToString())}, '{rule.AccountId}', '{rule.ValidFrom}', {Text(rule.ValidTo?.ToString())}, {audit}) ")
+                .Append("ON CONFLICT (id) DO UPDATE SET company_id = EXCLUDED.company_id, account_role = EXCLUDED.account_role, item_posting_group = EXCLUDED.item_posting_group, ")
+                .Append("party_posting_group = EXCLUDED.party_posting_group, ship_to_scope = EXCLUDED.ship_to_scope, tax_code_id = EXCLUDED.tax_code_id, reason_code = EXCLUDED.reason_code, ")
+                .Append("account_id = EXCLUDED.account_id, valid_from = EXCLUDED.valid_from, valid_to = EXCLUDED.valid_to, version = 1; ");
         }
 
         return sql.ToString();
+
+        static string Text(string? value) => value is null ? "NULL" : $"'{value.Replace("'", "''", StringComparison.Ordinal)}'";
     }
 
     /// <summary>

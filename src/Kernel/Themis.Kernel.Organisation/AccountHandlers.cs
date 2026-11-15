@@ -60,7 +60,9 @@ internal sealed class CreateAccountHandler : ICommandHandler<CreateAccount, Acco
 /// in Active or Blocked. The number and the chart are fixed from creation, so a differing one in the body is 422 and an
 /// equal one ignored. As in COMPANY.UPDATE, the versioned update of the row comes first (lock class 1, which waits
 /// behind a posting's FOR SHARE of the account), then the trigger check in its own statement, so it sees a journal
-/// line or rule that committed meanwhile; a type or control change after the account's first journal line or first
+/// line that committed meanwhile. A rule insert takes only FOR KEY SHARE through its foreign key and does not wait for
+/// this update; rules are covered from step 5, when the rule commands read their account FOR SHARE (D-69). A type or
+/// control change after the account's first journal line or first
 /// posting profile rule in any company is 422 with the attribute's code. The type and control flag are written only
 /// after that check, so fk_posting_profile_rule_account_control never answers in its place (R-PP-04).
 /// </summary>
@@ -131,7 +133,8 @@ internal sealed class UpdateAccountHandler : ICommandHandler<UpdateAccount, Acco
 
 /// <summary>
 /// ACCOUNT.BLOCK (step 4 brief, item 2; D-56, D-69): Active to Blocked. The versioned update first (lock class 1), then
-/// the R-PP-05 guard in its own statement, so no posting or rule can slip between check and commit; rejected with
+/// the R-PP-05 guard in its own statement, so no posting can slip between check and commit (rules from step 5,
+/// through the rule commands' FOR SHARE of the account); rejected with
 /// account_used_by_posting_rule, naming each active rule's company, role, keys and validity. The reason goes into the
 /// audit event's changes and the ACCOUNT_BLOCKED payload (D-69).
 /// </summary>
@@ -270,7 +273,8 @@ internal static class AccountLifecycle
         AccountView before = loaded.Value;
         AccountView after = before with { Status = to, Version = before.Version + 1 };
 
-        // Lock class 1 (R-LED-08): the versioned update first, so no concurrent posting or rule slips between the guard and the commit.
+        // Lock class 1 (R-LED-08): the versioned update first, so no concurrent posting slips between the guard and the commit;
+        // a rule insert takes only FOR KEY SHARE and does not wait, so rules are covered from step 5 (the rule commands' FOR SHARE, D-69).
         if (await AccountStore.UpdateAsync(unitOfWork, before.Id, before.Name, to, after.Version, expectedVersion, context.Now, context.Principal.UserId, cancellationToken) != 1)
         {
             return Error.PreconditionFailed(OrganisationErrors.VersionStale, $"Account {id} changed since version {expectedVersion} was read.");

@@ -56,7 +56,7 @@ jobs:
         run: |
           dir="${RUNNER_TEMP}/oasdiff"
           mkdir -p "$dir/bin" "$dir/gopath"
-          export GOTOOLCHAIN="${OASDIFF_GO_TOOLCHAIN}" GOFLAGS=-mod=mod GOBIN="$dir/bin" GOPATH="$dir/gopath" GOMODCACHE="$dir/gopath/pkg/mod" GONOSUMDB= GONOSUMCHECK= GOPRIVATE= GOSUMDB=sum.golang.org
+          export GOTOOLCHAIN="${OASDIFF_GO_TOOLCHAIN}" GOFLAGS=-mod=mod GOBIN="$dir/bin" GOPATH="$dir/gopath" GOMODCACHE="$dir/gopath/pkg/mod" GOENV=off GONOSUMDB= GOPRIVATE= GOSUMDB=sum.golang.org
           sum="$(cd "$dir" && go mod download -json "github.com/oasdiff/oasdiff@v${OASDIFF_VERSION}" | jq -r '.Sum')"
           if [ "$sum" != "${OASDIFF_MODULE_SUM}" ]; then
             echo "::error title=oasdiff checksum::github.com/oasdiff/oasdiff@v${OASDIFF_VERSION} has checksum $sum, not the pinned ${OASDIFF_MODULE_SUM} (RR-10)."

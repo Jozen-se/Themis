@@ -129,6 +129,30 @@ public sealed class AccountPostingLockTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task R_MD_06_D_69_a_journal_line_alone_fixes_the_account_type_once_no_posting_profile_rule_references_the_account()
+    {
+        Guid draft = await DraftAsync("md06-line");
+        CommandReply posted = await PostAsync(draft, "md06-line-post");
+        Assert.True(posted.Status == 200, posted.Body);
+        Assert.True((long)(await _host.ScalarAsync("SELECT count(*) FROM kernel.journal_line WHERE account_id = @id", Ct, ("id", TestAdj)))! > 0);
+
+        // Test data: the rules that reference TEST-ADJ are taken away, so only the journal line half of the R-MD-06 trigger can
+        // decide. The journal line still names its rule (fk_journal_line_posting_rule), so they go through the cleanup seam
+        // (D-60, docs/development/test-seams.md), and the shared cleanup writes the same rules back by id (RR-133).
+        await _db.CleanupAsync($"DELETE FROM kernel.posting_profile_rule WHERE account_id = '{TestAdj}'", Ct);
+        Assert.Equal(0L, await _host.ScalarAsync("SELECT count(*) FROM kernel.posting_profile_rule WHERE account_id = @id", Ct, ("id", TestAdj)));
+        string type = (string)(await _host.ScalarAsync("SELECT account_type FROM kernel.account WHERE id = @id", Ct, ("id", TestAdj)))!;
+        string other = type == "Asset" ? "Liability" : "Asset";
+
+        CommandReply retyped = await _host.PostAsync(Update(TestAdj), new { name = Milestone1GeneralLedgerFixture.AdjustmentAccountName, accountType = other, isControl = false }, "md06-line-update", ifMatch: "\"1\"", cancellationToken: Ct);
+
+        Assert.Equal(422, retyped.Status);
+        Assert.Equal(("R-MD-06", "account_type_fixed"), (retyped.RuleId, retyped.Code));
+        Assert.Equal(type, await _host.ScalarAsync("SELECT account_type FROM kernel.account WHERE id = @id", Ct, ("id", TestAdj)));
+        Assert.Equal(1L, await _host.ScalarAsync("SELECT version FROM kernel.account WHERE id = @id", Ct, ("id", TestAdj)));
+    }
+
+    [Fact]
     public async Task RR_133_the_shared_cleanup_restores_SE01s_posting_profile_rules_and_the_fixture_charts_accounts_as_seeded_and_deletes_accounts_tests_create()
     {
         string seededAccounts = await AccountsAsync();
@@ -138,6 +162,11 @@ public sealed class AccountPostingLockTests : IAsyncLifetime
         CommandReply renamed = await _host.PostAsync(Update(Inventory1460), new { name = "Renamed by a test", accountType = "Asset", isControl = true }, "rr133-rename", ifMatch: "\"1\"", cancellationToken: Ct);
         Assert.True(renamed.Status == 200, renamed.Body);
         await SetStatusAsync(_db, TestAdj, MasterDataStatus.Inactive, Ct);
+        // P-1: a test that deletes one of SE01's own rules (as CompanyPostingTests does) gets it back from the cleanup.
+        const string fixtureRules = "FROM kernel.posting_profile_rule WHERE company_id = @company AND account_id <> @created";
+        long before = (long)(await _host.ScalarAsync($"SELECT count(*) {fixtureRules}", Ct, ("company", Se01), ("created", created)))!;
+        await _host.ScalarAsync($"DELETE FROM kernel.posting_profile_rule WHERE id = (SELECT min(id::text)::uuid {fixtureRules})", Ct, ("company", Se01), ("created", created));
+        Assert.Equal(before - 1, await _host.ScalarAsync($"SELECT count(*) {fixtureRules}", Ct, ("company", Se01), ("created", created)));
         Assert.NotEqual(seededAccounts, await AccountsAsync());
         Assert.NotEqual(seededRules, await RulesAsync());
 

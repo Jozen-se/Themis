@@ -42,7 +42,13 @@ if ! base_sha="$(git rev-parse --verify --quiet "${base}^{commit}")"; then
   echo "::error title=OpenAPI check::Cannot resolve the base commit $base; check out with the full history (RR-10)."
   exit 2
 fi
-if [ -z "$(git ls-tree --name-only "$base_sha" -- "$document_path")" ]; then
+# --full-tree: the path is read from the repository root wherever the script runs, as git show reads it below. A git
+# error fails the check instead of reading as "no document", which would pass without comparing.
+if ! listing="$(git ls-tree --full-tree --name-only "$base_sha" -- "$document_path")"; then
+  echo "::error title=OpenAPI check::Cannot list $document_path in the base commit $base_sha (RR-10)."
+  exit 2
+fi
+if [ -z "$listing" ]; then
   echo "::notice title=OpenAPI check::The base commit $base_sha has no $document_path yet; there is nothing to compare, so the check passes (RR-10)."
   exit 0
 fi

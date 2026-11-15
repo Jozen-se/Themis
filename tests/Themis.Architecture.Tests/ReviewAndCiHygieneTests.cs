@@ -351,6 +351,9 @@ public sealed partial class ReviewAndCiHygieneTests
         Assert.Contains("go mod download -json \"github.com/oasdiff/oasdiff@v${OASDIFF_VERSION}\"", install, StringComparison.Ordinal);
         Assert.Contains("if [ \"$sum\" != \"${OASDIFF_MODULE_SUM}\" ]; then", install, StringComparison.Ordinal);
         Assert.Contains("GOSUMDB=sum.golang.org", install, StringComparison.Ordinal);
+        // GOENV=off: no go env file can switch the checksum database off (GONOSUMDB, GOPRIVATE); GONOSUMCHECK is not a Go setting.
+        Assert.Contains("GOENV=off", install, StringComparison.Ordinal);
+        Assert.DoesNotContain("GONOSUMCHECK", install, StringComparison.Ordinal);
         Assert.Contains("GOTOOLCHAIN=\"${OASDIFF_GO_TOOLCHAIN}\"", install, StringComparison.Ordinal);
         Assert.True(install.IndexOf("!= \"${OASDIFF_MODULE_SUM}\"", StringComparison.Ordinal) < install.IndexOf("go install", StringComparison.Ordinal), "openapi.yml builds oasdiff before it checks the module checksum (RR-10).");
         Assert.DoesNotContain("GOFLAGS=-insecure", install, StringComparison.Ordinal);

@@ -72,12 +72,12 @@ internal static class AccountTestData
             sql.Append($"INSERT INTO kernel.fiscal_period (id, fiscal_year_id, company_id, period_number, start_date, end_date, status, created_at, created_by, updated_at, updated_by) VALUES (gen_random_uuid(), '{yearId}', '{company}', {period}, '{start:yyyy-MM-dd}', '{start.AddMonths(1).AddDays(-1):yyyy-MM-dd}', '{status}', {audit}); ");
         }
 
-        await ExecuteAsync(db.ConnectionStringFor("themis_migrator"), sql.ToString(), cancellationToken);
+        await db.ExecuteAsMigratorAsync(sql.ToString(), cancellationToken);
     }
 
     /// <summary>The account status seam of item 4, committed at once: the status changes with no R-PP-05 guard and no audit event.</summary>
     public static Task SetStatusAsync(PostgresFixture db, Guid account, MasterDataStatus status, CancellationToken cancellationToken) =>
-        ExecuteAsync(db.ConnectionStringFor("themis_migrator"), $"UPDATE kernel.account SET status = '{status}' WHERE id = '{account}'", cancellationToken);
+        db.ExecuteAsMigratorAsync($"UPDATE kernel.account SET status = '{status}' WHERE id = '{account}'", cancellationToken);
 
     /// <summary>The account status seam of item 4, held: the UPDATE runs in a transaction left open until <see cref="HeldStatus.CommitAsync"/>.</summary>
     public static async Task<HeldStatus> HoldStatusAsync(PostgresFixture db, Guid account, MasterDataStatus status, CancellationToken cancellationToken)
@@ -118,13 +118,6 @@ internal static class AccountTestData
         await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
         Assert.True(await reader.ReadAsync(cancellationToken), $"Account {accountId} does not exist.");
         return new AccountDefinition(accountId, reader.GetGuid(0), Code.From(reader.GetString(1)), reader.GetString(2), Enum.Parse<AccountType>(reader.GetString(3)), reader.GetBoolean(4), Enum.Parse<MasterDataStatus>(reader.GetString(5)));
-    }
-
-    private static async Task ExecuteAsync(string connectionString, string sql, CancellationToken cancellationToken)
-    {
-        await using NpgsqlConnection connection = await PostgresFixture.OpenAsync(connectionString, cancellationToken);
-        await using NpgsqlCommand command = new(sql, connection);
-        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 }
 
