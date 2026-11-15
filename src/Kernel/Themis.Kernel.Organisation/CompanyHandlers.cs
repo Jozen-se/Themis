@@ -42,12 +42,12 @@ internal sealed class CreateCompanyHandler : ICommandHandler<CreateCompany, Comp
 
         if (!await OrganisationStore.CurrencyExistsAsync(unitOfWork, command.BaseCurrency, cancellationToken))
         {
-            return Error.Validation(OrganisationErrors.BaseCurrencyUnknown, $"Currency {command.BaseCurrency} is not a currency.", details: Field("baseCurrency"));
+            return Error.Validation(OrganisationErrors.BaseCurrencyUnknown, $"Currency {command.BaseCurrency} is not a currency.", details: OrganisationValidation.Field("baseCurrency"));
         }
 
         if (await OrganisationStore.FindChartAsync(unitOfWork, command.ChartOfAccountsId, cancellationToken) is null)
         {
-            return Error.Validation(OrganisationErrors.ChartUnknown, $"Chart of accounts {command.ChartOfAccountsId} does not exist.", details: Field("chartOfAccountsId"));
+            return Error.Validation(OrganisationErrors.ChartUnknown, $"Chart of accounts {command.ChartOfAccountsId} does not exist.", details: OrganisationValidation.Field("chartOfAccountsId"));
         }
 
         // R-MD-05: the company code is unique per installation (Specification, Company).
@@ -103,8 +103,6 @@ internal sealed class CreateCompanyHandler : ICommandHandler<CreateCompany, Comp
             ? mode
             : throw new InvalidOperationException($"Setting {SettingKeys.CompanyRoundingMode} has no documented default to apply (P-11).");
     }
-
-    private static Dictionary<string, string> Field(string field) => new(StringComparer.Ordinal) { ["field"] = field };
 }
 
 /// <summary>
@@ -150,12 +148,12 @@ internal sealed class UpdateCompanyHandler : ICommandHandler<UpdateCompany, Comp
 
         if (!await OrganisationStore.CurrencyExistsAsync(unitOfWork, command.BaseCurrency, cancellationToken))
         {
-            return Error.Validation(OrganisationErrors.BaseCurrencyUnknown, $"Currency {command.BaseCurrency} is not a currency.", details: Field("baseCurrency"));
+            return Error.Validation(OrganisationErrors.BaseCurrencyUnknown, $"Currency {command.BaseCurrency} is not a currency.", details: OrganisationValidation.Field("baseCurrency"));
         }
 
         if (await OrganisationStore.FindChartAsync(unitOfWork, command.ChartOfAccountsId, cancellationToken) is null)
         {
-            return Error.Validation(OrganisationErrors.ChartUnknown, $"Chart of accounts {command.ChartOfAccountsId} does not exist.", details: Field("chartOfAccountsId"));
+            return Error.Validation(OrganisationErrors.ChartUnknown, $"Chart of accounts {command.ChartOfAccountsId} does not exist.", details: OrganisationValidation.Field("chartOfAccountsId"));
         }
 
         string legalName = command.LegalName.Trim();
@@ -238,7 +236,8 @@ internal sealed class UpdateCompanyHandler : ICommandHandler<UpdateCompany, Comp
             (OrganisationErrors.CompanyBaseCurrencyFixed, "base currency", before.BaseCurrency != after.BaseCurrency),
             (OrganisationErrors.CompanyTimeZoneFixed, "time zone", !string.Equals(before.TimeZone, after.TimeZone, StringComparison.Ordinal)),
             (OrganisationErrors.CompanyCountryCodeFixed, "country", before.CountryCode != after.CountryCode),
-            (OrganisationErrors.CompanyOrganisationNumberFixed, "organisation number", !string.Equals(before.OrganisationNumber, after.OrganisationNumber, StringComparison.Ordinal)),
+            // RR-130: compared in normalised form, as the duplicate key is, so a reformatted number is no change.
+            (OrganisationErrors.CompanyOrganisationNumberFixed, "organisation number", !string.Equals(DuplicateKeys.Normalise(before.OrganisationNumber), DuplicateKeys.Normalise(after.OrganisationNumber), StringComparison.Ordinal)),
             (OrganisationErrors.CompanyRoundingModeFixed, "rounding mode", before.RoundingMode != after.RoundingMode),
         ];
         bool chartChanged = before.ChartOfAccountsId != after.ChartOfAccountsId;
@@ -271,8 +270,6 @@ internal sealed class UpdateCompanyHandler : ICommandHandler<UpdateCompany, Comp
 
         return errors;
     }
-
-    private static Dictionary<string, string> Field(string field) => new(StringComparer.Ordinal) { ["field"] = field };
 }
 
 /// <summary>The scope of COMPANY.UPDATE: the company it names, once loaded (Build Brief, Authorisation); a missing company is 404.</summary>
@@ -316,7 +313,7 @@ internal sealed class UpdateCompanyValidator : ICommandValidator<UpdateCompany>
 
         if (command.RoundingMode is null)
         {
-            yield return Error.Validation("rounding_mode_required", "The update names the rounding mode.", details: new Dictionary<string, string>(StringComparer.Ordinal) { ["field"] = "roundingMode" });
+            yield return Error.Validation("rounding_mode_required", "The update names the rounding mode.", details: OrganisationValidation.Field("roundingMode"));
         }
     }
 }
@@ -335,12 +332,12 @@ internal static class CompanyValidation
 
         if (country.Value is null)
         {
-            yield return Error.Validation("country_code_required", "A country code is required.", details: Field("countryCode"));
+            yield return Error.Validation("country_code_required", "A country code is required.", details: OrganisationValidation.Field("countryCode"));
         }
 
         if (currency.Value is null)
         {
-            yield return Error.Validation("base_currency_required", "A base currency is required.", details: Field("baseCurrency"));
+            yield return Error.Validation("base_currency_required", "A base currency is required.", details: OrganisationValidation.Field("baseCurrency"));
         }
 
         if (OrganisationValidation.Month(month) is { } monthError)
@@ -356,9 +353,7 @@ internal static class CompanyValidation
         // D-65: the VAT rounding level is stated explicitly while D-10 is open, since there is no default to apply.
         if (taxRoundingLevel is null)
         {
-            yield return Error.Validation("tax_rounding_level_required", "The VAT rounding level (Line or Document) is required while D-10 is open.", details: Field("taxRoundingLevel"));
+            yield return Error.Validation("tax_rounding_level_required", "The VAT rounding level (Line or Document) is required while D-10 is open.", details: OrganisationValidation.Field("taxRoundingLevel"));
         }
     }
-
-    private static Dictionary<string, string> Field(string field) => new(StringComparer.Ordinal) { ["field"] = field };
 }

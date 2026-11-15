@@ -14,13 +14,13 @@ public sealed class SegregationOfDutiesTests
     [Fact]
     public void R_SEC_02_a_role_that_combines_a_conflict_pair_is_refused_with_the_pair_named()
     {
-        Result refused = SegregationOfDuties.Check("Role TEST", ["ACCOUNT.MAINTAIN", "MANUAL_JOURNAL.POST", "ITEM.CREATE"], Conflicts);
-        Result allowed = SegregationOfDuties.Check("Role TEST", ["ACCOUNT.MAINTAIN", "ITEM.CREATE"], Conflicts);
+        Result refused = SegregationOfDuties.Check("Role TEST", ["ACCOUNT.CREATE", "MANUAL_JOURNAL.POST", "ITEM.CREATE"], Conflicts);
+        Result allowed = SegregationOfDuties.Check("Role TEST", ["ACCOUNT.CREATE", "ITEM.CREATE"], Conflicts);
 
         Assert.True(refused.IsFailure);
         Assert.Equal("R-SEC-02", refused.Primary!.RuleId);
         Assert.Equal("segregation_of_duties_conflict", refused.Primary.Code);
-        Assert.Contains("ACCOUNT.MAINTAIN with MANUAL_JOURNAL.POST", refused.Primary.Message, StringComparison.Ordinal);
+        Assert.Contains("ACCOUNT.CREATE with MANUAL_JOURNAL.POST", refused.Primary.Message, StringComparison.Ordinal);
         Assert.True(allowed.IsSuccess);
     }
 
@@ -45,8 +45,54 @@ public sealed class SegregationOfDutiesTests
             Assignments = [sameCompany.Assignments[0], sameCompany.Assignments[1] with { CompanyId = companyB }],
         };
 
-        Assert.True(SegregationOfDuties.CheckFixture(sameCompany, Conflicts).IsFailure);
-        Assert.True(SegregationOfDuties.CheckFixture(acrossCompanies, Conflicts).IsSuccess);
+        Assert.True(SegregationOfDuties.CheckFixture(sameCompany, PermissionCatalog.Definition).IsFailure);
+        Assert.True(SegregationOfDuties.CheckFixture(acrossCompanies, PermissionCatalog.Definition).IsSuccess);
+    }
+
+    [Fact]
+    public void R_SEC_02_D_70_a_pair_with_an_installation_scope_permission_is_refused_across_companies_while_two_company_scope_permissions_in_different_companies_stay_allowed()
+    {
+        Guid user = Guid.NewGuid();
+        Guid companyA = Guid.NewGuid();
+        Guid companyB = Guid.NewGuid();
+        RoleDefinition accounts = new(Guid.NewGuid(), Code.From("ACCOUNTS"), "Creates accounts", ["ACCOUNT.CREATE"]);
+        RoleDefinition post = new(Guid.NewGuid(), Code.From("POST"), "Posts journals", ["MANUAL_JOURNAL.POST"]);
+        RoleDefinition reopen = new(Guid.NewGuid(), Code.From("REOPEN"), "Reopens periods", ["FISCAL_PERIOD.REOPEN"]);
+        UserDefinition userDefinition = new(user, "subject", "Test", null, false, UserStatus.Active);
+        BusinessDate from = BusinessDate.Parse("2026-01-01");
+
+        IdentityFixtureDefinition installationPair = new([userDefinition], [accounts, post],
+        [
+            new RoleAssignmentDefinition(Guid.NewGuid(), user, accounts.Id, companyA, null, from, null),
+            new RoleAssignmentDefinition(Guid.NewGuid(), user, post.Id, companyB, null, from, null),
+        ]);
+        IdentityFixtureDefinition companyPair = new([userDefinition], [reopen, post],
+        [
+            new RoleAssignmentDefinition(Guid.NewGuid(), user, reopen.Id, companyA, null, from, null),
+            new RoleAssignmentDefinition(Guid.NewGuid(), user, post.Id, companyB, null, from, null),
+        ]);
+
+        Result refused = SegregationOfDuties.CheckFixture(installationPair, PermissionCatalog.Definition);
+        Assert.True(refused.IsFailure);
+        Assert.Equal("R-SEC-02", refused.Primary!.RuleId);
+        Assert.Contains("ACCOUNT.CREATE with MANUAL_JOURNAL.POST", refused.Primary.Message, StringComparison.Ordinal);
+        Assert.True(SegregationOfDuties.CheckFixture(companyPair, PermissionCatalog.Definition).IsSuccess);
+    }
+
+    [Theory]
+    [InlineData("ACCOUNT.CREATE")]
+    [InlineData("ACCOUNT.UPDATE")]
+    [InlineData("ACCOUNT.UNBLOCK")]
+    [InlineData("ACCOUNT.REACTIVATE")]
+    public void R_SEC_02_D_69_a_fixture_role_holding_a_new_account_pair_is_refused(string accountPermission)
+    {
+        RoleDefinition role = new(Guid.NewGuid(), Code.From("BOTH"), "Both sides", [accountPermission, "MANUAL_JOURNAL.POST"]);
+        IdentityFixtureDefinition fixture = new([], [role], []);
+
+        Result refused = SegregationOfDuties.CheckFixture(fixture, PermissionCatalog.Definition);
+
+        Assert.True(refused.IsFailure);
+        Assert.Contains($"{accountPermission} with MANUAL_JOURNAL.POST", refused.Primary!.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -54,7 +100,7 @@ public sealed class SegregationOfDutiesTests
     {
         IdentityFixtureDefinition fixture = Milestone1IdentityFixture.For(Milestone1OrganisationFixture.CompanyId);
 
-        Assert.True(SegregationOfDuties.CheckFixture(fixture, Conflicts).IsSuccess);
+        Assert.True(SegregationOfDuties.CheckFixture(fixture, PermissionCatalog.Definition).IsSuccess);
         // The clerk, the preparer, the settings administrator (RR-101) and, since milestone 2 step 3, the organisation administrator.
         Assert.Equal(4, fixture.Users.Count);
         Dictionary<Guid, RoleDefinition> roles = fixture.Roles.ToDictionary(role => role.Id);
@@ -73,10 +119,10 @@ public sealed class SegregationOfDutiesTests
         // Milestone 2 step 3: the organisation administrator holds the organisation commands and reads and nothing else; the clerk holds none of them.
         HashSet<string> organisationAdministrator = [.. fixture.Assignments.Where(a => a.UserId == Milestone1IdentityFixture.OrganisationAdministratorId).SelectMany(a => roles[a.RoleId].Permissions)];
         Assert.Equal(
-            ["CHART_OF_ACCOUNTS.CREATE", "CHART_OF_ACCOUNTS.READ", "CHART_OF_ACCOUNTS.UPDATE", "COMPANY.CREATE", "COMPANY.READ", "COMPANY.UPDATE", "SITE.CREATE", "SITE.READ", "SITE.UPDATE", "WAREHOUSE.CREATE", "WAREHOUSE.READ", "WAREHOUSE.UPDATE"],
+            ["ACCOUNT.BLOCK", "ACCOUNT.CREATE", "ACCOUNT.DEACTIVATE", "ACCOUNT.REACTIVATE", "ACCOUNT.READ", "ACCOUNT.UNBLOCK", "ACCOUNT.UPDATE", "CHART_OF_ACCOUNTS.CREATE", "CHART_OF_ACCOUNTS.READ", "CHART_OF_ACCOUNTS.UPDATE", "COMPANY.CREATE", "COMPANY.READ", "COMPANY.UPDATE", "SITE.CREATE", "SITE.READ", "SITE.UPDATE", "WAREHOUSE.CREATE", "WAREHOUSE.READ", "WAREHOUSE.UPDATE"],
             organisationAdministrator.Order(StringComparer.Ordinal));
         Assert.DoesNotContain(clerk, p => p.StartsWith("COMPANY.", StringComparison.Ordinal) && p != "COMPANY.READ");
-        Assert.DoesNotContain(clerk, p => p.StartsWith("SITE.", StringComparison.Ordinal) || p.StartsWith("WAREHOUSE.", StringComparison.Ordinal) || p.StartsWith("CHART_OF_ACCOUNTS.", StringComparison.Ordinal));
+        Assert.DoesNotContain(clerk, p => p.StartsWith("SITE.", StringComparison.Ordinal) || p.StartsWith("WAREHOUSE.", StringComparison.Ordinal) || p.StartsWith("CHART_OF_ACCOUNTS.", StringComparison.Ordinal) || p.StartsWith("ACCOUNT.", StringComparison.Ordinal));
         Assert.Equal(clerk.Where(p => p is not "INVENTORY_ADJUSTMENT.POST" and not "ITEM.CREATE").Order(), preparer.Order());
         Assert.All(fixture.Assignments, assignment => Assert.Null(assignment.SiteId));
         Assert.All(fixture.Assignments, assignment => Assert.Equal(Milestone1OrganisationFixture.CompanyId, assignment.CompanyId));

@@ -151,7 +151,7 @@ public sealed class CompanyPostingTests : IAsyncLifetime
         await paused.Task.WaitAsync(TimeSpan.FromSeconds(15), Ct);
         // Class 1b is held: the versioned UPDATE of class 1 waits on the row instead of failing or deadlocking (R-LED-08).
         Task<CommandReply> update = _host.PostAsync(OrganisationBodies.CompanyUpdate(Se01), Se01With(attribute, value), "cp-a-update", ifMatch: "\"1\"", cancellationToken: Ct);
-        await WaitForLockWaiterAsync();
+        await _host.WaitForLockWaiterAsync(Ct);
         Assert.False(update.IsCompleted);
         release.SetResult();
         CommandReply postedReply = await posting;
@@ -188,7 +188,7 @@ public sealed class CompanyPostingTests : IAsyncLifetime
         await paused.Task.WaitAsync(TimeSpan.FromSeconds(15), Ct);
         // The posting's FOR SHARE of class 1b waits behind the update's row lock and reads the committed row afterwards.
         Task<CommandReply> posting = PostAsync(draft, "cp-b-post");
-        await WaitForLockWaiterAsync();
+        await _host.WaitForLockWaiterAsync(Ct);
         Assert.False(posting.IsCompleted);
         release.SetResult();
         CommandReply updated = await update;
@@ -272,22 +272,6 @@ public sealed class CompanyPostingTests : IAsyncLifetime
         "taxRoundingLevel" => OrganisationBodies.Se01Update(taxRoundingLevel: value),
         _ => throw new ArgumentOutOfRangeException(nameof(attribute), attribute, null),
     };
-
-    /// <summary>Waits until a backend of the test database waits on a row lock, so the second command is proven to queue behind the first.</summary>
-    private async Task WaitForLockWaiterAsync()
-    {
-        for (int attempt = 0; attempt < 600; attempt++)
-        {
-            if ((long)(await _host.ScalarAsync("SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'", Ct))! > 0)
-            {
-                return;
-            }
-
-            await Task.Delay(TimeSpan.FromMilliseconds(25), Ct);
-        }
-
-        Assert.Fail("No backend waited on a lock within 15 seconds.");
-    }
 
     private async Task<Guid> CreateItemAsync(string number)
     {

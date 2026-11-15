@@ -12,6 +12,10 @@ namespace Themis.Kernel.Contracts.MasterData;
 /// stored uppercase; a duplicate is rejected with R-MD-05. Default sales and purchase units are not part of any
 /// command in milestone 1.
 /// </summary>
+[CommandRules("R-MD-05", "R-INV-02", "RR-45")]
+[CommandAudits("Item", "ItemCompany")]
+[CommandEvents("ITEM_CREATED", "ITEM_COMPANY_CREATED")]
+[CommandErrors("company_required", "description_required", "description_too_long", "net_weight_kg_negative", "net_weight_kg_precision", "sales_multiple_not_positive", "min_order_qty_not_positive", "value_out_of_range", "base_unit_unknown", "item_posting_group_unknown", "default_warehouse_unknown", "default_warehouse_other_company", "item_number_duplicate", "quantity_precision")]
 [Command("ITEM.CREATE")]
 public sealed record CreateItem(
     Guid CompanyId,

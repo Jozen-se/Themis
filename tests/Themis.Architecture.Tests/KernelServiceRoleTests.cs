@@ -22,7 +22,7 @@ public sealed class KernelServiceRoleTests : IClassFixture<ArchitectureFixture>
     private static readonly Type[] Resetting =
     [
         typeof(IOrganisationReader), typeof(ISettingsReader), typeof(IPostingService),
-        typeof(INumberSeriesService), typeof(IAccountResolver), typeof(IAccessControl),
+        typeof(INumberSeriesService), typeof(IAccountResolver), typeof(IAccessControl), typeof(IPostingRuleActivity),
     ];
 
     /// <summary>Excluded by the brief: only the pipeline calls them, between its own reset points.</summary>

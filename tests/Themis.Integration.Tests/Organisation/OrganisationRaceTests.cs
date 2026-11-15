@@ -6,8 +6,8 @@ namespace Themis.Integration.Tests.Organisation;
 /// <summary>
 /// RR-45 for the organisation commands (milestone 2 step 3 brief, Tests): two creates racing past the handler's
 /// duplicate check end with one row and the mapped R-MD-05 rejection stored for the loser, for each unique index
-/// behind the rule: the chart code, the company code, the organisation number per country, the site code per company
-/// and the warehouse code per company. The organisation create seam holds the first create after its checks while the
+/// behind the rule: the chart code, the company code, the organisation number per country, the site code per company,
+/// the warehouse code per company and, since step 4, the account number per chart. The organisation create seam holds the first create after its checks while the
 /// second commits (docs/development/test-seams.md).
 /// </summary>
 [Collection(PostgresTestGroup.Name)]
@@ -42,6 +42,7 @@ public sealed class OrganisationRaceTests : IAsyncLifetime
     [InlineData("organisation-number", "ux_company_country_organisation_number", "organisation_number_duplicate", "SELECT count(*) FROM kernel.company WHERE organisation_number_normalised = '7777777777'")]
     [InlineData("site", "ux_site_company_code", "site_code_duplicate", "SELECT count(*) FROM kernel.site WHERE code = 'RACE'")]
     [InlineData("warehouse", "ux_warehouse_company_code", "warehouse_code_duplicate", "SELECT count(*) FROM kernel.warehouse WHERE code = 'RACE'")]
+    [InlineData("account", "ux_account_chart_number", "account_number_duplicate", "SELECT count(*) FROM kernel.account WHERE account_number = 'RACE'")]
     public async Task RR_45_two_creates_racing_past_the_duplicate_check_end_with_one_row_and_the_mapped_R_MD_05_rejection_stored_for_the_loser(string which, string index, string code, string countSql)
     {
         (string route, object loserBody, object winnerBody, string heldEntity, string heldCode) = which switch
@@ -49,6 +50,7 @@ public sealed class OrganisationRaceTests : IAsyncLifetime
             "chart" => (OrganisationBodies.Charts, new { code = "RACE", name = "Race chart" }, new { code = "race", name = "Race chart" }, "ChartOfAccounts", "RACE"),
             "company-code" => (OrganisationBodies.Companies, OrganisationBodies.Company("RACE", organisationNumber: "111111-1111", vatNumber: null), OrganisationBodies.Company("race", organisationNumber: "222222-2222", vatNumber: null), "Company", "RACE"),
             "organisation-number" => (OrganisationBodies.Companies, OrganisationBodies.Company("RACE-A", organisationNumber: "777777-7777", vatNumber: null), OrganisationBodies.Company("RACE-B", organisationNumber: "7777 777 777", vatNumber: null), "Company", "RACE-A"),
+            "account" => (AccountTestData.Accounts, AccountTestData.Create("RACE"), AccountTestData.Create("race"), "Account", "RACE"),
             "site" => (OrganisationBodies.Sites, new { companyId = Milestone1OrganisationFixture.CompanyId, code = "RACE", name = "Race site" }, new { companyId = Milestone1OrganisationFixture.CompanyId, code = "race", name = "Race site" }, "Site", "RACE"),
             _ => (OrganisationBodies.Warehouses, new { companyId = Milestone1OrganisationFixture.CompanyId, siteId = Milestone1OrganisationFixture.SiteId, code = "RACE", name = "Race warehouse" }, new { companyId = Milestone1OrganisationFixture.CompanyId, siteId = Milestone1OrganisationFixture.SiteId, code = "race", name = "Race warehouse" }, "Warehouse", "RACE"),
         };

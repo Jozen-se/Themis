@@ -1,7 +1,10 @@
+using System.Reflection;
+using System.Text.Json.Serialization.Metadata;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
 using Themis.Kernel.Contracts.Commands;
+using Themis.Kernel.Contracts.Security;
 using Themis.Kernel.Pipeline.Dispatch;
 using Themis.Kernel.Pipeline.Http;
 
@@ -9,7 +12,10 @@ namespace Themis.Kernel.Pipeline.OpenApi;
 
 /// <summary>
 /// Keeps <c>expectedVersion</c> out of the request schema of a versioned command: the version travels in the
-/// <c>If-Match</c> header and the endpoint overwrites anything the body supplies (R-API-02).
+/// <c>If-Match</c> header and the endpoint overwrites anything the body supplies (R-API-02). Keeps the members a scoped
+/// command computes (<see cref="RequestHash.ComputedMembers"/>, today <c>scope</c>) out of its request schema too: they
+/// come from the command's own data and are never read from the body. The same list keeps them out of the fingerprint
+/// (RR-60), and the JSON names come from the serializer's own metadata.
 /// </summary>
 internal sealed class CommandSchemaTransformer : IOpenApiSchemaTransformer
 {
@@ -22,6 +28,18 @@ internal sealed class CommandSchemaTransformer : IOpenApiSchemaTransformer
         {
             schema.Properties?.Remove(CommandEndpoints.ExpectedVersionProperty);
             schema.Required?.Remove(CommandEndpoints.ExpectedVersionProperty);
+        }
+
+        if (typeof(IScopedRequest).IsAssignableFrom(context.JsonTypeInfo.Type))
+        {
+            foreach (JsonPropertyInfo member in context.JsonTypeInfo.Properties)
+            {
+                if (member.AttributeProvider is PropertyInfo property && RequestHash.ComputedMembers.Contains(property.Name))
+                {
+                    schema.Properties?.Remove(member.Name);
+                    schema.Required?.Remove(member.Name);
+                }
+            }
         }
 
         return Task.CompletedTask;
@@ -75,8 +93,8 @@ internal sealed class CommandOperationTransformer : IOpenApiOperationTransformer
         return Task.CompletedTask;
     }
 
-    /// <summary>The {name} tokens of a route pattern, in order.</summary>
-    private static IEnumerable<string> RouteParameters(string? relativePath)
+    /// <summary>The {name} tokens of a route pattern, in order, each without its constraint.</summary>
+    internal static IEnumerable<string> RouteParameters(string? relativePath)
     {
         if (relativePath is null)
         {
@@ -107,4 +125,56 @@ internal sealed class CommandOperationTransformer : IOpenApiOperationTransformer
         Description = description,
         Schema = new OpenApiSchema { Type = JsonSchemaType.String },
     };
+}
+
+/// <summary>
+/// Describes each command's request body as the endpoint reads it: a body member that names a route value is not part of
+/// the body, because the route wins over the body (RR-73), so it is removed from the body schema, and a body left with
+/// no member is optional. It runs on the document, not per schema or operation, because only the paths know their route
+/// bindings.
+/// </summary>
+internal sealed class CommandRequestBodyTransformer : IOpenApiDocumentTransformer
+{
+    public Task TransformAsync(OpenApiDocument document, OpenApiDocumentTransformerContext context, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        IDictionary<string, IOpenApiSchema>? schemas = document.Components?.Schemas;
+        if (document.Paths is null || schemas is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        foreach ((string path, IOpenApiPathItem item) in document.Paths)
+        {
+            if (item.Operations is null
+                || !item.Operations.TryGetValue(HttpMethod.Post, out OpenApiOperation? operation)
+                || operation.RequestBody is not OpenApiRequestBody body
+                || body.Content is null
+                || !body.Content.TryGetValue("application/json", out OpenApiMediaType? media)
+                || media.Schema is not OpenApiSchemaReference reference
+                || reference.Reference.Id is not { } id
+                || !schemas.TryGetValue(id, out IOpenApiSchema? target)
+                || target is not OpenApiSchema schema)
+            {
+                continue;
+            }
+
+            HashSet<string> route = new(CommandOperationTransformer.RouteParameters(path), StringComparer.OrdinalIgnoreCase);
+            if (schema.Properties is not null)
+            {
+                foreach (string property in schema.Properties.Keys.Where(route.Contains).ToList())
+                {
+                    schema.Properties.Remove(property);
+                    schema.Required?.Remove(property);
+                }
+            }
+
+            if (schema.Properties is null || schema.Properties.Count == 0)
+            {
+                body.Required = false;
+            }
+        }
+
+        return Task.CompletedTask;
+    }
 }

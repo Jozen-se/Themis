@@ -1,4 +1,5 @@
 using Themis.Kernel.Contracts.Documents;
+using Themis.Kernel.Contracts.Organisation;
 using Themis.Kernel.Contracts.Persistence;
 using Themis.Kernel.Contracts.Posting;
 using Themis.Kernel.Primitives;
@@ -59,6 +60,19 @@ internal static class LedgerStore
         object? minorUnits = await unitOfWork.ScalarAsync(DatabaseRole.Kernel, "SELECT minor_units FROM kernel.currency WHERE code = @code", new Dictionary<string, object?> { ["code"] = currency }, cancellationToken);
         return minorUnits is int units ? new CompanyTerms(currency, units, mode) : throw new InvalidOperationException($"Currency {currency} of company {companyId} has no row (fk_company_base_currency).");
     }
+
+    /// <summary>
+    /// The account lock class (D-69, R-LED-08): after resolution and just before the number series, the accounts the
+    /// posting resolved, FOR SHARE on the account table alone, in id order, in one statement. The status read from this
+    /// locked result decides (R-PP-02): an ACCOUNT.BLOCK or DEACTIVATE that holds the row makes the posting wait and
+    /// then see its outcome, and one that comes later waits until the posting commits.
+    /// </summary>
+    public static Task<IReadOnlyList<(Guid Id, MasterDataStatus Status)>> LockAccountsAsync(IUnitOfWork unitOfWork, IReadOnlyList<Guid> accountIds, CancellationToken cancellationToken) =>
+        unitOfWork.QueryAsync(DatabaseRole.Kernel,
+            "SELECT id, status FROM kernel.account WHERE id = ANY(@ids) ORDER BY id FOR SHARE",
+            new Dictionary<string, object?> { ["ids"] = accountIds.Distinct().Order().ToArray() },
+            reader => (reader.GetGuid(0), Enum.Parse<MasterDataStatus>(reader.GetString(1))),
+            cancellationToken);
 
     /// <summary>Lock class 2: insert the missing ItemCostState rows in one ordered statement, then lock them all in one SELECT ... ORDER BY item_id FOR UPDATE.</summary>
     public static async Task<IReadOnlyList<CostStateRow>> LockCostStatesAsync(IUnitOfWork unitOfWork, Guid companyId, IReadOnlyList<Guid> itemIds, DateTimeOffset now, UserId by, CancellationToken cancellationToken)

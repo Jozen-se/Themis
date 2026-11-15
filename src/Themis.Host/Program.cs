@@ -78,6 +78,9 @@ public sealed class Program
         app.MapCommandRoutes(OrganisationRoutes.Commands);
         app.MapQuery<GetChartOfAccounts, ChartOfAccountsView>(OrganisationRoutes.ChartOfAccounts);
         app.MapQuery<ListChartsOfAccounts, IReadOnlyList<ChartOfAccountsView>>(OrganisationRoutes.ChartsOfAccounts);
+        app.MapCommandRoutes(AccountRoutes.Commands);
+        app.MapQuery<GetAccount, AccountView>(AccountRoutes.Account);
+        app.MapQuery<ListAccounts, IReadOnlyList<AccountView>>(AccountRoutes.ChartAccounts);
         app.MapQuery<GetSite, SiteInfo>(OrganisationRoutes.Site);
         app.MapQuery<ListSites, IReadOnlyList<SiteInfo>>(OrganisationRoutes.CompanySites);
         app.MapQuery<GetWarehouse, WarehouseView>(OrganisationRoutes.Warehouse);

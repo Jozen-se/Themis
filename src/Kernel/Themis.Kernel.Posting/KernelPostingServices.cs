@@ -10,6 +10,8 @@ internal static class KernelPostingServices
     public static IServiceCollection AddKernelPosting(this IServiceCollection services)
     {
         services.AddSingleton<IAccountResolver, PostingProfileAccountResolver>();
+        // Step 4 (D-69): the one active-rule definition, for ACCOUNT.BLOCK and ACCOUNT.DEACTIVATE (R-PP-05) and later VALIDATE_POSTING_PROFILE.
+        services.AddSingleton<IPostingRuleActivity, PostingRuleActivity>();
         services.TryAddSingleton<IPostingHook, NoPostingHook>();
         services.AddSingleton<IPostingService, InventoryPostingService>();
         return services;

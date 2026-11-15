@@ -37,12 +37,13 @@ internal sealed class CreateWarehouseHandler : ICommandHandler<CreateWarehouse, 
         SiteInfo? site = await OrganisationStore.FindSiteAsync(unitOfWork, command.SiteId, companyId: null, cancellationToken);
         if (site is null)
         {
-            return Error.Validation(OrganisationErrors.SiteUnknown, $"Site {command.SiteId} does not exist.");
+            // RR-133: the 400 names its field, as every other stored 400 of the organisation commands does.
+            return Error.Validation(OrganisationErrors.SiteUnknown, $"Site {command.SiteId} does not exist.", details: OrganisationValidation.Field("siteId"));
         }
 
         if (site.CompanyId != command.CompanyId)
         {
-            return Error.Validation(OrganisationErrors.SiteOtherCompany, $"Site {command.SiteId} belongs to another company than {command.CompanyId}.");
+            return Error.Validation(OrganisationErrors.SiteOtherCompany, $"Site {command.SiteId} belongs to another company than {command.CompanyId}.", details: OrganisationValidation.Field("siteId"));
         }
 
         // R-MD-05: the warehouse code is unique per company (Specification, Warehouse).

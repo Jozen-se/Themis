@@ -33,6 +33,26 @@ internal static class KernelOrganisationServices
         services.AddScoped<ICommandHandler<CreateWarehouse, WarehouseView>, CreateWarehouseHandler>();
         services.AddScoped<ICommandHandler<UpdateWarehouse, WarehouseView>, UpdateWarehouseHandler>();
 
+        // Milestone 2 step 4 (D-69): the account commands, installation scope and Sensitive.
+        services.AddScoped<ICommandHandler<CreateAccount, AccountView>, CreateAccountHandler>();
+        services.AddScoped<ICommandHandler<UpdateAccount, AccountView>, UpdateAccountHandler>();
+        services.AddScoped<ICommandHandler<BlockAccount, AccountView>, BlockAccountHandler>();
+        services.AddScoped<ICommandHandler<UnblockAccount, AccountView>, UnblockAccountHandler>();
+        services.AddScoped<ICommandHandler<DeactivateAccount, AccountView>, DeactivateAccountHandler>();
+        services.AddScoped<ICommandHandler<ReactivateAccount, AccountView>, ReactivateAccountHandler>();
+        services.AddSingleton<ICommandValidator<CreateAccount>, CreateAccountValidator>();
+        services.AddSingleton<ICommandValidator<UpdateAccount>, UpdateAccountValidator>();
+        services.AddSingleton<ICommandValidator<BlockAccount>, BlockAccountValidator>();
+        services.AddSingleton<AccountScopeResolver>();
+        services.AddSingleton<IScopeResolver<UpdateAccount>>(provider => provider.GetRequiredService<AccountScopeResolver>());
+        services.AddSingleton<IScopeResolver<BlockAccount>>(provider => provider.GetRequiredService<AccountScopeResolver>());
+        services.AddSingleton<IScopeResolver<UnblockAccount>>(provider => provider.GetRequiredService<AccountScopeResolver>());
+        services.AddSingleton<IScopeResolver<DeactivateAccount>>(provider => provider.GetRequiredService<AccountScopeResolver>());
+        services.AddSingleton<IScopeResolver<ReactivateAccount>>(provider => provider.GetRequiredService<AccountScopeResolver>());
+        services.AddSingleton(new UniqueConstraintRule("ux_account_chart_number", OrganisationErrors.RuleUnique, OrganisationErrors.AccountNumberDuplicate, "The account number already exists in the chart."));
+        services.AddScoped<IQueryHandler<GetAccount, AccountView>, GetAccountHandler>();
+        services.AddScoped<IQueryHandler<ListAccounts, IReadOnlyList<AccountView>>, ListAccountsHandler>();
+
         services.AddSingleton<ICommandValidator<CreateChartOfAccounts>, CreateChartOfAccountsValidator>();
         services.AddSingleton<ICommandValidator<UpdateChartOfAccounts>, UpdateChartOfAccountsValidator>();
         services.AddSingleton<ICommandValidator<CreateCompany>, CreateCompanyValidator>();

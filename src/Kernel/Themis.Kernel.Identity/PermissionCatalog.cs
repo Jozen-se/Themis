@@ -35,11 +35,17 @@ internal static class PermissionCatalog
     public const string WarehouseCreate = "WAREHOUSE.CREATE";
     public const string WarehouseUpdate = "WAREHOUSE.UPDATE";
     public const string WarehouseRead = "WAREHOUSE.READ";
+    public const string AccountCreate = "ACCOUNT.CREATE";
+    public const string AccountUpdate = "ACCOUNT.UPDATE";
+    public const string AccountBlock = "ACCOUNT.BLOCK";
+    public const string AccountUnblock = "ACCOUNT.UNBLOCK";
+    public const string AccountDeactivate = "ACCOUNT.DEACTIVATE";
+    public const string AccountReactivate = "ACCOUNT.REACTIVATE";
+    public const string AccountRead = "ACCOUNT.READ";
 
     // The specification's v1 conflict pairs name these commands of later steps and phases; they are pairs, not permissions, until their commands exist.
     public const string CustomerSetCreditLimit = "CUSTOMER.SET_CREDIT_LIMIT";
     public const string SalesOrderApproveCredit = "SALES_ORDER.APPROVE_CREDIT";
-    public const string AccountMaintain = "ACCOUNT.MAINTAIN";
     public const string ManualJournalPost = "MANUAL_JOURNAL.POST";
     public const string FiscalPeriodReopen = "FISCAL_PERIOD.REOPEN";
 
@@ -56,28 +62,40 @@ internal static class PermissionCatalog
             new(InventoryAdjustmentRead, PermissionRiskLevel.Normal),
             // Step 2 brief (milestone 2): SETTING.SET and SETTING.CLEAR are Sensitive; an installation value is changed by a holder
             // with a company-wide assignment in any company (RR-52), so access reviews treat them as installation-wide.
-            new(SettingSet, PermissionRiskLevel.Sensitive),
-            new(SettingClear, PermissionRiskLevel.Sensitive),
-            new(SettingRead, PermissionRiskLevel.Normal),
+            new(SettingSet, PermissionRiskLevel.Sensitive, InstallationScope: true),
+            new(SettingClear, PermissionRiskLevel.Sensitive, InstallationScope: true),
+            new(SettingRead, PermissionRiskLevel.Normal, InstallationScope: true),
             // Step 3 brief (milestone 2): COMPANY.CREATE, COMPANY.UPDATE and the chart header commands are Sensitive; COMPANY.CREATE
             // and the chart commands act installation-wide (RR-52), as access reviews treat SETTING.SET. The site and warehouse
             // commands and the four read permissions are Normal.
-            new(CompanyCreate, PermissionRiskLevel.Sensitive),
+            new(CompanyCreate, PermissionRiskLevel.Sensitive, InstallationScope: true),
             new(CompanyUpdate, PermissionRiskLevel.Sensitive),
-            new(ChartOfAccountsCreate, PermissionRiskLevel.Sensitive),
-            new(ChartOfAccountsUpdate, PermissionRiskLevel.Sensitive),
-            new(ChartOfAccountsRead, PermissionRiskLevel.Normal),
+            new(ChartOfAccountsCreate, PermissionRiskLevel.Sensitive, InstallationScope: true),
+            new(ChartOfAccountsUpdate, PermissionRiskLevel.Sensitive, InstallationScope: true),
+            new(ChartOfAccountsRead, PermissionRiskLevel.Normal, InstallationScope: true),
             new(SiteCreate, PermissionRiskLevel.Normal),
             new(SiteUpdate, PermissionRiskLevel.Normal),
             new(SiteRead, PermissionRiskLevel.Normal),
             new(WarehouseCreate, PermissionRiskLevel.Normal),
             new(WarehouseUpdate, PermissionRiskLevel.Normal),
             new(WarehouseRead, PermissionRiskLevel.Normal),
+            // Step 4 brief (milestone 2; D-69): the six account commands are installation-scope and Sensitive, ACCOUNT.READ is Normal.
+            new(AccountCreate, PermissionRiskLevel.Sensitive, InstallationScope: true),
+            new(AccountUpdate, PermissionRiskLevel.Sensitive, InstallationScope: true),
+            new(AccountBlock, PermissionRiskLevel.Sensitive, InstallationScope: true),
+            new(AccountUnblock, PermissionRiskLevel.Sensitive, InstallationScope: true),
+            new(AccountDeactivate, PermissionRiskLevel.Sensitive, InstallationScope: true),
+            new(AccountReactivate, PermissionRiskLevel.Sensitive, InstallationScope: true),
+            new(AccountRead, PermissionRiskLevel.Normal, InstallationScope: true),
         ],
         [
             // The specification's example conflict pairs for v1 (R-SEC-02), each stored with its codes in order.
             Pair(CustomerSetCreditLimit, SalesOrderApproveCredit),
-            Pair(AccountMaintain, ManualJournalPost),
+            // D-69: ACCOUNT.MAINTAIN with MANUAL_JOURNAL.POST is replaced by these four; a migration deletes its row (it was never a permission).
+            Pair(AccountCreate, ManualJournalPost),
+            Pair(AccountUpdate, ManualJournalPost),
+            Pair(AccountUnblock, ManualJournalPost),
+            Pair(AccountReactivate, ManualJournalPost),
             Pair(FiscalPeriodReopen, ManualJournalPost),
         ]);
 
